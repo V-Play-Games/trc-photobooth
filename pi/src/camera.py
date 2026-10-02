@@ -383,6 +383,7 @@ class PiCamera(BaseCamera):
         self.target_fps = target_fps
         self.quality = quality
         self._picam2 = None
+        self._last_dark_warn_time = 0.0
 
     @property
     def backend_name(self) -> str:
@@ -396,13 +397,26 @@ class PiCamera(BaseCamera):
         from picamera2 import Picamera2
 
         self._picam2 = Picamera2()
-        preview_config = self._picam2.create_preview_configuration(
-            main={"size": (self.width, self.height), "format": "RGB888"},
+        # Use create_video_configuration (NOT create_preview_configuration).
+        # create_preview_configuration attempts to hook DRM/KMS HDMI display scanout,
+        # which can freeze headless web servers or blank the screen!
+        video_config = self._picam2.create_video_configuration(
+            main={"size": (self.width, self.height), "format": "BGR888"},
             controls={"FrameRate": self.target_fps},
         )
-        self._picam2.configure(preview_config)
+        self._picam2.configure(video_config)
         self._picam2.start()
-        logger.info("picamera2 hardware initialized successfully")
+        logger.info("picamera2 hardware started. Warming up sensor AGC/AEC...")
+
+        # Discard initial calibration frames so Auto-Exposure (AEC) and Auto-Gain (AGC)
+        # can adapt to ambient lighting (OV5647 starts with 0 exposure)
+        for _ in range(12):
+            try:
+                self._picam2.capture_array("main")
+            except Exception:
+                pass
+            time.sleep(0.04)
+        logger.info("picamera2 sensor warmup complete")
 
     def _capture_loop(self) -> None:
         try:
@@ -413,6 +427,13 @@ class PiCamera(BaseCamera):
             return
 
         interval = 1.0 / max(1, self.target_fps)
+        cv2 = None
+        try:
+            import cv2 as cv_mod
+            cv2 = cv_mod
+        except ImportError:
+            pass
+
         while self._running:
             loop_start = time.time()
             self._frame_count += 1
@@ -420,10 +441,33 @@ class PiCamera(BaseCamera):
             try:
                 # Capture frame array from picamera2
                 frame_arr = self._picam2.capture_array("main")
-                img = Image.fromarray(frame_arr)
-                buf = io.BytesIO()
-                img.save(buf, format="JPEG", quality=self.quality)
-                jpeg_bytes = buf.getvalue()
+
+                # Diagnostic check for pitch-black frames (e.g. lens cap or cable fault)
+                mean_brightness = float(frame_arr.mean()) if hasattr(frame_arr, "mean") else 100.0
+                now = time.time()
+                if mean_brightness < 2.0 and (now - self._last_dark_warn_time) > 5.0:
+                    logger.warning(
+                        "Captured frame is completely dark (mean brightness %.1f/255). "
+                        "If you see black, verify room lighting, lens cap, or ribbon cable.",
+                        mean_brightness,
+                    )
+                    self._last_dark_warn_time = now
+
+                # Fast encoding
+                if cv2 is not None:
+                    # frame_arr is BGR888
+                    encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), int(self.quality)]
+                    ret, encimg = cv2.imencode(".jpg", frame_arr, encode_param)
+                    if ret:
+                        jpeg_bytes = encimg.tobytes()
+                    else:
+                        raise RuntimeError("cv2.imencode failed on picamera2 frame")
+                else:
+                    # Fallback to Pillow
+                    img = Image.fromarray(frame_arr[..., ::-1])  # BGR to RGB
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=self.quality)
+                    jpeg_bytes = buf.getvalue()
 
                 with self._lock:
                     self._latest_jpeg = jpeg_bytes
@@ -431,7 +475,7 @@ class PiCamera(BaseCamera):
                 self._update_fps()
             except Exception as exc:
                 logger.error("Error capturing frame from picamera2: %s", exc)
-                time.sleep(0.1)
+                time.sleep(0.05)
 
             elapsed = time.time() - loop_start
             sleep_time = interval - elapsed
@@ -449,10 +493,19 @@ class PiCamera(BaseCamera):
         if not self._picam2:
             raise RuntimeError("Camera hardware not active")
         capture_config = self._picam2.create_still_configuration(
-            main={"size": (settings.capture_width, settings.capture_height), "format": "RGB888"}
+            main={"size": (settings.capture_width, settings.capture_height), "format": "BGR888"}
         )
         frame_arr = self._picam2.capture_array(capture_config)
-        img = Image.fromarray(frame_arr)
+        try:
+            import cv2
+            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), int(settings.capture_quality)]
+            ret, encimg = cv2.imencode(".jpg", frame_arr, encode_param)
+            if ret:
+                return encimg.tobytes()
+        except ImportError:
+            pass
+
+        img = Image.fromarray(frame_arr[..., ::-1])
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=settings.capture_quality)
         return buf.getvalue()

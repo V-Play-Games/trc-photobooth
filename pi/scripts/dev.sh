@@ -19,10 +19,16 @@ fi
 export PHOTOBOOTH_DEBUG=true
 export PYTHONPATH="${PI_DIR}"
 
+MY_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+
 echo "=========================================================="
 echo " Starting TRC Photo Booth Pi Server (Dev Mode)"
-echo " Open http://localhost:8000/ to view live camera monitor"
-echo " WebSocket feed: ws://localhost:8000/ws/feed"
+echo " Open in browser:"
+echo "   Local:   http://localhost:8000/"
+if [ -n "${MY_IP}" ]; then
+  echo "   Network: http://${MY_IP}:8000/"
+fi
+echo "   WebSocket: ws://${MY_IP:-localhost}:8000/ws/feed"
 echo "=========================================================="
 
 exec "${PI_DIR}/.venv/bin/uvicorn" src.main:app --host 0.0.0.0 --port 8000 --reload
