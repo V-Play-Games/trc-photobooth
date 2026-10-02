@@ -155,92 +155,47 @@ Bidirectional WebSocket carrying both video frames and control messages.
 
 ---
 
-## 5. Project Structure
+## 5. Project Structure (Monorepo)
 
 ```
 trc-photobooth/
-├── roadmap.md                  # This file
+├── roadmap.md                  # Prototype roadmap & architecture spec
+├── .gitignore                  # Monorepo git ignore rules
 │
-├── pi-server/                  # Raspberry Pi: camera + server (Python)
-│   ├── pyproject.toml          # Dependencies: fastapi, uvicorn, picamera2, pillow, imageio
+├── pi/                         # Raspberry Pi: Camera capture & FastAPI WebSocket server
+│   ├── pyproject.toml          # Package spec & dependencies
+│   ├── requirements.txt        # Frozen Python dependencies
+│   ├── README.md               # Pi server docs & hardware setup
 │   ├── src/
 │   │   ├── main.py             # FastAPI app entry point, lifespan, static file serving
-│   │   ├── camera.py           # Camera manager (picamera2 wrapper, singleton)
-│   │   ├── capture.py          # Capture logic: single frame, GIF burst
-│   │   ├── streamer.py         # WebSocket streaming hub (fan-out to clients)
+│   │   ├── camera.py           # Camera manager (picamera2 + MockCamera fallback)
+│   │   ├── streamer.py         # WebSocket streaming hub (fan-out & backpressure)
+│   │   ├── models.py           # Pydantic models for status & messages
+│   │   ├── config.py           # Settings with env variable overrides
 │   │   ├── routes/
-│   │   │   ├── ws.py           # WebSocket endpoint handlers
-│   │   │   ├── api.py          # REST API routes
+│   │   │   ├── ws.py           # /ws/feed WebSocket endpoint
+│   │   │   ├── api.py          # /api/status, /api/health, /api/config, /api/snapshot
 │   │   │   └── __init__.py
-│   │   ├── models.py           # Pydantic models for API messages
-│   │   └── config.py           # Settings (resolution, fps, quality defaults)
+│   │   └── static/
+│   │       └── index.html      # Phase 1 live feed monitor & HUD (also /test.html)
 │   ├── tests/
-│   │   ├── test_camera_mock.py # Tests with mocked camera (runs off-Pi)
-│   │   └── test_api.py         # API endpoint tests
+│   │   ├── test_camera_mock.py # Camera capture & JPEG encoding unit tests
+│   │   └── test_api.py         # API routes & WebSocket streaming tests
 │   └── scripts/
-│       ├── install.sh          # Pi setup script (deps, systemd service)
-│       └── dev.sh              # Dev mode launcher
+│       ├── install.sh          # Raspberry Pi OS system & libcamera installer
+│       └── dev.sh              # Local development launcher
 │
-├── web-client/                 # React + TypeScript web app
+├── web/                        # React + TypeScript web app (Vite)
 │   ├── package.json
 │   ├── vite.config.ts
 │   ├── tsconfig.json
+│   ├── README.md
 │   ├── index.html
-│   ├── src/
-│   │   ├── main.tsx            # Entry point
-│   │   ├── App.tsx             # Main app layout
-│   │   ├── index.css           # Design system, global styles
-│   │   ├── hooks/
-│   │   │   ├── useWebSocket.ts # WebSocket connection + reconnect logic
-│   │   │   └── useFeed.ts     # Feed state management (frames, status)
-│   │   ├── components/
-│   │   │   ├── LivePreview.tsx  # Canvas-based live feed display + filter overlay
-│   │   │   ├── FilterBar.tsx   # Filter selection strip
-│   │   │   ├── CaptureButton.tsx # Trigger capture / GIF
-│   │   │   ├── Countdown.tsx   # 3-2-1 countdown overlay
-│   │   │   ├── Gallery.tsx     # Recent captures grid
-│   │   │   └── PhotoCard.tsx   # Individual capture card (download, share)
-│   │   ├── filters/
-│   │   │   ├── index.ts        # Filter registry
-│   │   │   └── presets.ts      # Filter definitions (CSS + Canvas implementations)
-│   │   └── utils/
-│   │       ├── canvas.ts       # Canvas filter application for capture baking
-│   │       └── download.ts     # Save-to-device helper
-│   └── public/
-│       └── favicon.svg
+│   └── src/                    # Components, hooks, filter engine (Phase 3 target)
 │
-├── android-app/                # Kotlin + Jetpack Compose Android app
-│   ├── app/
-│   │   └── src/main/
-│   │       ├── java/com/trc/photobooth/
-│   │       │   ├── MainActivity.kt
-│   │       │   ├── ui/
-│   │       │   │   ├── screens/
-│   │       │   │   │   ├── LiveScreen.kt       # Live preview + controls
-│   │       │   │   │   ├── GalleryScreen.kt    # Captured photos grid
-│   │       │   │   │   └── SettingsScreen.kt   # Server IP, preferences
-│   │       │   │   ├── components/
-│   │       │   │   │   ├── LiveFeed.kt         # Bitmap rendering composable
-│   │       │   │   │   ├── FilterStrip.kt      # Horizontal filter picker
-│   │       │   │   │   ├── CaptureControls.kt  # Photo + GIF buttons
-│   │       │   │   │   └── CountdownOverlay.kt # 3-2-1 animation
-│   │       │   │   └── theme/
-│   │       │   │       ├── Theme.kt
-│   │       │   │       ├── Color.kt
-│   │       │   │       └── Type.kt
-│   │       │   ├── data/
-│   │       │   │   ├── WebSocketClient.kt      # OkHttp WebSocket wrapper
-│   │       │   │   ├── PhotoBoothRepository.kt # State + API coordination
-│   │       │   │   └── models/
-│   │       │   │       └── Messages.kt         # JSON message models
-│   │       │   ├── filters/
-│   │       │   │   ├── FilterEngine.kt         # ColorMatrix-based filter application
-│   │       │   │   └── Presets.kt              # Filter definitions (matching web)
-│   │       │   └── util/
-│   │       │       ├── BitmapUtils.kt
-│   │       │       └── NetworkDiscovery.kt     # mDNS/NSD service discovery
-│   │       └── res/
-│   └── build.gradle.kts
+├── app/                        # Android App (Kotlin + Jetpack Compose)
+│   ├── README.md               # Android architecture & planned modules (Phase 4 target)
+│   └── app/                    # Compose screens, OkHttp WebSocket, ColorMatrix filters
 │
 └── docs/
     ├── pi-setup.md             # Raspberry Pi hardware + OS setup guide
@@ -251,37 +206,36 @@ trc-photobooth/
 
 ## 6. Prototype Phases
 
-### Phase 1: Pi Camera → WebSocket Stream (Days 1-3)
+### Phase 1: Pi Camera → WebSocket Stream (Days 1-3) — COMPLETED ✅
 
 **Goal:** Pi captures camera frames and streams them over WebSocket. A
-bare-bones HTML page (no React yet) shows the live feed.
+dark-mode live feed monitor interface (`index.html` / `test.html`) displays the stream.
 
 **Tasks:**
-- [ ] Set up Pi Python project (`pyproject.toml`, virtual env)
-- [ ] Implement `camera.py` — picamera2 wrapper
-  - Initialize camera with preview config (640×480)
-  - Continuous capture loop in background thread
-  - JPEG encoding with configurable quality
-- [ ] Implement `streamer.py` — WebSocket fan-out hub
-  - Maintain set of connected clients
-  - Broadcast each JPEG frame to all clients as binary message
-  - Handle client connect/disconnect gracefully
-  - Backpressure: skip frames for slow clients
-- [ ] Implement `main.py` — FastAPI app
-  - WebSocket endpoint at `/ws/feed`
-  - Basic health check at `/api/status`
-  - CORS middleware for dev
-- [ ] Create a minimal test HTML page (`test.html`)
-  - Connect WebSocket, render frames to `<canvas>`
-  - Display FPS counter
-- [ ] **Test on Pi:** Validate 15fps streaming to 2-3 browser tabs
+- [x] Set up Pi Python project (`pyproject.toml`, virtual env, `requirements.txt`)
+- [x] Implement `camera.py` — `picamera2` wrapper with automatic `MockCamera` fallback
+  - Hardware camera setup for official Pi Camera Module v2/v3
+  - Animated synthetic test pattern generator with timestamp, frame counter, crosshairs, and color bars
+  - Continuous capture loop in background thread with smooth frame pacing
+  - In-memory JPEG encoding with configurable quality
+- [x] Implement `streamer.py` — WebSocket fan-out hub
+  - Zero-bloat client queue (capacity 1) dropping stale frames on slow WiFi
+  - Broadcast loop delivering binary JPEG frames to all active clients
+  - Graceful connect/disconnect lifecycle and error recovery
+- [x] Implement `main.py` — FastAPI async server
+  - Lifespan management for camera and streamer background workers
+  - `/ws/feed` binary WebSocket stream + ping/pong support
+  - `/api/status`, `/api/health`, `/api/config`, `/api/snapshot` REST routes
+  - CORS middleware enabled
+- [x] Create live feed monitor interface (`src/static/index.html` & `/test.html`)
+  - HTML5 `<canvas>` rendering binary JPEG blobs via `createImageBitmap`
+  - Real-time HUD: client render FPS, server camera FPS, bandwidth, resolution
+  - Controls: Pause/Resume, Toggle framing guides, Instant snapshot download, Fullscreen
+  - Telemetry card: dynamic sliders for target FPS and JPEG quality
+- [x] Test suite: 8 automated unit & integration tests passing (`pytest pi/tests`)
+- [x] Developer scripts (`scripts/dev.sh` and `scripts/install.sh`)
 
-> [!IMPORTANT]
-> **Dev without a Pi:** Use `camera.py` with a mock mode that reads from
-> webcam (`cv2.VideoCapture(0)`) or generates synthetic frames. This lets you
-> develop the server and clients on any machine.
-
-**Deliverable:** Open `http://<pi-ip>:8000/test.html` → see live camera feed.
+**Deliverable Status:** ✅ Operational at `http://<pi-ip>:8000/` and `http://<pi-ip>:8000/test.html`. Tested and verified.
 
 ---
 
@@ -452,28 +406,29 @@ All filters are defined once and implemented on both web and Android.
 
 ```bash
 # Clone & setup
-cd pi-server
-python -m venv .venv
-source .venv/bin/activate
-pip install fastapi uvicorn pillow imageio websockets
+cd pi
+./scripts/dev.sh
 
-# On actual Pi, also:
-pip install picamera2
-
-# Run in dev mode (mock camera on non-Pi machines)
-MOCK_CAMERA=1 uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+# On actual Pi:
+./scripts/install.sh
+./scripts/dev.sh
 ```
 
 ### Web Development
 
 ```bash
-cd web-client
+cd web
 npm install
-npm run dev          # Vite dev server on :5173, proxy API to Pi
-npm run build        # Production build → ../pi-server/static/
+npm run dev          # Vite dev server on :5173
+npm run build        # Production build → dist/
 ```
 
 ### Android Development
+
+```bash
+cd app
+# Open in Android Studio (Gradle sync & build)
+```
 
 - Android Studio (latest stable)
 - Min SDK: 26 (Android 8.0) — covers 95%+ of devices
