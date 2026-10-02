@@ -314,36 +314,35 @@ and a gallery — served directly from the Pi.
 **Goal:** Native Android app with the same functionality as the web client.
 
 **Tasks:**
-- [ ] Scaffold Kotlin + Jetpack Compose project (Android Studio)
-- [ ] `WebSocketClient.kt` — OkHttp WebSocket
+- [x] Scaffold Kotlin + Jetpack Compose project (Android Studio / Gradle 9.1.0 + Kotlin 2.3.20 + AGP 9.0.1)
+- [x] `WebSocketClient.kt` — OkHttp WebSocket
   - Connect to `ws://<pi-ip>:8000/ws/feed`
   - Binary frame → `Bitmap` conversion
-  - JSON message parsing (Moshi / kotlinx.serialization)
-  - Auto-reconnect logic
-- [ ] `NetworkDiscovery.kt` — mDNS/NSD
+  - JSON message parsing (`kotlinx.serialization`)
+  - Auto-reconnect with exponential backoff & RTT latency ping/pong
+- [x] `NetworkDiscovery.kt` — mDNS/NSD
   - Auto-discover Pi on local network (Pi advertises `_photobooth._tcp`)
-  - Fallback: manual IP entry
-- [ ] `LiveScreen.kt`
-  - Full-screen live preview (Compose `Canvas` or `AndroidView` with `SurfaceView`)
-  - Filter overlay (ColorMatrix-based)
-  - Capture + GIF buttons
-  - Countdown overlay animation
-- [ ] `FilterStrip.kt`
-  - Horizontal LazyRow of filter previews
-  - Same filter set as web (B&W, Sepia, Vintage, etc.)
-  - `FilterEngine.kt` applies `ColorMatrix` to Bitmap
-- [ ] `GalleryScreen.kt`
-  - Grid of captured photos/GIFs
-  - Tap to view full-screen
-  - Share via Android share sheet
-  - Save to device gallery
-- [ ] `SettingsScreen.kt`
-  - Server IP / auto-discovery toggle
-  - Preview quality preferences
-  - Default filter selection
+  - Fallback: manual IP entry with instant reconnection
+- [x] `LivePreview.kt` & `MainScreen.kt`
+  - Full-screen live preview with Compose hardware acceleration
+  - Filter overlay (`ColorMatrix`-based matching web client)
+  - Capture + GIF burst mode toggles
+  - Countdown overlay animation (3-2-1-SMILE) + strobe white camera flash
+- [x] `FilterStrip.kt` & `Presets.kt`
+  - Horizontal LazyRow of 10 studio presets (RAW, B&W, Sepia, Vintage, Cool, Warm, High Contrast, Vignette, Grain, Polaroid)
+  - `BitmapUtils.bakeFilter` applies filters, procedural vignette/grain, and Polaroid card borders
+- [x] `GallerySheet.kt` & `LightboxDialog.kt`
+  - Filterable grid of captured photos and animated GIFs (ALL / PHOTOS / GIFS)
+  - Fullscreen lightbox viewer with dynamic filter baking before saving
+  - Share via native Android share sheet (`Intent.ACTION_SEND`)
+  - Save directly to device gallery via MediaStore (`Pictures/TRCPhotoBooth`)
+- [x] `SettingsDialog.kt`
+  - Server IP & NSD auto-discovery search
+  - Camera stream resolution (SD / HD / FHD), target FPS, and JPEG quality sliders
+  - Mirror Preview and Red/Blue swap toggles
+  - Live Raspberry Pi hardware telemetry (CPU %, Temp °C, RAM, Load Avg, Throttling)
 
-**Deliverable:** Install APK → auto-discovers Pi → live preview with
-filters → capture + share.
+**Deliverable Status:** ✅ Operational. Native Android APK built and verified (`app/app/build/outputs/apk/debug/app-debug.apk`). Connects to Raspberry Pi via WebSocket binary feed, applies live ColorMatrix filters, triggers countdowns and GIF bursts, and exports baked photos directly to Android MediaStore and system share sheets.
 
 ---
 
