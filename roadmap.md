@@ -244,23 +244,25 @@ dark-mode live feed monitor interface (`index.html` / `test.html`) displays the 
 commands. Captures are stored temporarily and downloadable.
 
 **Tasks:**
-- [ ] Implement `capture.py`
+- [x] Implement `capture.py`
   - `capture_photo()` — switch to high-res (2592×1944 or 4608×2592 depending on camera module), capture, encode JPEG, return bytes + ID
   - `capture_gif(frames, interval_ms)` — capture N frames at interval, assemble with `imageio` into GIF, return bytes + ID
   - In-memory capture store (dict with TTL, max 50 captures)
-- [ ] Add WebSocket command handling in `ws.py`
-  - Parse JSON text messages (`trigger_capture`, `trigger_gif`)
+- [x] Add WebSocket command handling in `ws.py` / `streamer.py`
+  - Parse JSON text messages (`trigger_capture`, `trigger_gif`, `countdown`)
   - Send `capture_result` / `gif_result` response with download URL
-- [ ] Add REST routes in `api.py`
-  - `GET /api/captures/:id` — serve capture file
+- [x] Add REST routes in `api.py`
+  - `GET /api/captures/:id` — serve capture file (JPEG / GIF)
   - `GET /api/captures` — list recent captures
-- [ ] Add countdown support
-  - Client sends `{ "type": "countdown", "seconds": 3 }`
+  - `POST /api/captures/photo` and `POST /api/captures/gif` — trigger captures with optional countdown
+  - `DELETE /api/captures/:id` — delete capture from memory
+- [x] Add countdown support
+  - Client sends `{ "action": "countdown", "seconds": 3 }` or `{ "action": "trigger_capture", "countdown": 3 }`
   - Server broadcasts countdown ticks to all clients
+  - Visual countdown overlay (3-2-1-Smile) and camera flash animation
   - Capture triggers after countdown completes
 
-**Deliverable:** Click "Capture" in test page → 3-2-1 countdown → photo
-taken → download link appears.
+**Deliverable Status:** ✅ Operational. Click "Take Photo" or "Record GIF" in monitor page → 3-2-1 countdown overlay → flash animation → capture taken → immediate download and preview in gallery.
 
 ---
 
