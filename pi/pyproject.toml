@@ -1,0 +1,32 @@
+[project]
+name = "trc-photobooth-pi"
+version = "0.1.0"
+description = "Raspberry Pi camera capture and streaming server for TRC Photo Booth"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pillow>=10.0.0",
+    "websockets>=13.0",
+    "pydantic>=2.8.0",
+    "pydantic-settings>=2.4.0",
+    "opencv-python-headless>=4.8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "httpx>=0.27.0",
+]
+pi = [
+    "picamera2>=0.3.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

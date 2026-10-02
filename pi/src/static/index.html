@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TRC Photo Booth — Live Stream Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0a0d14;
+      --bg-card: rgba(18, 24, 38, 0.75);
+      --bg-card-border: rgba(255, 255, 255, 0.08);
+      --accent-primary: #00d9a5;
+      --accent-glow: rgba(0, 217, 165, 0.35);
+      --accent-danger: #ff3366;
+      --accent-warning: #ffb703;
+      --text-main: #f0f4fc;
+      --text-muted: #8c9bb5;
+      --font-ui: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 10% 20%, rgba(0, 217, 165, 0.08) 0px, transparent 50%),
+        radial-gradient(at 90% 80%, rgba(139, 92, 246, 0.08) 0px, transparent 50%);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 28px;
+      border-bottom: 1px solid var(--bg-card-border);
+      backdrop-filter: blur(16px);
+      background: rgba(10, 13, 20, 0.85);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #00d9a5, #0099ff);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
+    .brand-text h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: linear-gradient(90deg, #ffffff, #a5b4fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-text p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
+    }
+
+    .header-badges {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      backdrop-filter: blur(8px);
+    }
+
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .badge-live {
+      color: #00d9a5;
+    }
+    .badge-live .badge-dot {
+      background: #00d9a5;
+      box-shadow: 0 0 8px #00d9a5;
+      animation: pulse 1.8s infinite;
+    }
+
+    .badge-offline {
+      color: var(--accent-danger);
+    }
+    .badge-offline .badge-dot {
+      background: var(--accent-danger);
+      box-shadow: 0 0 8px var(--accent-danger);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      max-width: 1300px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 1000px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Viewport Panel */
+    .viewport-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 18px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .viewport-container {
+      position: relative;
+      width: 100%;
+      background: #04060a;
+      border-radius: 12px;
+      overflow: hidden;
+      aspect-ratio: 4 / 3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    #cameraCanvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Framing Guides Overlay */
+    .frame-guides {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: block;
+    }
+
+    .frame-guide-corner {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      border-color: rgba(0, 217, 165, 0.6);
+      border-style: solid;
+      border-width: 0;
+    }
+
+    .frame-guide-corner.tl { top: 16px; left: 16px; border-top-width: 2px; border-left-width: 2px; }
+    .frame-guide-corner.tr { top: 16px; right: 16px; border-top-width: 2px; border-right-width: 2px; }
+    .frame-guide-corner.bl { bottom: 16px; left: 16px; border-bottom-width: 2px; border-left-width: 2px; }
+    .frame-guide-corner.br { bottom: 16px; right: 16px; border-bottom-width: 2px; border-right-width: 2px; }
+
+    /* HUD overlay */
+    .hud-overlay {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+
+    .hud-pill {
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(8px);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hud-fps {
+      color: #00d9a5;
+      font-weight: 600;
+    }
+
+    /* Connecting overlay state */
+    .viewport-loader {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top-color: var(--accent-primary);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Controls Bar */
+    .controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-top: 4px;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-main);
+      padding: 9px 16px;
+      border-radius: 10px;
+      font-family: var(--font-ui);
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #00d9a5, #00a87e);
+      color: #04120e;
+      font-weight: 600;
+      border: none;
+      box-shadow: 0 4px 15px rgba(0, 217, 165, 0.3);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 6px 20px rgba(0, 217, 165, 0.5);
+      background: linear-gradient(135deg, #00f0b5, #00b88b);
+    }
+
+    /* Sidebar / Diagnostics Card */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-main);
+    }
+
+    .telemetry-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    .telemetry-table tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .telemetry-table tr:last-child {
+      border-bottom: none;
+    }
+
+    .telemetry-table td {
+      padding: 10px 0;
+    }
+
+    .telemetry-label {
+      color: var(--text-muted);
+    }
+
+    .telemetry-value {
+      text-align: right;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    /* Slider / Form inputs */
+    .form-group {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .range-input {
+      width: 100%;
+      accent-color: var(--accent-primary);
+      cursor: pointer;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--bg-card-border);
+      background: rgba(10, 13, 20, 0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">📸</div>
+      <div class="brand-text">
+        <h1>TRC Photo Booth</h1>
+        <p>Phase 1 • Live Camera Feed Monitor</p>
+      </div>
+    </div>
+    <div class="header-badges">
+      <div id="statusBadge" class="badge badge-offline">
+        <span class="badge-dot"></span>
+        <span id="statusText">CONNECTING...</span>
+      </div>
+      <div class="badge">
+        <span id="backendText">Camera: Initializing</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Viewport Panel -->
+    <section class="viewport-panel">
+      <div class="viewport-container" id="viewport">
+        <canvas id="cameraCanvas" width="640" height="480"></canvas>
+        
+        <div class="frame-guides" id="guidesOverlay">
+          <div class="frame-guide-corner tl"></div>
+          <div class="frame-guide-corner tr"></div>
+          <div class="frame-guide-corner bl"></div>
+          <div class="frame-guide-corner br"></div>
+        </div>
+
+        <div class="hud-overlay">
+          <div class="hud-pill">
+            <span>FPS:</span>
+            <span id="hudFps" class="hud-fps">0.0</span>
+          </div>
+          <div class="hud-pill">
+            <span id="hudResolution">640x480</span>
+            <span>•</span>
+            <span id="hudBandwidth">0 KB/s</span>
+          </div>
+        </div>
+
+        <div id="loader" class="viewport-loader">
+          <div class="spinner"></div>
+          <span>Awaiting WebSocket frame stream...</span>
+        </div>
+      </div>
+
+      <!-- Controls Bar -->
+      <div class="controls-bar">
+        <div class="control-group">
+          <button id="togglePlayBtn" class="btn">
+            <span id="playIcon">⏸</span>
+            <span id="playText">Pause</span>
+          </button>
+          <button id="toggleGuidesBtn" class="btn">
+            <span>⛶</span> Guides
+          </button>
+          <button id="snapshotBtn" class="btn btn-primary">
+            <span>📷</span> Download Frame
+          </button>
+        </div>
+        <div class="control-group">
+          <button id="fullscreenBtn" class="btn">
+            <span>⛶</span> Fullscreen
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sidebar Diagnostics -->
+    <aside class="sidebar">
+      <div class="card">
+        <div class="card-title">
+          <span>Stream Diagnostics</span>
+          <span style="font-size: 0.75rem; color: var(--accent-primary);">● LIVE</span>
+        </div>
+        <table class="telemetry-table">
+          <tbody>
+            <tr>
+              <td class="telemetry-label">Status</td>
+              <td class="telemetry-value" id="statStatus">Disconnected</td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Backend</td>
+              <td class="telemetry-value" id="statBackend">—</td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Client Render FPS</td>
+              <td class="telemetry-value" id="statClientFps">0.0</td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Server Camera FPS</td>
+              <td class="telemetry-value" id="statServerFps">—</td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Frames Received</td>
+              <td class="telemetry-value" id="statFramesRecv">0</td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Active Clients</td>
+              <td class="telemetry-value" id="statClients">—</td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Uptime</td>
+              <td class="telemetry-value" id="statUptime">0s</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Stream Tuning</span>
+        </div>
+        <div class="form-group">
+          <div class="form-label">
+            <span>Target FPS</span>
+            <span id="fpsDisplay">15 fps</span>
+          </div>
+          <input type="range" id="fpsSlider" class="range-input" min="5" max="30" step="1" value="15">
+        </div>
+        <div class="form-group" style="margin-top: 14px;">
+          <div class="form-label">
+            <span>JPEG Quality</span>
+            <span id="qualityDisplay">70%</span>
+          </div>
+          <input type="range" id="qualitySlider" class="range-input" min="20" max="95" step="5" value="70">
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    TRC Photo Booth Prototype • Phase 1 WebSocket Stream Engine • Ready for Local WiFi Remote Clients
+  </footer>
+
+  <script>
+    // Configuration & State
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/feed`;
+
+    let ws = null;
+    let isPaused = false;
+    let isGuidesVisible = true;
+    let frameCount = 0;
+    let bytesReceivedSec = 0;
+    let lastFpsUpdateTime = performance.now();
+    let framesThisSecond = 0;
+
+    const canvas = document.getElementById('cameraCanvas');
+    const ctx = canvas.getContext('2d');
+    const loader = document.getElementById('loader');
+    const statusBadge = document.getElementById('statusBadge');
+    const statusText = document.getElementById('statusText');
+    const backendText = document.getElementById('backendText');
+    const hudFps = document.getElementById('hudFps');
+    const hudBandwidth = document.getElementById('hudBandwidth');
+    const hudResolution = document.getElementById('hudResolution');
+
+    const statStatus = document.getElementById('statStatus');
+    const statBackend = document.getElementById('statBackend');
+    const statClientFps = document.getElementById('statClientFps');
+    const statServerFps = document.getElementById('statServerFps');
+    const statFramesRecv = document.getElementById('statFramesRecv');
+    const statClients = document.getElementById('statClients');
+    const statUptime = document.getElementById('statUptime');
+
+    const togglePlayBtn = document.getElementById('togglePlayBtn');
+    const playIcon = document.getElementById('playIcon');
+    const playText = document.getElementById('playText');
+    const toggleGuidesBtn = document.getElementById('toggleGuidesBtn');
+    const guidesOverlay = document.getElementById('guidesOverlay');
+    const snapshotBtn = document.getElementById('snapshotBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const fpsSlider = document.getElementById('fpsSlider');
+    const fpsDisplay = document.getElementById('fpsDisplay');
+    const qualitySlider = document.getElementById('qualitySlider');
+    const qualityDisplay = document.getElementById('qualityDisplay');
+
+    // Connect WebSocket
+    function connectWebSocket() {
+      statStatus.innerText = 'Connecting...';
+      statusText.innerText = 'CONNECTING...';
+      statusBadge.className = 'badge badge-offline';
+
+      ws = new WebSocket(wsUrl);
+      ws.binaryType = 'blob';
+
+      ws.onopen = () => {
+        statusText.innerText = 'STREAMING LIVE';
+        statusBadge.className = 'badge badge-live';
+        statStatus.innerText = 'Connected';
+      };
+
+      ws.onmessage = async (event) => {
+        if (typeof event.data === 'string') {
+          // JSON control / telemetry message
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'status') {
+              updateTelemetry(msg);
+            }
+          } catch (e) {
+            console.error('Failed to parse text frame:', e);
+          }
+          return;
+        }
+
+        if (isPaused) return;
+
+        // Binary blob: raw JPEG frame
+        const blob = event.data;
+        frameCount++;
+        framesThisSecond++;
+        bytesReceivedSec += blob.size;
+        statFramesRecv.innerText = frameCount.toLocaleString();
+
+        try {
+          // Render image bitmap efficiently to canvas
+          const bitmap = await createImageBitmap(blob);
+          if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+            hudResolution.innerText = `${bitmap.width}x${bitmap.height}`;
+          }
+          ctx.drawImage(bitmap, 0, 0);
+          bitmap.close();
+
+          if (loader.style.display !== 'none') {
+            loader.style.display = 'none';
+          }
+        } catch (err) {
+          console.error('Frame decode error:', err);
+        }
+      };
+
+      ws.onclose = () => {
+        statusText.innerText = 'DISCONNECTED';
+        statusBadge.className = 'badge badge-offline';
+        statStatus.innerText = 'Disconnected';
+        loader.style.display = 'flex';
+        // Auto-reconnect after 1.5s
+        setTimeout(connectWebSocket, 1500);
+      };
+
+      ws.onerror = (err) => {
+        console.error('WebSocket Error:', err);
+        ws.close();
+      };
+    }
+
+    // Client FPS & Bandwidth Calculation Loop
+    setInterval(() => {
+      const now = performance.now();
+      const elapsed = (now - lastFpsUpdateTime) / 1000;
+      if (elapsed > 0) {
+        const clientFps = (framesThisSecond / elapsed).toFixed(1);
+        const kbSec = (bytesReceivedSec / 1024 / elapsed).toFixed(1);
+
+        hudFps.innerText = clientFps;
+        statClientFps.innerText = clientFps;
+        hudBandwidth.innerText = `${kbSec} KB/s`;
+
+        framesThisSecond = 0;
+        bytesReceivedSec = 0;
+        lastFpsUpdateTime = now;
+      }
+    }, 1000);
+
+    // Periodically poll server status
+    async function pollServerStatus() {
+      try {
+        const res = await fetch('/api/status');
+        if (res.ok) {
+          const data = await res.json();
+          statBackend.innerText = data.camera_backend;
+          backendText.innerText = `Camera: ${data.camera_backend.toUpperCase()}`;
+          statServerFps.innerText = `${data.actual_fps} fps`;
+          statClients.innerText = data.connected_clients;
+          statUptime.innerText = `${Math.floor(data.uptime_seconds)}s`;
+        }
+      } catch (e) {
+        // Silently retry
+      }
+    }
+    setInterval(pollServerStatus, 2500);
+    pollServerStatus();
+
+    // Controls Handlers
+    togglePlayBtn.addEventListener('click', () => {
+      isPaused = !isPaused;
+      if (isPaused) {
+        playIcon.innerText = '▶';
+        playText.innerText = 'Resume';
+        statusText.innerText = 'PAUSED';
+      } else {
+        playIcon.innerText = '⏸';
+        playText.innerText = 'Pause';
+        statusText.innerText = 'STREAMING LIVE';
+      }
+    });
+
+    toggleGuidesBtn.addEventListener('click', () => {
+      isGuidesVisible = !isGuidesVisible;
+      guidesOverlay.style.display = isGuidesVisible ? 'block' : 'none';
+    });
+
+    snapshotBtn.addEventListener('click', () => {
+      // Direct snapshot from canvas
+      const link = document.createElement('a');
+      link.download = `photobooth-${Date.now()}.jpg`;
+      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.click();
+    });
+
+    fullscreenBtn.addEventListener('click', () => {
+      const el = document.getElementById('viewport');
+      if (!document.fullscreenElement) {
+        el.requestFullscreen().catch(err => alert(`Fullscreen error: ${err.message}`));
+      } else {
+        document.exitFullscreen();
+      }
+    });
+
+    // Dynamic config sliders
+    async function updateConfig() {
+      const fps = parseInt(fpsSlider.value, 10);
+      const quality = parseInt(qualitySlider.value, 10);
+      fpsDisplay.innerText = `${fps} fps`;
+      qualityDisplay.innerText = `${quality}%`;
+
+      try {
+        await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fps, quality })
+        });
+      } catch (err) {
+        console.error('Failed to update config:', err);
+      }
+    }
+
+    fpsSlider.addEventListener('input', () => {
+      fpsDisplay.innerText = `${fpsSlider.value} fps`;
+    });
+    fpsSlider.addEventListener('change', updateConfig);
+
+    qualitySlider.addEventListener('input', () => {
+      qualityDisplay.innerText = `${qualitySlider.value}%`;
+    });
+    qualitySlider.addEventListener('change', updateConfig);
+
+    // Initial connection
+    connectWebSocket();
+  </script>
+</body>
+</html>
