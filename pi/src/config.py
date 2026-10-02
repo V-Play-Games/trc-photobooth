@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     use_synthetic: bool = False
     # Manual Red/Blue channel swap override if needed for non-standard camera modules
     swap_rb: bool = False
+    # Horizontal left-to-right mirror flip for natural selfie / photobooth reflection
+    flip_horizontal: bool = True
 
     # Preview stream configuration (optimized for low latency over local WiFi)
     preview_width: int = 640

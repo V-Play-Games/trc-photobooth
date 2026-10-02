@@ -18,6 +18,28 @@ class SystemStatus(BaseModel):
     frames_sent_total: int = 0
     uptime_seconds: float = 0.0
     swap_rb: bool = False
+    flip_horizontal: bool = True
+
+
+class MemoryStats(BaseModel):
+    """System memory statistics."""
+
+    total_mb: float = Field(..., description="Total system memory in MB")
+    used_mb: float = Field(..., description="Used memory in MB")
+    free_mb: float = Field(..., description="Available free memory in MB")
+    percent: float = Field(..., description="Memory utilization percentage")
+
+
+class SystemStatsResponse(BaseModel):
+    """On-demand Raspberry Pi hardware telemetry."""
+
+    cpu_percent: float = Field(..., description="Instant or delta CPU percentage (0-100%)")
+    cpu_temp_c: float | None = Field(None, description="CPU temperature in degrees Celsius")
+    memory: MemoryStats = Field(..., description="System RAM memory statistics")
+    load_avg: list[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0], description="1, 5, 15 minute load averages")
+    cpu_count: int = Field(1, description="Number of CPU cores")
+    throttled: str | None = Field(None, description="Raspberry Pi under-voltage/thermal throttling flags")
+    timestamp: float = Field(0.0, description="Telemetry sample epoch timestamp")
 
 
 RESOLUTION_PRESETS_16_9: dict[str, tuple[int, int]] = {
@@ -70,6 +92,7 @@ class CameraConfigUpdate(BaseModel):
     width: int | None = Field(None, ge=160, le=2592, description="Preview frame width in pixels")
     height: int | None = Field(None, ge=120, le=1944, description="Preview frame height in pixels")
     swap_rb: bool | None = Field(None, description="Invert Red/Blue color channels")
+    flip_horizontal: bool | None = Field(None, description="Invert camera output horizontally (left-to-right mirror flip)")
 
 
 class WebSocketControlMessage(BaseModel):

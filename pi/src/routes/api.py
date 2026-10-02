@@ -5,8 +5,9 @@ from typing import Any
 from fastapi import APIRouter, Response, status
 from src.camera import get_camera
 from src.config import settings
-from src.models import CameraConfigUpdate, SystemStatus, parse_resolution
+from src.models import CameraConfigUpdate, SystemStatus, SystemStatsResponse, parse_resolution
 from src.streamer import get_streamer
+from src.system_info import get_system_stats
 
 router = APIRouter(prefix="/api", tags=["System"])
 
@@ -29,6 +30,7 @@ async def get_status() -> SystemStatus:
         frames_sent_total=streamer.frames_sent_total,
         uptime_seconds=streamer.uptime_seconds,
         swap_rb=settings.swap_rb,
+        flip_horizontal=settings.flip_horizontal,
     )
 
 
@@ -47,6 +49,7 @@ async def get_camera_config() -> dict[str, Any]:
         "fps": settings.preview_fps,
         "quality": settings.preview_quality,
         "swap_rb": settings.swap_rb,
+        "flip_horizontal": settings.flip_horizontal,
         "capture_width": settings.capture_width,
         "capture_height": settings.capture_height,
         "capture_quality": settings.capture_quality,
@@ -55,15 +58,14 @@ async def get_camera_config() -> dict[str, Any]:
 
 @router.post("/config")
 async def update_camera_config(config_update: CameraConfigUpdate) -> dict[str, Any]:
-    """Dynamically adjust preview frame rate, JPEG compression quality, or color channel order."""
+    """Dynamically adjust preview frame rate, JPEG compression quality, color channel order, or flip."""
+    cam = get_camera()
     if config_update.fps is not None:
         settings.preview_fps = config_update.fps
-        cam = get_camera()
         if hasattr(cam, "target_fps"):
             cam.target_fps = config_update.fps
     if config_update.quality is not None:
         settings.preview_quality = config_update.quality
-        cam = get_camera()
         if hasattr(cam, "quality"):
             cam.quality = config_update.quality
 
@@ -78,7 +80,6 @@ async def update_camera_config(config_update: CameraConfigUpdate) -> dict[str, A
         new_width, new_height = res_tuple
         settings.preview_width = new_width
         settings.preview_height = new_height
-        cam = get_camera()
         if hasattr(cam, "set_resolution"):
             cam.set_resolution(new_width, new_height)
         else:
@@ -88,6 +89,11 @@ async def update_camera_config(config_update: CameraConfigUpdate) -> dict[str, A
     if config_update.swap_rb is not None:
         settings.swap_rb = config_update.swap_rb
 
+    if config_update.flip_horizontal is not None:
+        settings.flip_horizontal = config_update.flip_horizontal
+        if hasattr(cam, "flip_horizontal"):
+            cam.flip_horizontal = config_update.flip_horizontal
+
     return {
         "message": "Config updated successfully",
         "fps": settings.preview_fps,
@@ -95,7 +101,17 @@ async def update_camera_config(config_update: CameraConfigUpdate) -> dict[str, A
         "width": settings.preview_width,
         "height": settings.preview_height,
         "swap_rb": settings.swap_rb,
+        "flip_horizontal": settings.flip_horizontal,
     }
+
+
+@router.get("/system/stats", response_model=SystemStatsResponse)
+async def get_system_hardware_stats() -> SystemStatsResponse:
+    """Return on-demand Raspberry Pi system stats (CPU %, RAM used/total, and temperatures).
+
+    Zero compute overhead when idle: stats are measured only when this endpoint is actively called.
+    """
+    return get_system_stats()
 
 
 @router.get("/snapshot")

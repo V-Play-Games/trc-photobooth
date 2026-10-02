@@ -323,6 +323,13 @@
       box-shadow: 0 0 10px rgba(99, 102, 241, 0.35);
     }
 
+    .btn-active-telemetry {
+      background: rgba(0, 217, 165, 0.2) !important;
+      border-color: var(--accent-primary) !important;
+      color: #00d9a5 !important;
+      box-shadow: 0 0 12px var(--accent-glow) !important;
+    }
+
     .res-step-label {
       cursor: pointer;
       transition: color 0.15s;
@@ -489,6 +496,9 @@
           <button id="swapRbBtn" class="btn" title="Toggle Red/Blue channels (fixes blue tint/avatar face)">
             <span>🔄</span> Swap R/B
           </button>
+          <button id="flipBtn" class="btn" title="Invert camera output horizontally (left-to-right mirror flip)">
+            <span id="flipIcon">🪞</span> <span id="flipText">Flip L/R</span>
+          </button>
         </div>
         <div class="control-group">
           <button id="fullscreenBtn" class="btn">
@@ -597,6 +607,83 @@
             <span>🔄 Invert Red/Blue</span>
           </button>
         </div>
+        <div class="form-group" style="margin-top: 14px;">
+          <div class="form-label">
+            <span>Mirror / Left-Right Flip</span>
+            <span id="flipIndicator" style="font-size: 0.78rem; font-weight: 600; color: #00d9a5;">Mirrored</span>
+          </div>
+          <button id="sidebarFlipBtn" class="btn" style="width: 100%; justify-content: center; margin-top: 6px; font-size: 0.8rem; border: 1px solid rgba(0, 217, 165, 0.3); background: rgba(0, 217, 165, 0.1);">
+            <span>🪞 Invert Output (Flip L/R)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Hardware Telemetry (On-Demand) -->
+      <div class="card" id="hardwareCard">
+        <div class="card-title">
+          <span>⚡ Hardware Telemetry</span>
+          <span id="telemetryModeBadge" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 12px; background: rgba(255,255,255,0.06); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1);">
+            💤 On-Demand (Idle)
+          </span>
+        </div>
+        <p style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4;">
+          Zero compute overhead when idle. Activate real-time streaming or sample once to inspect CPU, memory, and temps.
+        </p>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+          <button id="toggleRealtimeStatsBtn" class="btn" style="flex: 1.2; justify-content: center; font-size: 0.78rem; padding: 8px 10px;">
+            <span id="realtimeStatsIcon">⚡</span> <span id="realtimeStatsText">Start Live Stats</span>
+          </button>
+          <button id="sampleOnceBtn" class="btn" style="flex: 1; justify-content: center; font-size: 0.78rem; padding: 8px 10px;" title="Sample hardware metrics once without continuous loop">
+            <span>🔄 Sample Once</span>
+          </button>
+        </div>
+
+        <table class="telemetry-table" style="font-size: 0.8rem;">
+          <tbody>
+            <tr>
+              <td class="telemetry-label">CPU Usage</td>
+              <td class="telemetry-value">
+                <span id="hwCpuPct" style="font-size: 0.95rem; font-weight: 700; color: #00d9a5;">—</span>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="2" style="padding: 2px 0 8px 0;">
+                <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;">
+                  <div id="hwCpuBar" style="width: 0%; height: 100%; background: #00d9a5; transition: width 0.3s ease, background 0.3s ease;"></div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">CPU Temperature</td>
+              <td class="telemetry-value">
+                <span id="hwCpuTemp" style="font-weight: 600;">—</span>
+                <span id="hwTempBadge" style="display: none; margin-left: 6px; font-size: 0.68rem; padding: 1px 6px; border-radius: 8px;"></span>
+              </td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">RAM Memory</td>
+              <td class="telemetry-value">
+                <span id="hwMemValue" style="font-size: 0.78rem;">—</span>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="2" style="padding: 2px 0 8px 0;">
+                <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;">
+                  <div id="hwMemBar" style="width: 0%; height: 100%; background: #6366f1; transition: width 0.3s ease;"></div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Load Avg (1/5/15m)</td>
+              <td class="telemetry-value" id="hwLoadAvg" style="font-size: 0.75rem;">—</td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Cores / Throttle</td>
+              <td class="telemetry-value" id="hwThrottled" style="font-size: 0.75rem;">—</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </aside>
   </main>
@@ -651,6 +738,11 @@
     const sidebarSwapRbBtn = document.getElementById('sidebarSwapRbBtn');
     const swapRbIndicator = document.getElementById('swapRbIndicator');
     let isSwapRb = false;
+
+    const flipBtn = document.getElementById('flipBtn');
+    const sidebarFlipBtn = document.getElementById('sidebarFlipBtn');
+    const flipIndicator = document.getElementById('flipIndicator');
+    let isFlip = true;
 
     // Connect WebSocket
     function connectWebSocket() {
@@ -774,6 +866,191 @@
       }
     }
 
+    // Horizontal Flip (Left to Right Mirror)
+    function updateFlipDisplay(flip) {
+      isFlip = !!flip;
+      if (flipIndicator) {
+        flipIndicator.innerText = isFlip ? 'Mirrored (Active)' : 'Normal (Unflipped)';
+        flipIndicator.style.color = isFlip ? '#00d9a5' : '#8c9bb5';
+      }
+      if (flipBtn) {
+        flipBtn.style.borderColor = isFlip ? '#00d9a5' : '';
+        flipBtn.style.color = isFlip ? '#00d9a5' : '';
+        flipBtn.style.background = isFlip ? 'rgba(0, 217, 165, 0.15)' : '';
+      }
+      if (sidebarFlipBtn) {
+        sidebarFlipBtn.style.borderColor = isFlip ? '#00d9a5' : 'rgba(255, 255, 255, 0.12)';
+        sidebarFlipBtn.style.color = isFlip ? '#00d9a5' : '';
+        sidebarFlipBtn.style.background = isFlip ? 'rgba(0, 217, 165, 0.15)' : 'rgba(255, 255, 255, 0.06)';
+      }
+    }
+
+    async function toggleFlip() {
+      const nextVal = !isFlip;
+      updateFlipDisplay(nextVal);
+      try {
+        await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ flip_horizontal: nextVal })
+        });
+      } catch (err) {
+        console.error('Failed to toggle flip_horizontal:', err);
+      }
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ action: 'flip_horizontal', value: nextVal }));
+        } catch (e) {}
+      }
+    }
+
+    // On-Demand Hardware Telemetry
+    const toggleRealtimeStatsBtn = document.getElementById('toggleRealtimeStatsBtn');
+    const sampleOnceBtn = document.getElementById('sampleOnceBtn');
+    const telemetryModeBadge = document.getElementById('telemetryModeBadge');
+    const realtimeStatsText = document.getElementById('realtimeStatsText');
+    const realtimeStatsIcon = document.getElementById('realtimeStatsIcon');
+
+    const hwCpuPct = document.getElementById('hwCpuPct');
+    const hwCpuBar = document.getElementById('hwCpuBar');
+    const hwCpuTemp = document.getElementById('hwCpuTemp');
+    const hwTempBadge = document.getElementById('hwTempBadge');
+    const hwMemValue = document.getElementById('hwMemValue');
+    const hwMemBar = document.getElementById('hwMemBar');
+    const hwLoadAvg = document.getElementById('hwLoadAvg');
+    const hwThrottled = document.getElementById('hwThrottled');
+
+    let isLiveStatsActive = false;
+    let liveStatsInterval = null;
+
+    function renderHardwareStats(data) {
+      if (!data) return;
+
+      // CPU %
+      const cpu = typeof data.cpu_percent === 'number' ? data.cpu_percent : 0;
+      hwCpuPct.innerText = `${cpu.toFixed(1)}%`;
+      hwCpuBar.style.width = `${Math.min(100, Math.max(0, cpu))}%`;
+      if (cpu > 80) {
+        hwCpuPct.style.color = '#ff3366';
+        hwCpuBar.style.background = '#ff3366';
+      } else if (cpu > 55) {
+        hwCpuPct.style.color = '#ffb703';
+        hwCpuBar.style.background = '#ffb703';
+      } else {
+        hwCpuPct.style.color = '#00d9a5';
+        hwCpuBar.style.background = '#00d9a5';
+      }
+
+      // CPU Temperature
+      if (typeof data.cpu_temp_c === 'number' && data.cpu_temp_c !== null) {
+        const temp = data.cpu_temp_c;
+        hwCpuTemp.innerText = `${temp.toFixed(1)} °C`;
+        hwTempBadge.style.display = 'inline-block';
+        if (temp < 50) {
+          hwTempBadge.innerText = '❄️ Cool';
+          hwTempBadge.style.background = 'rgba(0, 217, 165, 0.15)';
+          hwTempBadge.style.color = '#00d9a5';
+        } else if (temp < 65) {
+          hwTempBadge.innerText = '⚡ Normal';
+          hwTempBadge.style.background = 'rgba(14, 165, 233, 0.15)';
+          hwTempBadge.style.color = '#38bdf8';
+        } else if (temp < 75) {
+          hwTempBadge.innerText = '🔥 Warm';
+          hwTempBadge.style.background = 'rgba(245, 158, 11, 0.15)';
+          hwTempBadge.style.color = '#fbbf24';
+        } else {
+          hwTempBadge.innerText = '⚠️ Hot';
+          hwTempBadge.style.background = 'rgba(239, 68, 68, 0.2)';
+          hwTempBadge.style.color = '#f87171';
+        }
+      } else {
+        hwCpuTemp.innerText = 'N/A';
+        hwTempBadge.style.display = 'none';
+      }
+
+      // Memory (RAM)
+      if (data.memory) {
+        const used = Math.round(data.memory.used_mb);
+        const total = Math.round(data.memory.total_mb);
+        const pct = data.memory.percent;
+        hwMemValue.innerText = `${used} MB / ${total} MB (${pct.toFixed(1)}%)`;
+        hwMemBar.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+      }
+
+      // Load Avg
+      if (data.load_avg && data.load_avg.length) {
+        hwLoadAvg.innerText = data.load_avg.join(', ');
+      }
+
+      // Cores / Throttle
+      const cores = data.cpu_count || 1;
+      const throttleStr = data.throttled ? `Throttle: ${data.throttled}` : 'Healthy';
+      hwThrottled.innerText = `${cores} Cores • ${throttleStr}`;
+    }
+
+    async function fetchSystemStats() {
+      try {
+        const res = await fetch('/api/system/stats');
+        if (res.ok) {
+          const data = await res.json();
+          renderHardwareStats(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch system stats:', err);
+      }
+    }
+
+    function startLiveStats() {
+      if (isLiveStatsActive) return;
+      isLiveStatsActive = true;
+      toggleRealtimeStatsBtn.classList.add('btn-active-telemetry');
+      realtimeStatsIcon.innerText = '⏹';
+      realtimeStatsText.innerText = 'Stop Live Stats';
+      telemetryModeBadge.innerText = '🟢 Live Monitoring (1.5s)';
+      telemetryModeBadge.style.color = '#00d9a5';
+      telemetryModeBadge.style.borderColor = 'rgba(0, 217, 165, 0.4)';
+      fetchSystemStats();
+      liveStatsInterval = setInterval(fetchSystemStats, 1500);
+    }
+
+    function stopLiveStats() {
+      if (!isLiveStatsActive) return;
+      isLiveStatsActive = false;
+      if (liveStatsInterval) {
+        clearInterval(liveStatsInterval);
+        liveStatsInterval = null;
+      }
+      toggleRealtimeStatsBtn.classList.remove('btn-active-telemetry');
+      realtimeStatsIcon.innerText = '⚡';
+      realtimeStatsText.innerText = 'Start Live Stats';
+      telemetryModeBadge.innerText = '💤 On-Demand (Idle)';
+      telemetryModeBadge.style.color = 'var(--text-muted)';
+      telemetryModeBadge.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+    }
+
+    if (toggleRealtimeStatsBtn) {
+      toggleRealtimeStatsBtn.addEventListener('click', () => {
+        if (isLiveStatsActive) {
+          stopLiveStats();
+        } else {
+          startLiveStats();
+        }
+      });
+    }
+
+    if (sampleOnceBtn) {
+      sampleOnceBtn.addEventListener('click', () => {
+        fetchSystemStats();
+      });
+    }
+
+    // Suspend polling if browser tab is blurred/hidden to avoid wasting Pi resources
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && isLiveStatsActive) {
+        stopLiveStats();
+      }
+    });
+
     // Periodically poll server status
     async function pollServerStatus() {
       try {
@@ -786,6 +1063,9 @@
           statClients.innerText = data.connected_clients;
           statUptime.innerText = `${Math.floor(data.uptime_seconds)}s`;
           updateSwapRbDisplay(data.swap_rb);
+          if (data.flip_horizontal !== undefined) {
+            updateFlipDisplay(data.flip_horizontal);
+          }
         }
       } catch (e) {
         // Silently retry
@@ -968,6 +1248,9 @@
           if (cfg.swap_rb !== undefined) {
             updateSwapRbDisplay(cfg.swap_rb);
           }
+          if (cfg.flip_horizontal !== undefined) {
+            updateFlipDisplay(cfg.flip_horizontal);
+          }
         }
       } catch (err) {
         console.error('Failed to fetch initial config:', err);
@@ -1025,6 +1308,8 @@
 
     if (swapRbBtn) swapRbBtn.addEventListener('click', toggleSwapRb);
     if (sidebarSwapRbBtn) sidebarSwapRbBtn.addEventListener('click', toggleSwapRb);
+    if (flipBtn) flipBtn.addEventListener('click', toggleFlip);
+    if (sidebarFlipBtn) sidebarFlipBtn.addEventListener('click', toggleFlip);
 
     // Initial connection & config load
     fetchInitialConfig();

@@ -84,3 +84,31 @@ def test_dynamic_fps_and_quality_update() -> None:
 
     cam.quality = 85
     assert cam.quality == 85
+
+
+def test_mock_camera_flip_horizontal() -> None:
+    """MockCamera should support toggling horizontal flip (mirror) in preview and capture."""
+    cam = MockCamera(width=320, height=240, target_fps=10, quality=50, use_webcam=False)
+    assert hasattr(cam, "flip_horizontal")
+
+    # Generate frame with flip enabled
+    cam.flip_horizontal = True
+    frame_flipped = cam._generate_frame(1)
+    assert isinstance(frame_flipped, bytes)
+    assert frame_flipped[:2] == b"\xff\xd8"
+
+    # Generate frame with flip disabled
+    cam.flip_horizontal = False
+    frame_normal = cam._generate_frame(1)
+    assert isinstance(frame_normal, bytes)
+    assert frame_normal[:2] == b"\xff\xd8"
+
+    # Both valid JPEGs and bytes differ due to left-to-right mirror
+    assert frame_flipped != frame_normal
+
+    # High res capture test
+    high_res_unflipped = cam.capture_high_res()
+    assert high_res_unflipped[:2] == b"\xff\xd8"
+    cam.flip_horizontal = True
+    high_res_flipped = cam.capture_high_res()
+    assert high_res_flipped[:2] == b"\xff\xd8"

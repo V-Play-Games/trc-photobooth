@@ -33,6 +33,7 @@ class BaseCamera(ABC):
         self._quality: int = settings.preview_quality
         self.width: int = settings.preview_width
         self.height: int = settings.preview_height
+        self.flip_horizontal: bool = settings.flip_horizontal
 
     @property
     @abstractmethod
@@ -146,9 +147,18 @@ class MockCamera(BaseCamera):
         self._quality = quality
         self.device_index = device_index
         self.use_webcam = use_webcam and not settings.use_synthetic
-        self.mirror = mirror
+        self.flip_horizontal = mirror if mirror is not None else settings.flip_horizontal
         self._active_backend = "webcam" if self.use_webcam else "mock"
         self._cap = None
+
+    @property
+    def mirror(self) -> bool:
+        """Alias for flip_horizontal for backwards compatibility."""
+        return self.flip_horizontal
+
+    @mirror.setter
+    def mirror(self, val: bool) -> None:
+        self.flip_horizontal = bool(val)
 
     @BaseCamera.target_fps.setter
     def target_fps(self, fps: int) -> None:
@@ -271,6 +281,10 @@ class MockCamera(BaseCamera):
         draw.text((10, 4), header, fill=(255, 204, 0))
         draw.text((10, 18), sub, fill=(200, 210, 230))
 
+        # Invert left-to-right if horizontal flip (mirror) is requested
+        if self.flip_horizontal:
+            img = img.transpose(Image.FLIP_LEFT_RIGHT)
+
         # Encode to JPEG
         buffer = io.BytesIO()
         img.save(buffer, format="JPEG", quality=self.quality, optimize=True)
@@ -344,8 +358,8 @@ class MockCamera(BaseCamera):
                 try:
                     ret, frame = self._cap.read()
                     if ret and frame is not None:
-                        # Mirror horizontally for natural photo booth mirror reflection
-                        if self.mirror:
+                        # Mirror horizontally for natural photo booth reflection
+                        if self.flip_horizontal:
                             frame = cv2.flip(frame, 1)
 
                         # Resize if webcam resolution differs from requested preview dimensions
@@ -397,7 +411,7 @@ class MockCamera(BaseCamera):
 
                 ret, frame = self._cap.read()
                 if ret and frame is not None:
-                    if self.mirror:
+                    if self.flip_horizontal:
                         frame = cv2.flip(frame, 1)
                     if settings.swap_rb:
                         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -418,6 +432,8 @@ class MockCamera(BaseCamera):
             f"HIGH-RES CAPTURE ({w}x{h})\nTRC PHOTO BOOTH",
             fill=(255, 255, 255),
         )
+        if self.flip_horizontal:
+            img = img.transpose(Image.FLIP_LEFT_RIGHT)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=settings.capture_quality)
         return buf.getvalue()
@@ -571,6 +587,8 @@ class PiCamera(BaseCamera):
                         bgr_frame = cv2.cvtColor(frame_arr, cv2.COLOR_RGB2BGR)
                     else:
                         bgr_frame = frame_arr
+                    if self.flip_horizontal:
+                        bgr_frame = cv2.flip(bgr_frame, 1)
                     encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), int(self.quality)]
                     ret, encimg = cv2.imencode(".jpg", bgr_frame, encode_param)
                     if ret:
@@ -584,6 +602,8 @@ class PiCamera(BaseCamera):
                     else:
                         frame_to_img = frame_arr[..., ::-1]
                     img = Image.fromarray(frame_to_img)
+                    if self.flip_horizontal:
+                        img = img.transpose(Image.FLIP_LEFT_RIGHT)
                     buf = io.BytesIO()
                     img.save(buf, format="JPEG", quality=self.quality)
                     jpeg_bytes = buf.getvalue()
@@ -622,6 +642,8 @@ class PiCamera(BaseCamera):
                 bgr_frame = cv2.cvtColor(frame_arr, cv2.COLOR_RGB2BGR)
             else:
                 bgr_frame = frame_arr
+            if self.flip_horizontal:
+                bgr_frame = cv2.flip(bgr_frame, 1)
             encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), int(settings.capture_quality)]
             ret, encimg = cv2.imencode(".jpg", bgr_frame, encode_param)
             if ret:
@@ -634,6 +656,8 @@ class PiCamera(BaseCamera):
         else:
             frame_to_img = frame_arr[..., ::-1]
         img = Image.fromarray(frame_to_img)
+        if self.flip_horizontal:
+            img = img.transpose(Image.FLIP_LEFT_RIGHT)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=settings.capture_quality)
         return buf.getvalue()

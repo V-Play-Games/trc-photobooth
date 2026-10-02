@@ -94,3 +94,67 @@ def test_websocket_feed_streaming(client: TestClient) -> None:
         websocket.send_text("ping")
         response = websocket.receive_json()
         assert response["type"] == "pong"
+
+        # Request system stats on-demand via WebSocket
+        websocket.send_text('{"action": "get_system_stats"}')
+        stats_resp = websocket.receive_json()
+        assert stats_resp["type"] == "system_stats"
+        assert "cpu_percent" in stats_resp["data"]
+        assert "memory" in stats_resp["data"]
+
+        # Toggle flip_horizontal via WebSocket
+        websocket.send_text('{"action": "flip_horizontal", "value": false}')
+        flip_resp = websocket.receive_json()
+        assert flip_resp["type"] == "config"
+        assert flip_resp["flip_horizontal"] is False
+
+
+def test_system_stats_endpoint(client: TestClient) -> None:
+    """GET /api/system/stats should report real-time on-demand hardware telemetry."""
+    res = client.get("/api/system/stats")
+    assert res.status_code == 200
+    data = res.json()
+
+    assert "cpu_percent" in data
+    assert isinstance(data["cpu_percent"], (int, float))
+    assert 0.0 <= data["cpu_percent"] <= 100.0
+
+    assert "cpu_temp_c" in data
+    if data["cpu_temp_c"] is not None:
+        assert isinstance(data["cpu_temp_c"], (int, float))
+        assert -20.0 < data["cpu_temp_c"] < 130.0
+
+    assert "memory" in data
+    mem = data["memory"]
+    assert mem["total_mb"] > 0
+    assert mem["used_mb"] >= 0
+    assert 0.0 <= mem["percent"] <= 100.0
+
+    assert "load_avg" in data
+    assert len(data["load_avg"]) == 3
+    assert "cpu_count" in data
+    assert data["cpu_count"] >= 1
+    assert "timestamp" in data
+
+
+def test_flip_horizontal_controls(client: TestClient) -> None:
+    """GET /api/config and POST /api/config should support flip_horizontal (mirror)."""
+    # Verify current flip setting in config
+    cfg_res = client.get("/api/config")
+    assert cfg_res.status_code == 200
+    assert "flip_horizontal" in cfg_res.json()
+
+    # Toggle flip_horizontal to False
+    post_res = client.post("/api/config", json={"flip_horizontal": False})
+    assert post_res.status_code == 200
+    assert post_res.json()["flip_horizontal"] is False
+
+    # Check status endpoint
+    status_res = client.get("/api/status")
+    assert status_res.status_code == 200
+    assert status_res.json()["flip_horizontal"] is False
+
+    # Toggle flip_horizontal back to True
+    post_res2 = client.post("/api/config", json={"flip_horizontal": True})
+    assert post_res2.status_code == 200
+    assert post_res2.json()["flip_horizontal"] is True

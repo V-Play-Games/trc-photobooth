@@ -177,6 +177,25 @@ class Streamer:
                                         "type": "config",
                                         "swap_rb": settings.swap_rb,
                                     })
+                                elif action in ("flip_horizontal", "toggle_flip"):
+                                    val = payload.get("value")
+                                    if val is None:
+                                        settings.flip_horizontal = not settings.flip_horizontal
+                                    else:
+                                        settings.flip_horizontal = bool(val)
+                                    if hasattr(self.camera, "flip_horizontal"):
+                                        self.camera.flip_horizontal = settings.flip_horizontal
+                                    await websocket.send_json({
+                                        "type": "config",
+                                        "flip_horizontal": settings.flip_horizontal,
+                                    })
+                                elif action == "get_system_stats":
+                                    from src.system_info import get_system_stats
+                                    stats = get_system_stats()
+                                    await websocket.send_json({
+                                        "type": "system_stats",
+                                        "data": stats.model_dump(),
+                                    })
                                 elif action == "set_fps":
                                     fps_val = int(payload.get("value", 15))
                                     settings.preview_fps = fps_val
