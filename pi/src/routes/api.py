@@ -1,6 +1,7 @@
 """REST API endpoints for photo booth system status and controls."""
 
 import time
+from typing import Any
 from fastapi import APIRouter, Response, status
 from src.camera import get_camera
 from src.config import settings
@@ -27,6 +28,7 @@ async def get_status() -> SystemStatus:
         resolution=f"{settings.preview_width}x{settings.preview_height}",
         frames_sent_total=streamer.frames_sent_total,
         uptime_seconds=streamer.uptime_seconds,
+        swap_rb=settings.swap_rb,
     )
 
 
@@ -37,13 +39,14 @@ async def health_check() -> dict[str, str | float]:
 
 
 @router.get("/config")
-async def get_camera_config() -> dict[str, int]:
+async def get_camera_config() -> dict[str, Any]:
     """Get active preview streaming configuration."""
     return {
         "width": settings.preview_width,
         "height": settings.preview_height,
         "fps": settings.preview_fps,
         "quality": settings.preview_quality,
+        "swap_rb": settings.swap_rb,
         "capture_width": settings.capture_width,
         "capture_height": settings.capture_height,
         "capture_quality": settings.capture_quality,
@@ -51,8 +54,8 @@ async def get_camera_config() -> dict[str, int]:
 
 
 @router.post("/config")
-async def update_camera_config(config_update: CameraConfigUpdate) -> dict[str, str | int]:
-    """Dynamically adjust preview frame rate or JPEG compression quality."""
+async def update_camera_config(config_update: CameraConfigUpdate) -> dict[str, Any]:
+    """Dynamically adjust preview frame rate, JPEG compression quality, or color channel order."""
     if config_update.fps is not None:
         settings.preview_fps = config_update.fps
         cam = get_camera()
@@ -63,11 +66,14 @@ async def update_camera_config(config_update: CameraConfigUpdate) -> dict[str, s
         cam = get_camera()
         if hasattr(cam, "quality"):
             cam.quality = config_update.quality
+    if config_update.swap_rb is not None:
+        settings.swap_rb = config_update.swap_rb
 
     return {
         "message": "Config updated successfully",
         "fps": settings.preview_fps,
         "quality": settings.preview_quality,
+        "swap_rb": settings.swap_rb,
     }
 
 

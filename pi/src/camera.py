@@ -306,6 +306,10 @@ class MockCamera(BaseCamera):
                                 frame, (self.width, self.height), interpolation=cv2.INTER_LINEAR
                             )
 
+                        # Optional Red/Blue channel swap
+                        if settings.swap_rb:
+                            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
                         # Hardware-accelerated JPEG encoding via OpenCV
                         encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), int(self.quality)]
                         success, encimg = cv2.imencode(".jpg", frame, encode_param)
@@ -345,6 +349,8 @@ class MockCamera(BaseCamera):
                 if ret and frame is not None:
                     if self.mirror:
                         frame = cv2.flip(frame, 1)
+                    if settings.swap_rb:
+                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), int(settings.capture_quality)]
                     success, encimg = cv2.imencode(".jpg", frame, encode_param)
                     if success:
@@ -451,10 +457,9 @@ class PiCamera(BaseCamera):
                     )
                     self._last_dark_warn_time = now
 
-                # Fast encoding: picamera2 outputs in standard RGB order.
-                # cv2.imencode expects BGR, so convert RGB -> BGR to avoid inverted red/blue channels (avatar effect)
+                # Fast encoding: picamera2 outputs in standard memory order matching OpenCV (BGR)
                 if cv2 is not None:
-                    if not settings.swap_rb:
+                    if settings.swap_rb:
                         bgr_frame = cv2.cvtColor(frame_arr, cv2.COLOR_RGB2BGR)
                     else:
                         bgr_frame = frame_arr
@@ -467,8 +472,10 @@ class PiCamera(BaseCamera):
                 else:
                     # Fallback to Pillow (Image.fromarray natively expects RGB)
                     if settings.swap_rb:
-                        frame_arr = frame_arr[..., ::-1]
-                    img = Image.fromarray(frame_arr)
+                        frame_to_img = frame_arr
+                    else:
+                        frame_to_img = frame_arr[..., ::-1]
+                    img = Image.fromarray(frame_to_img)
                     buf = io.BytesIO()
                     img.save(buf, format="JPEG", quality=self.quality)
                     jpeg_bytes = buf.getvalue()
@@ -502,18 +509,22 @@ class PiCamera(BaseCamera):
         frame_arr = self._picam2.capture_array(capture_config)
         try:
             import cv2
-            if not settings.swap_rb:
-                frame_arr = cv2.cvtColor(frame_arr, cv2.COLOR_RGB2BGR)
+            if settings.swap_rb:
+                bgr_frame = cv2.cvtColor(frame_arr, cv2.COLOR_RGB2BGR)
+            else:
+                bgr_frame = frame_arr
             encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), int(settings.capture_quality)]
-            ret, encimg = cv2.imencode(".jpg", frame_arr, encode_param)
+            ret, encimg = cv2.imencode(".jpg", bgr_frame, encode_param)
             if ret:
                 return encimg.tobytes()
         except ImportError:
             pass
 
         if settings.swap_rb:
-            frame_arr = frame_arr[..., ::-1]
-        img = Image.fromarray(frame_arr)
+            frame_to_img = frame_arr
+        else:
+            frame_to_img = frame_arr[..., ::-1]
+        img = Image.fromarray(frame_to_img)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=settings.capture_quality)
         return buf.getvalue()

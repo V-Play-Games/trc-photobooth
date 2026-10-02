@@ -162,6 +162,23 @@ class Streamer:
                         logger.debug("Received text from client: %s", text_data)
                         if "ping" in text_data.lower():
                             await websocket.send_json({"type": "pong", "time": time.time()})
+                        else:
+                            try:
+                                import json
+                                payload = json.loads(text_data)
+                                action = payload.get("action")
+                                if action == "swap_rb":
+                                    val = payload.get("value")
+                                    if val is None:
+                                        settings.swap_rb = not settings.swap_rb
+                                    else:
+                                        settings.swap_rb = bool(val)
+                                    await websocket.send_json({
+                                        "type": "config",
+                                        "swap_rb": settings.swap_rb,
+                                    })
+                            except Exception:
+                                pass
         except WebSocketDisconnect:
             pass
         except Exception as exc:
