@@ -100,3 +100,35 @@ class WebSocketControlMessage(BaseModel):
 
     type: str
     data: dict[str, Any] | None = None
+
+
+class CaptureMetadata(BaseModel):
+    """Metadata representing a single captured still photo or animated GIF."""
+
+    id: str = Field(..., description="Unique capture identifier")
+    type: Literal["photo", "gif"] = "photo"
+    content_type: str = Field("image/jpeg", description="MIME content type")
+    filename: str = Field(..., description="Download filename")
+    width: int = Field(..., description="Image width in pixels")
+    height: int = Field(..., description="Image height in pixels")
+    size_bytes: int = Field(..., description="Payload size in bytes")
+    created_at: float = Field(..., description="Creation epoch timestamp")
+    url: str = Field(..., description="Relative HTTP download URL")
+    frames: int | None = Field(None, description="Number of frames if animated GIF")
+
+
+class CaptureTriggerRequest(BaseModel):
+    """Parameters for triggering a still photo or animated GIF capture."""
+
+    type: Literal["photo", "gif"] = "photo"
+    countdown_seconds: int = Field(0, ge=0, le=10, description="Countdown timer before capture in seconds")
+    frames: int = Field(10, ge=3, le=30, description="Number of burst frames for GIF")
+    interval_ms: int = Field(150, ge=50, le=500, description="Delay between frames in ms for GIF")
+
+
+class CountdownTick(BaseModel):
+    """Countdown tick broadcast to clients."""
+
+    type: str = "countdown_tick"
+    seconds_left: int
+    action: Literal["photo", "gif"] = "photo"

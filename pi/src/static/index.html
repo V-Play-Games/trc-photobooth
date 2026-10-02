@@ -330,6 +330,193 @@
       box-shadow: 0 0 12px var(--accent-glow) !important;
     }
 
+    /* Phase 2: Capture, Countdown & Flash Overlays */
+    .flash-overlay {
+      position: absolute;
+      inset: 0;
+      background: #ffffff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 50;
+      transition: opacity 0.5s cubic-bezier(0.1, 0.9, 0.2, 1);
+    }
+    .flash-active {
+      opacity: 0.95;
+      transition: opacity 0.04s ease-in;
+    }
+
+    .countdown-overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(6px);
+      z-index: 40;
+      pointer-events: none;
+    }
+    .countdown-number {
+      font-size: 7rem;
+      font-weight: 900;
+      font-family: var(--font-ui);
+      background: linear-gradient(135deg, #ffffff, #00d9a5);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 35px rgba(0, 217, 165, 0.9));
+      animation: countPulse 0.95s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite;
+    }
+    .countdown-label {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #f0f4fc;
+      margin-top: 4px;
+    }
+    @keyframes countPulse {
+      0% { transform: scale(0.6); opacity: 0; }
+      40% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(1); opacity: 0.9; }
+    }
+
+    .recording-banner {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(239, 68, 68, 0.92);
+      color: white;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      z-index: 45;
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+      animation: pulse 1.2s infinite;
+    }
+
+    /* Phase 2: Capture Bar */
+    .capture-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+    }
+
+    .capture-timer-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Phase 2: Captures Gallery */
+    .captures-section {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .captures-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .captures-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 12px;
+      max-height: 420px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .capture-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .capture-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(0, 217, 165, 0.4);
+    }
+    .capture-thumb {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      background: #000;
+      cursor: pointer;
+    }
+    .capture-info {
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.75rem;
+    }
+    .capture-badge-photo {
+      background: rgba(0, 217, 165, 0.15);
+      color: #00d9a5;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.68rem;
+    }
+    .capture-badge-gif {
+      background: rgba(139, 92, 246, 0.2);
+      color: #c4b5fd;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.68rem;
+    }
+    .capture-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    /* Modal */
+    .preview-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(12px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .preview-content {
+      max-width: 90vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+    .preview-media {
+      max-width: 100%;
+      max-height: 75vh;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+      object-fit: contain;
+    }
+
     .res-step-label {
       cursor: pointer;
       transition: color 0.15s;
@@ -478,6 +665,38 @@
           <div class="spinner"></div>
           <span>Awaiting WebSocket frame stream...</span>
         </div>
+
+        <!-- Phase 2: Overlays -->
+        <div id="flashOverlay" class="flash-overlay"></div>
+        <div id="countdownOverlay" class="countdown-overlay">
+          <span id="countdownNumber" class="countdown-number">3</span>
+          <span id="countdownLabel" class="countdown-label">GET READY</span>
+        </div>
+        <div id="recordingBanner" class="recording-banner">
+          <span class="badge-dot" style="background: white;"></span>
+          <span>RECORDING GIF...</span>
+        </div>
+      </div>
+
+      <!-- Primary Phase 2 Capture Actions -->
+      <div class="capture-bar">
+        <div class="capture-timer-group">
+          <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">Timer:</label>
+          <select id="countdownSelect" class="btn" style="padding: 7px 10px; font-size: 0.82rem; border-color: rgba(255,255,255,0.15); cursor: pointer;">
+            <option value="3" selected>⏱️ 3s Countdown</option>
+            <option value="5">⏱️ 5s Countdown</option>
+            <option value="10">⏱️ 10s Countdown</option>
+            <option value="0">⚡ Instant (0s)</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <button id="triggerPhotoBtn" class="btn btn-primary" style="padding: 10px 22px; font-size: 0.92rem; font-weight: 700; gap: 8px;">
+            <span style="font-size: 1.15rem;">📸</span> Take Photo
+          </button>
+          <button id="triggerGifBtn" class="btn" style="padding: 10px 20px; font-size: 0.92rem; font-weight: 700; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; border: none; box-shadow: 0 4px 15px rgba(139, 92, 246, 0.35); gap: 8px;">
+            <span style="font-size: 1.15rem;">🎞️</span> Record GIF
+          </button>
+        </div>
       </div>
 
       <!-- Controls Bar -->
@@ -504,6 +723,22 @@
           <button id="fullscreenBtn" class="btn">
             <span>⛶</span> Fullscreen
           </button>
+        </div>
+      </div>
+
+      <!-- Recent Captures Gallery -->
+      <div class="captures-section">
+        <div class="captures-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h3 style="font-size: 0.95rem; font-weight: 600;">Recent Captures Gallery</h3>
+            <span id="galleryCountBadge" class="badge" style="padding: 2px 8px; font-size: 0.72rem;">0 captures</span>
+          </div>
+          <button id="refreshGalleryBtn" class="btn" style="padding: 5px 10px; font-size: 0.75rem;">
+            <span>🔄</span> Refresh
+          </button>
+        </div>
+        <div id="capturesGrid" class="captures-grid">
+          <!-- Dynamically populated -->
         </div>
       </div>
     </section>
@@ -761,11 +996,19 @@
 
       ws.onmessage = async (event) => {
         if (typeof event.data === 'string') {
-          // JSON control / telemetry message
+          // JSON control / telemetry / capture message
           try {
             const msg = JSON.parse(event.data);
             if (msg.type === 'status') {
               updateTelemetry(msg);
+            } else if (msg.type === 'countdown_tick') {
+              handleCountdownTick(msg);
+            } else if (msg.type === 'gif_recording') {
+              handleGifRecording(msg);
+            } else if (msg.type === 'capture_result') {
+              handleCaptureResult(msg.data);
+            } else if (msg.type === 'gif_result') {
+              handleGifResult(msg.data);
             }
           } catch (e) {
             console.error('Failed to parse text frame:', e);
@@ -1311,9 +1554,224 @@
     if (flipBtn) flipBtn.addEventListener('click', toggleFlip);
     if (sidebarFlipBtn) sidebarFlipBtn.addEventListener('click', toggleFlip);
 
+    // =========================================================================
+    // Phase 2: Capture, Countdown, GIF, and Gallery Logic
+    // =========================================================================
+    const countdownSelect = document.getElementById('countdownSelect');
+    const triggerPhotoBtn = document.getElementById('triggerPhotoBtn');
+    const triggerGifBtn = document.getElementById('triggerGifBtn');
+    const flashOverlay = document.getElementById('flashOverlay');
+    const countdownOverlay = document.getElementById('countdownOverlay');
+    const countdownNumber = document.getElementById('countdownNumber');
+    const countdownLabel = document.getElementById('countdownLabel');
+    const recordingBanner = document.getElementById('recordingBanner');
+    const capturesGrid = document.getElementById('capturesGrid');
+    const galleryCountBadge = document.getElementById('galleryCountBadge');
+    const refreshGalleryBtn = document.getElementById('refreshGalleryBtn');
+
+    const previewModal = document.getElementById('previewModal');
+    const previewTitle = document.getElementById('previewTitle');
+    const previewImage = document.getElementById('previewImage');
+    const previewDownloadLink = document.getElementById('previewDownloadLink');
+    const closePreviewBtn = document.getElementById('closePreviewBtn');
+
+    function triggerFlash() {
+      if (!flashOverlay) return;
+      flashOverlay.classList.add('flash-active');
+      setTimeout(() => {
+        flashOverlay.classList.remove('flash-active');
+      }, 70);
+    }
+
+    function handleCountdownTick(msg) {
+      if (countdownOverlay) {
+        countdownOverlay.style.display = 'flex';
+        if (msg.seconds_left > 0) {
+          countdownNumber.innerText = msg.seconds_left;
+          countdownLabel.innerText = msg.action === 'gif' ? 'BURST GIF COMING...' : 'GET READY!';
+        } else {
+          countdownNumber.innerText = '📸';
+          countdownLabel.innerText = 'SMILE!';
+          triggerFlash();
+          setTimeout(() => {
+            countdownOverlay.style.display = 'none';
+          }, 350);
+        }
+      }
+    }
+
+    function handleGifRecording(msg) {
+      if (countdownOverlay) countdownOverlay.style.display = 'none';
+      if (recordingBanner) {
+        recordingBanner.style.display = 'flex';
+      }
+    }
+
+    function handleCaptureResult(data) {
+      if (countdownOverlay) countdownOverlay.style.display = 'none';
+      if (recordingBanner) recordingBanner.style.display = 'none';
+      triggerFlash();
+      loadCaptures();
+    }
+
+    function handleGifResult(data) {
+      if (countdownOverlay) countdownOverlay.style.display = 'none';
+      if (recordingBanner) recordingBanner.style.display = 'none';
+      loadCaptures();
+    }
+
+    async function triggerCapture(type) {
+      const countdown = parseInt(countdownSelect.value, 10);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        if (type === 'photo') {
+          ws.send(JSON.stringify({ action: 'trigger_capture', countdown }));
+        } else if (type === 'gif') {
+          ws.send(JSON.stringify({ action: 'trigger_gif', countdown, frames: 10, interval_ms: 150 }));
+        }
+      } else {
+        // Fallback to REST endpoint
+        try {
+          const ep = type === 'photo' ? '/api/captures/photo' : '/api/captures/gif';
+          await fetch(ep, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ countdown_seconds: countdown, frames: 10, interval_ms: 150 })
+          });
+          loadCaptures();
+        } catch (err) {
+          console.error('REST capture trigger failed:', err);
+        }
+      }
+    }
+
+    if (triggerPhotoBtn) {
+      triggerPhotoBtn.addEventListener('click', () => triggerCapture('photo'));
+    }
+    if (triggerGifBtn) {
+      triggerGifBtn.addEventListener('click', () => triggerCapture('gif'));
+    }
+
+    // Gallery loading & rendering
+    async function loadCaptures() {
+      try {
+        const res = await fetch('/api/captures');
+        if (res.ok) {
+          const items = await res.json();
+          renderCaptures(items);
+        }
+      } catch (err) {
+        console.error('Failed loading captures:', err);
+      }
+    }
+
+    function renderCaptures(items) {
+      if (!capturesGrid) return;
+      if (galleryCountBadge) {
+        galleryCountBadge.innerText = `${items.length} capture${items.length === 1 ? '' : 's'}`;
+      }
+
+      if (!items || items.length === 0) {
+        capturesGrid.innerHTML = `
+          <div style="grid-column: 1/-1; text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 0.85rem; border: 1px dashed rgba(255,255,255,0.08); border-radius: 12px;">
+            <span>📸 No captures taken yet. Click "Take Photo" or "Record GIF" above!</span>
+          </div>
+        `;
+        return;
+      }
+
+      capturesGrid.innerHTML = items.map(item => {
+        const isGif = item.type === 'gif';
+        const badgeClass = isGif ? 'capture-badge-gif' : 'capture-badge-photo';
+        const badgeText = isGif ? `🎞️ GIF (${item.frames || 10}f)` : '📷 PHOTO';
+        const dateStr = new Date(item.created_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const sizeKb = Math.round(item.size_bytes / 1024);
+
+        return `
+          <div class="capture-card" data-id="${item.id}">
+            <img class="capture-thumb" src="${item.url}" alt="${item.filename}" onclick="openPreview('${item.url}', '${item.filename}', '${item.type}')">
+            <div class="capture-info">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="${badgeClass}">${badgeText}</span>
+                <span style="color: var(--text-muted); font-size: 0.7rem;">${dateStr}</span>
+              </div>
+              <div style="color: var(--text-muted); font-size: 0.7rem; font-family: var(--font-mono);">
+                ${item.width}x${item.height} • ${sizeKb} KB
+              </div>
+              <div class="capture-actions">
+                <a href="${item.url}" download="${item.filename}" class="btn" style="flex: 1; padding: 4px 6px; font-size: 0.72rem; justify-content: center; text-decoration: none;">
+                  ⬇️ Download
+                </a>
+                <button class="btn" style="padding: 4px 8px; font-size: 0.72rem; color: #ff3366;" onclick="deleteCaptureItem('${item.id}')" title="Delete capture">
+                  🗑️
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    window.openPreview = function(url, filename, type) {
+      if (!previewModal) return;
+      previewTitle.innerText = `${type === 'gif' ? '🎞️ Animated GIF' : '📸 High-Res Photo'}: ${filename}`;
+      previewImage.src = url;
+      previewDownloadLink.href = url;
+      previewDownloadLink.download = filename;
+      previewModal.style.display = 'flex';
+    };
+
+    window.deleteCaptureItem = async function(id) {
+      if (!confirm('Are you sure you want to delete this capture?')) return;
+      try {
+        const res = await fetch(`/api/captures/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          loadCaptures();
+        }
+      } catch (err) {
+        console.error('Delete failed:', err);
+      }
+    };
+
+    if (closePreviewBtn) {
+      closePreviewBtn.addEventListener('click', () => {
+        if (previewModal) previewModal.style.display = 'none';
+        if (previewImage) previewImage.src = '';
+      });
+    }
+
+    if (previewModal) {
+      previewModal.addEventListener('click', (e) => {
+        if (e.target === previewModal) {
+          previewModal.style.display = 'none';
+          if (previewImage) previewImage.src = '';
+        }
+      });
+    }
+
+    if (refreshGalleryBtn) {
+      refreshGalleryBtn.addEventListener('click', loadCaptures);
+    }
+
     // Initial connection & config load
     fetchInitialConfig();
     connectWebSocket();
+    loadCaptures();
   </script>
+
+  <!-- Lightbox Preview Modal -->
+  <div id="previewModal" class="preview-modal">
+    <div class="preview-content">
+      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <h3 id="previewTitle" style="font-size: 1rem; color: #fff;">Capture Preview</h3>
+        <button id="closePreviewBtn" class="btn" style="padding: 6px 12px; font-size: 0.8rem;">✕ Close</button>
+      </div>
+      <img id="previewImage" class="preview-media" src="" alt="Capture">
+      <div style="display: flex; gap: 12px;">
+        <a id="previewDownloadLink" href="" download class="btn btn-primary" style="text-decoration: none; padding: 10px 20px;">
+          ⬇️ Download Original
+        </a>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

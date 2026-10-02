@@ -1,11 +1,18 @@
-"""REST API endpoints for photo booth system status and controls."""
-
+import asyncio
 import time
 from typing import Any
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, HTTPException, Response, status
 from src.camera import get_camera
+from src.capture import capture_gif, capture_photo, get_capture_store
 from src.config import settings
-from src.models import CameraConfigUpdate, SystemStatus, SystemStatsResponse, parse_resolution
+from src.models import (
+    CameraConfigUpdate,
+    CaptureMetadata,
+    CaptureTriggerRequest,
+    SystemStatus,
+    SystemStatsResponse,
+    parse_resolution,
+)
 from src.streamer import get_streamer
 from src.system_info import get_system_stats
 
@@ -126,3 +133,104 @@ async def get_instant_snapshot() -> Response:
         media_type="image/jpeg",
         headers={"Content-Disposition": "inline; filename=snapshot.jpg"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Capture & GIF Endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/captures", response_model=list[CaptureMetadata])
+async def list_recent_captures() -> list[CaptureMetadata]:
+    """List recent captures (photos and animated GIFs) stored in memory, newest first."""
+    store = get_capture_store()
+    return store.list_all()
+
+
+@router.get("/captures/{capture_id}")
+async def get_capture_file(capture_id: str) -> Response:
+    """Serve a captured photo (JPEG) or animated GIF by capture ID."""
+    store = get_capture_store()
+    item = store.get(capture_id)
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Capture '{capture_id}' not found or expired",
+        )
+    return Response(
+        content=item.data,
+        media_type=item.content_type,
+        headers={
+            "Content-Disposition": f"inline; filename={item.filename}",
+            "Cache-Control": "public, max-age=3600",
+        },
+    )
+
+
+@router.post("/captures/photo", response_model=CaptureMetadata)
+@router.post("/capture/photo", response_model=CaptureMetadata, include_in_schema=False)
+async def trigger_photo(request: CaptureTriggerRequest | None = None) -> CaptureMetadata:
+    """Trigger high-resolution still capture with optional countdown."""
+    countdown = request.countdown_seconds if request else 0
+    streamer = get_streamer()
+
+    if countdown > 0:
+        await streamer.execute_countdown_and_capture(action="photo", countdown_seconds=countdown)
+        store = get_capture_store()
+        all_caps = store.list_all()
+        if all_caps:
+            return all_caps[0]
+
+    item = capture_photo()
+    await streamer.broadcast_json({
+        "type": "capture_result",
+        "data": item.to_metadata().model_dump(),
+    })
+    return item.to_metadata()
+
+
+@router.post("/captures/gif", response_model=CaptureMetadata)
+@router.post("/capture/gif", response_model=CaptureMetadata, include_in_schema=False)
+async def trigger_gif(request: CaptureTriggerRequest | None = None) -> CaptureMetadata:
+    """Trigger multi-frame animated GIF capture with optional countdown."""
+    countdown = request.countdown_seconds if request else 0
+    frames = request.frames if request else 10
+    interval_ms = request.interval_ms if request else 150
+    streamer = get_streamer()
+
+    if countdown > 0:
+        await streamer.execute_countdown_and_capture(
+            action="gif",
+            countdown_seconds=countdown,
+            frames=frames,
+            interval_ms=interval_ms,
+        )
+        store = get_capture_store()
+        all_caps = store.list_all()
+        if all_caps:
+            return all_caps[0]
+
+    await streamer.broadcast_json({
+        "type": "gif_recording",
+        "frames": frames,
+        "interval_ms": interval_ms,
+    })
+    item = await capture_gif(frames=frames, interval_ms=interval_ms)
+    await streamer.broadcast_json({
+        "type": "gif_result",
+        "data": item.to_metadata().model_dump(),
+    })
+    return item.to_metadata()
+
+
+@router.delete("/captures/{capture_id}")
+async def delete_capture(capture_id: str) -> dict[str, Any]:
+    """Delete a captured photo or GIF from temporary memory store."""
+    store = get_capture_store()
+    deleted = store.delete(capture_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Capture '{capture_id}' not found",
+        )
+    return {"status": "ok", "deleted": True, "id": capture_id}

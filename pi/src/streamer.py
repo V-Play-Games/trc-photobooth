@@ -52,6 +52,65 @@ class Streamer:
         self._frames_sent_total = 0
         self._start_time = time.time()
         self._last_frame_bytes: bytes | None = None
+        self._capturing_lock = asyncio.Lock()
+
+    async def broadcast_json(self, message: dict) -> None:
+        """Broadcast a JSON message to all connected clients."""
+        for client in list(self._clients):
+            if client.is_active:
+                try:
+                    await client.websocket.send_json(message)
+                except Exception:
+                    pass
+
+    async def execute_countdown_and_capture(
+        self,
+        action: str = "photo",
+        countdown_seconds: int = 0,
+        frames: int = 10,
+        interval_ms: int = 150,
+    ) -> None:
+        """Run countdown with broadcast ticks and execute photo or GIF capture."""
+        if self._capturing_lock.locked():
+            logger.warning("Capture request ignored: capture or countdown already active")
+            return
+
+        async with self._capturing_lock:
+            # 1. Countdown ticks
+            if countdown_seconds > 0:
+                for sec in range(countdown_seconds, 0, -1):
+                    await self.broadcast_json({
+                        "type": "countdown_tick",
+                        "seconds_left": sec,
+                        "action": action,
+                    })
+                    await asyncio.sleep(1.0)
+                await self.broadcast_json({
+                    "type": "countdown_tick",
+                    "seconds_left": 0,
+                    "action": action,
+                })
+
+            # 2. Perform capture
+            from src.capture import capture_photo, capture_gif
+
+            if action == "photo":
+                item = capture_photo(self.camera)
+                await self.broadcast_json({
+                    "type": "capture_result",
+                    "data": item.to_metadata().model_dump(),
+                })
+            elif action == "gif":
+                await self.broadcast_json({
+                    "type": "gif_recording",
+                    "frames": frames,
+                    "interval_ms": interval_ms,
+                })
+                item = await capture_gif(self.camera, frames=frames, interval_ms=interval_ms)
+                await self.broadcast_json({
+                    "type": "gif_result",
+                    "data": item.to_metadata().model_dump(),
+                })
 
     @property
     def client_count(self) -> int:
@@ -166,8 +225,38 @@ class Streamer:
                             try:
                                 import json
                                 payload = json.loads(text_data)
-                                action = payload.get("action")
-                                if action == "swap_rb":
+                                action = payload.get("action") or payload.get("type")
+                                if action in ("trigger_capture", "capture_photo"):
+                                    countdown = int(payload.get("countdown_seconds", payload.get("countdown", payload.get("seconds", 0))))
+                                    asyncio.create_task(
+                                        self.execute_countdown_and_capture(action="photo", countdown_seconds=countdown)
+                                    )
+                                elif action in ("trigger_gif", "capture_gif"):
+                                    countdown = int(payload.get("countdown_seconds", payload.get("countdown", payload.get("seconds", 0))))
+                                    frames_val = int(payload.get("frames", 10))
+                                    interval_val = int(payload.get("interval_ms", 150))
+                                    asyncio.create_task(
+                                        self.execute_countdown_and_capture(
+                                            action="gif",
+                                            countdown_seconds=countdown,
+                                            frames=frames_val,
+                                            interval_ms=interval_val,
+                                        )
+                                    )
+                                elif action == "countdown":
+                                    countdown = int(payload.get("seconds", payload.get("countdown", 3)))
+                                    target_act = payload.get("action_type", payload.get("target", "photo"))
+                                    frames_val = int(payload.get("frames", 10))
+                                    interval_val = int(payload.get("interval_ms", 150))
+                                    asyncio.create_task(
+                                        self.execute_countdown_and_capture(
+                                            action=target_act,
+                                            countdown_seconds=countdown,
+                                            frames=frames_val,
+                                            interval_ms=interval_val,
+                                        )
+                                    )
+                                elif action == "swap_rb":
                                     val = payload.get("value")
                                     if val is None:
                                         settings.swap_rb = not settings.swap_rb
