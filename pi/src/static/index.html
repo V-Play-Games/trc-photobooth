@@ -781,6 +781,7 @@
     });
 
     // Dynamic config sliders
+    let configDebounceTimer = null;
     async function updateConfig() {
       const fps = parseInt(fpsSlider.value, 10);
       const quality = parseInt(qualitySlider.value, 10);
@@ -796,22 +797,59 @@
       } catch (err) {
         console.error('Failed to update config:', err);
       }
+
+      // Also notify WebSocket if connected
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ action: 'set_fps', value: fps }));
+        } catch (e) {}
+      }
+    }
+
+    function debouncedUpdateConfig() {
+      clearTimeout(configDebounceTimer);
+      configDebounceTimer = setTimeout(updateConfig, 100);
+    }
+
+    async function fetchInitialConfig() {
+      try {
+        const res = await fetch('/api/config');
+        if (res.ok) {
+          const cfg = await res.json();
+          if (cfg.fps) {
+            fpsSlider.value = cfg.fps;
+            fpsDisplay.innerText = `${cfg.fps} fps`;
+          }
+          if (cfg.quality) {
+            qualitySlider.value = cfg.quality;
+            qualityDisplay.innerText = `${cfg.quality}%`;
+          }
+          if (cfg.swap_rb !== undefined) {
+            updateSwapRbDisplay(cfg.swap_rb);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch initial config:', err);
+      }
     }
 
     fpsSlider.addEventListener('input', () => {
       fpsDisplay.innerText = `${fpsSlider.value} fps`;
+      debouncedUpdateConfig();
     });
     fpsSlider.addEventListener('change', updateConfig);
 
     qualitySlider.addEventListener('input', () => {
       qualityDisplay.innerText = `${qualitySlider.value}%`;
+      debouncedUpdateConfig();
     });
     qualitySlider.addEventListener('change', updateConfig);
 
     if (swapRbBtn) swapRbBtn.addEventListener('click', toggleSwapRb);
     if (sidebarSwapRbBtn) sidebarSwapRbBtn.addEventListener('click', toggleSwapRb);
 
-    // Initial connection
+    // Initial connection & config load
+    fetchInitialConfig();
     connectWebSocket();
   </script>
 </body>

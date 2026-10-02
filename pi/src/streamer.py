@@ -109,7 +109,6 @@ class Streamer:
 
     async def _broadcast_loop(self) -> None:
         """Continuous loop polling camera frames and distributing them to clients."""
-        interval = 1.0 / max(1, settings.preview_fps)
         while self._running:
             loop_start = time.time()
 
@@ -121,6 +120,7 @@ class Streamer:
                     for client in list(self._clients):
                         client.offer_frame(frame)
 
+            interval = 1.0 / max(1, settings.preview_fps)
             elapsed = time.time() - loop_start
             sleep_time = interval - elapsed
             if sleep_time > 0:
@@ -176,6 +176,24 @@ class Streamer:
                                     await websocket.send_json({
                                         "type": "config",
                                         "swap_rb": settings.swap_rb,
+                                    })
+                                elif action == "set_fps":
+                                    fps_val = int(payload.get("value", 15))
+                                    settings.preview_fps = fps_val
+                                    if hasattr(self.camera, "target_fps"):
+                                        self.camera.target_fps = fps_val
+                                    await websocket.send_json({
+                                        "type": "config",
+                                        "fps": settings.preview_fps,
+                                    })
+                                elif action == "set_quality":
+                                    quality_val = int(payload.get("value", 70))
+                                    settings.preview_quality = quality_val
+                                    if hasattr(self.camera, "quality"):
+                                        self.camera.quality = quality_val
+                                    await websocket.send_json({
+                                        "type": "config",
+                                        "quality": settings.preview_quality,
                                     })
                             except Exception:
                                 pass

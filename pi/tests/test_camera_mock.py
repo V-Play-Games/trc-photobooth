@@ -71,3 +71,16 @@ def test_mock_camera_webcam_mode() -> None:
 
     cam.stop()
     assert not cam.is_running
+
+
+def test_dynamic_fps_and_quality_update() -> None:
+    """Camera target_fps and quality should be dynamically updatable at runtime."""
+    cam = MockCamera(width=320, height=240, target_fps=10, quality=50, use_webcam=False)
+    assert cam.target_fps == 10
+    assert cam.quality == 50
+
+    cam.target_fps = 25
+    assert cam.target_fps == 25
+
+    cam.quality = 85
+    assert cam.quality == 85

@@ -29,6 +29,8 @@ class BaseCamera(ABC):
         self._actual_fps: float = 0.0
         self._last_fps_calc_time: float = 0.0
         self._last_fps_frame_count: int = 0
+        self._target_fps: int = settings.preview_fps
+        self._quality: int = settings.preview_quality
 
     @property
     @abstractmethod
@@ -44,6 +46,24 @@ class BaseCamera(ABC):
     def actual_fps(self) -> float:
         """Measured actual frame rate."""
         return self._actual_fps
+
+    @property
+    def target_fps(self) -> int:
+        """Target capture and preview frame rate."""
+        return self._target_fps
+
+    @target_fps.setter
+    def target_fps(self, fps: int) -> None:
+        self._target_fps = max(1, int(fps))
+
+    @property
+    def quality(self) -> int:
+        """JPEG encoding quality (10-100)."""
+        return self._quality
+
+    @quality.setter
+    def quality(self, val: int) -> None:
+        self._quality = max(10, min(100, int(val)))
 
     @property
     def is_running(self) -> bool:
@@ -115,13 +135,23 @@ class MockCamera(BaseCamera):
         super().__init__()
         self.width = width
         self.height = height
-        self.target_fps = target_fps
-        self.quality = quality
+        self._target_fps = target_fps
+        self._quality = quality
         self.device_index = device_index
         self.use_webcam = use_webcam and not settings.use_synthetic
         self.mirror = mirror
         self._active_backend = "webcam" if self.use_webcam else "mock"
         self._cap = None
+
+    @BaseCamera.target_fps.setter
+    def target_fps(self, fps: int) -> None:
+        self._target_fps = max(1, int(fps))
+        if self._cap is not None:
+            try:
+                import cv2
+                self._cap.set(cv2.CAP_PROP_FPS, float(self._target_fps))
+            except Exception:
+                pass
 
     @property
     def backend_name(self) -> str:
@@ -228,7 +258,6 @@ class MockCamera(BaseCamera):
 
     def _capture_loop(self) -> None:
         """Capture loop with OpenCV webcam input and synthetic fallback."""
-        interval = 1.0 / max(1, self.target_fps)
         has_webcam = False
         cv2 = None
 
@@ -328,6 +357,7 @@ class MockCamera(BaseCamera):
             self._update_fps()
 
             elapsed = time.time() - loop_start
+            interval = 1.0 / max(1, self.target_fps)
             sleep_time = interval - elapsed
             if sleep_time > 0:
                 time.sleep(sleep_time)
@@ -386,10 +416,28 @@ class PiCamera(BaseCamera):
         super().__init__()
         self.width = width
         self.height = height
-        self.target_fps = target_fps
-        self.quality = quality
+        self._target_fps = target_fps
+        self._quality = quality
         self._picam2 = None
         self._last_dark_warn_time = 0.0
+
+    @BaseCamera.target_fps.setter
+    def target_fps(self, fps: int) -> None:
+        self._target_fps = max(1, int(fps))
+        if self._picam2 is not None:
+            try:
+                duration_us = int(1_000_000 / self._target_fps)
+                self._picam2.set_controls({
+                    "FrameRate": float(self._target_fps),
+                    "FrameDurationLimits": (duration_us, duration_us),
+                })
+                logger.info(
+                    "Updated picamera2 hardware FrameRate control to %d fps (%d us)",
+                    self._target_fps,
+                    duration_us,
+                )
+            except Exception as exc:
+                logger.warning("Could not set picamera2 FrameRate control: %s", exc)
 
     @property
     def backend_name(self) -> str:
@@ -403,14 +451,19 @@ class PiCamera(BaseCamera):
         from picamera2 import Picamera2
 
         self._picam2 = Picamera2()
-        # Use create_video_configuration with RGB888 format
+        # Use create_video_configuration with RGB888 format and FrameDurationLimits
+        fps = max(1, self.target_fps)
+        duration_us = int(1_000_000 / fps)
         video_config = self._picam2.create_video_configuration(
             main={"size": (self.width, self.height), "format": "RGB888"},
-            controls={"FrameRate": self.target_fps},
+            controls={
+                "FrameRate": float(fps),
+                "FrameDurationLimits": (duration_us, duration_us),
+            },
         )
         self._picam2.configure(video_config)
         self._picam2.start()
-        logger.info("picamera2 hardware started. Warming up sensor AGC/AEC...")
+        logger.info("picamera2 hardware started at %d fps (%d us). Warming up AGC/AEC...", fps, duration_us)
 
         # Discard initial calibration frames so Auto-Exposure (AEC) and Auto-Gain (AGC)
         # can adapt to ambient lighting (OV5647 starts with 0 exposure)
@@ -430,7 +483,6 @@ class PiCamera(BaseCamera):
             self._running = False
             return
 
-        interval = 1.0 / max(1, self.target_fps)
         cv2 = None
         try:
             import cv2 as cv_mod
@@ -489,6 +541,7 @@ class PiCamera(BaseCamera):
                 time.sleep(0.05)
 
             elapsed = time.time() - loop_start
+            interval = 1.0 / max(1, self.target_fps)
             sleep_time = interval - elapsed
             if sleep_time > 0:
                 time.sleep(sleep_time)

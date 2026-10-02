@@ -23,7 +23,7 @@ class SystemStatus(BaseModel):
 class CameraConfigUpdate(BaseModel):
     """Optional settings to adjust live feed performance."""
 
-    fps: int | None = Field(None, ge=1, le=30, description="Target preview FPS")
+    fps: int | None = Field(None, ge=1, le=60, description="Target preview FPS")
     quality: int | None = Field(None, ge=10, le=100, description="JPEG quality 10-100")
     swap_rb: bool | None = Field(None, description="Invert Red/Blue color channels")
 
