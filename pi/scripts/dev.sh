@@ -12,7 +12,8 @@ VENV_PYTHON="${PI_DIR}/.venv/bin/python"
 if [ ! -f "${VENV_PYTHON}" ]; then
   echo "Virtual environment not found. Setting up..."
   python3 -m venv "${PI_DIR}/.venv"
-  "${PI_DIR}/.venv/bin/pip" install -r "${PI_DIR}/requirements.txt"
+  "${PI_DIR}/.venv/bin/pip" install --upgrade pip
+  "${PI_DIR}/.venv/bin/pip" install -e "${PI_DIR}[dev]"
 fi
 
 export PHOTOBOOTH_DEBUG=true

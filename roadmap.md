@@ -164,7 +164,6 @@ trc-photobooth/
 │
 ├── pi/                         # Raspberry Pi: Camera capture & FastAPI WebSocket server
 │   ├── pyproject.toml          # Package spec & dependencies
-│   ├── requirements.txt        # Frozen Python dependencies
 │   ├── README.md               # Pi server docs & hardware setup
 │   ├── src/
 │   │   ├── main.py             # FastAPI app entry point, lifespan, static file serving
@@ -212,7 +211,7 @@ trc-photobooth/
 dark-mode live feed monitor interface (`index.html` / `test.html`) displays the stream.
 
 **Tasks:**
-- [x] Set up Pi Python project (`pyproject.toml`, virtual env, `requirements.txt`)
+- [x] Set up Pi Python project (`pyproject.toml`, virtual env)
 - [x] Implement `camera.py` — `picamera2` wrapper with automatic `MockCamera` fallback
   - Hardware camera setup for official Pi Camera Module v2/v3
   - Animated synthetic test pattern generator with timestamp, frame counter, crosshairs, and color bars

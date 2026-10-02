@@ -18,9 +18,9 @@ fi
 echo "==> Creating Python virtual environment (with system-site-packages for picamera2)..."
 python3 -m venv --system-site-packages "${PI_DIR}/.venv"
 
-echo "==> Installing Python dependencies..."
+echo "==> Installing Python dependencies via pyproject.toml..."
 "${PI_DIR}/.venv/bin/pip" install --upgrade pip
-"${PI_DIR}/.venv/bin/pip" install -r "${PI_DIR}/requirements.txt"
+"${PI_DIR}/.venv/bin/pip" install -e "${PI_DIR}[dev,pi]"
 
 echo "==> Installation complete!"
 echo "To run the server:"
