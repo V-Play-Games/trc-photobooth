@@ -172,3 +172,8 @@ def test_flip_horizontal_controls(client: TestClient) -> None:
     post_res2 = client.post("/api/config", json={"flip_horizontal": True})
     assert post_res2.status_code == 200
     assert post_res2.json()["flip_horizontal"] is True
+
+    # Restore default setting (False)
+    restore_res = client.post("/api/config", json={"flip_horizontal": False})
+    assert restore_res.status_code == 200
+    assert restore_res.json()["flip_horizontal"] is False

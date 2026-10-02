@@ -76,11 +76,11 @@ def test_camera_controls_contract(client: TestClient) -> None:
     assert res_res.json()["height"] == 720
 
     # Test toggle flip_horizontal
-    flip_res = client.post("/api/config", json={"flip_horizontal": False})
+    flip_res = client.post("/api/config", json={"flip_horizontal": True})
     assert flip_res.status_code == 200
-    assert flip_res.json()["flip_horizontal"] is False
+    assert flip_res.json()["flip_horizontal"] is True
 
-    # Restore default flip
-    restore_res = client.post("/api/config", json={"flip_horizontal": True, "fps": 15, "quality": 70})
+    # Restore default flip (False)
+    restore_res = client.post("/api/config", json={"flip_horizontal": False, "fps": 15, "quality": 70})
     assert restore_res.status_code == 200
-    assert restore_res.json()["flip_horizontal"] is True
+    assert restore_res.json()["flip_horizontal"] is False

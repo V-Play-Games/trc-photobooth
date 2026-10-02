@@ -845,7 +845,7 @@
         <div class="form-group" style="margin-top: 14px;">
           <div class="form-label">
             <span>Mirror / Left-Right Flip</span>
-            <span id="flipIndicator" style="font-size: 0.78rem; font-weight: 600; color: #00d9a5;">Mirrored</span>
+            <span id="flipIndicator" style="font-size: 0.78rem; font-weight: 600; color: #8c9bb5;">Normal (Unflipped)</span>
           </div>
           <button id="sidebarFlipBtn" class="btn" style="width: 100%; justify-content: center; margin-top: 6px; font-size: 0.8rem; border: 1px solid rgba(0, 217, 165, 0.3); background: rgba(0, 217, 165, 0.1);">
             <span>🪞 Invert Output (Flip L/R)</span>
@@ -977,7 +977,7 @@
     const flipBtn = document.getElementById('flipBtn');
     const sidebarFlipBtn = document.getElementById('sidebarFlipBtn');
     const flipIndicator = document.getElementById('flipIndicator');
-    let isFlip = true;
+    let isFlip = false;
 
     // Connect WebSocket
     function connectWebSocket() {

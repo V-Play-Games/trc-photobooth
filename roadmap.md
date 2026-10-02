@@ -266,46 +266,46 @@ commands. Captures are stored temporarily and downloadable.
 
 ---
 
-### Phase 3: React Web Client (Days 6-10)
+### Phase 3: React Web Client (Days 6-10) — COMPLETED ✅
 
 **Goal:** Polished React web app with live preview, filters, capture controls,
 and a gallery — served directly from the Pi.
 
 **Tasks:**
-- [ ] Scaffold Vite + React + TypeScript project
-- [ ] Design system in `index.css`
-  - Dark theme (photo booth aesthetic)
-  - CSS custom properties for colors, spacing, typography
-  - Responsive: works on phone browsers too
-- [ ] `useWebSocket` hook
-  - Auto-connect to `ws://<host>/ws/feed`
+- [x] Scaffold Vite + React + TypeScript project
+- [x] Design system in `index.css`
+  - Dark theme (photo booth aesthetic: deep obsidian/navy, neon coral/cyan accents, glassmorphic surfaces)
+  - CSS custom properties for colors, spacing, typography, radii, shadows, and animations
+  - Responsive: optimized for phone browsers, touchscreens, tablets, and desktop
+- [x] `useWebSocket` hook
+  - Auto-connect to `ws://<host>/ws/feed` (with dev proxy support)
   - Auto-reconnect with exponential backoff
-  - Connection status indicator
-- [ ] `LivePreview` component
+  - Connection status indicator (`connected`, `connecting`, `disconnected`, `error`)
+- [x] `LivePreview` component
   - Render JPEG frames to canvas at native fps
   - Apply selected CSS filter as canvas overlay
-  - Aspect-ratio-correct scaling
-- [ ] `FilterBar` component
+  - Aspect-ratio-correct scaling, rule-of-thirds grid guides, and mirror reflection
+- [x] `FilterBar` component
   - Horizontal scrollable strip of filter thumbnails
   - Filters: None, B&W, Sepia, Vintage, Cool, Warm, High Contrast, Vignette,
     Film Grain, Polaroid
   - Each filter = CSS `filter()` string + Canvas equivalent
-- [ ] `CaptureButton` + `Countdown` components
-  - Big capture button (tap/click)
-  - GIF mode toggle (hold or separate button)
-  - Full-screen countdown overlay (3-2-1)
-- [ ] `Gallery` + `PhotoCard` components
-  - Grid of recent captures
-  - Tap to expand, download, or share (Web Share API)
-  - Filter badge showing which filter was applied
-- [ ] `filters/presets.ts` — filter engine
+- [x] `CaptureButton` + `Countdown` components
+  - Big tactile capture button with glowing pulse ring (tap/click/Spacebar)
+  - GIF mode toggle with frame count and interval configuration
+  - Full-screen countdown overlay (3-2-1-SMILE) and studio strobe camera flash
+- [x] `Gallery` + `PhotoCard` components
+  - Slide-out gallery drawer with recent captures grid
+  - Lightbox modal: tap to expand, download, or share (Web Share API)
+  - Filter badge and dynamic filter baking directly before download
+- [x] `filters/presets.ts` — filter engine
   - CSS filter strings for live preview
   - Canvas `CanvasRenderingContext2D` filter application for baking into
-    downloaded images
-- [ ] Build & deploy: `vite build` → output to `pi-server/static/`
-- [ ] FastAPI serves static files from `static/` as the root
+    downloaded images (including vignette, grain, and polaroid frame)
+- [x] Build & deploy: `vite build` → output to `pi/src/static/`
+- [x] FastAPI serves static files from `static/` as the root
 
-**Deliverable:** Full web photo booth experience at `http://<pi-ip>:8000/`.
+**Deliverable Status:** ✅ Operational. Complete modern photo booth web client served from the Pi at `http://<pi-ip>:8000/`. Features live feed streaming, 10 aesthetic filters, photo/GIF burst capture with countdown & flash, celebration confetti, gallery drawer, and full filter baking export. Developer diagnostic tool remains accessible at `/test.html`.
 
 ---
 
