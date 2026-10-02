@@ -40,18 +40,33 @@ def test_config_endpoints(client: TestClient) -> None:
     assert "fps" in initial_config
     assert "quality" in initial_config
 
-    # Update config
-    post_res = client.post("/api/config", json={"fps": 20, "quality": 80, "swap_rb": True})
+    # Update config with 60 FPS and 720p resolution
+    post_res = client.post(
+        "/api/config",
+        json={"fps": 60, "quality": 80, "resolution": "720p", "aspect_ratio": "16:9", "swap_rb": True},
+    )
     assert post_res.status_code == 200
     updated_data = post_res.json()
-    assert updated_data["fps"] == 20
+    assert updated_data["fps"] == 60
     assert updated_data["quality"] == 80
+    assert updated_data["width"] == 1280
+    assert updated_data["height"] == 720
     assert updated_data["swap_rb"] is True
 
+    # Test 4:3 resolution preset (e.g. 480p -> 640x480)
+    post_res_43 = client.post(
+        "/api/config",
+        json={"resolution": "480p", "aspect_ratio": "4:3"},
+    )
+    assert post_res_43.status_code == 200
+    assert post_res_43.json()["width"] == 640
+    assert post_res_43.json()["height"] == 480
+
     # Reset swap_rb to False
-    post_res2 = client.post("/api/config", json={"swap_rb": False})
+    post_res2 = client.post("/api/config", json={"swap_rb": False, "fps": 15})
     assert post_res2.status_code == 200
     assert post_res2.json()["swap_rb"] is False
+    assert post_res2.json()["fps"] == 15
 
 
 def test_serve_static_html(client: TestClient) -> None:

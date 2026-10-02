@@ -195,6 +195,25 @@ class Streamer:
                                         "type": "config",
                                         "quality": settings.preview_quality,
                                     })
+                                elif action == "set_resolution":
+                                    res_val = payload.get("value")
+                                    ratio = payload.get("aspect_ratio", "16:9")
+                                    w_val = payload.get("width")
+                                    h_val = payload.get("height")
+                                    from src.models import parse_resolution
+                                    parsed = parse_resolution(res_val, ratio, w_val, h_val)
+                                    if parsed:
+                                        settings.preview_width, settings.preview_height = parsed
+                                        if hasattr(self.camera, "set_resolution"):
+                                            self.camera.set_resolution(parsed[0], parsed[1])
+                                        else:
+                                            self.camera.width, self.camera.height = parsed
+                                        await websocket.send_json({
+                                            "type": "config",
+                                            "width": settings.preview_width,
+                                            "height": settings.preview_height,
+                                            "resolution": f"{settings.preview_width}x{settings.preview_height}",
+                                        })
                             except Exception:
                                 pass
         except WebSocketDisconnect:

@@ -31,6 +31,8 @@ class BaseCamera(ABC):
         self._last_fps_frame_count: int = 0
         self._target_fps: int = settings.preview_fps
         self._quality: int = settings.preview_quality
+        self.width: int = settings.preview_width
+        self.height: int = settings.preview_height
 
     @property
     @abstractmethod
@@ -64,6 +66,11 @@ class BaseCamera(ABC):
     @quality.setter
     def quality(self, val: int) -> None:
         self._quality = max(10, min(100, int(val)))
+
+    def set_resolution(self, width: int, height: int) -> None:
+        """Update preview stream resolution."""
+        self.width = max(160, int(width))
+        self.height = max(120, int(height))
 
     @property
     def is_running(self) -> bool:
@@ -152,6 +159,19 @@ class MockCamera(BaseCamera):
                 self._cap.set(cv2.CAP_PROP_FPS, float(self._target_fps))
             except Exception:
                 pass
+
+    def set_resolution(self, width: int, height: int) -> None:
+        """Update preview resolution for webcam scaling or synthetic pattern."""
+        self.width = max(160, int(width))
+        self.height = max(120, int(height))
+        if self._cap is not None:
+            try:
+                import cv2
+                self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(self.width))
+                self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, float(self.height))
+            except Exception:
+                pass
+        logger.info("MockCamera resolution updated to %dx%d", self.width, self.height)
 
     @property
     def backend_name(self) -> str:
@@ -420,6 +440,7 @@ class PiCamera(BaseCamera):
         self._quality = quality
         self._picam2 = None
         self._last_dark_warn_time = 0.0
+        self._pending_reconfigure: tuple[int, int] | None = None
 
     @BaseCamera.target_fps.setter
     def target_fps(self, fps: int) -> None:
@@ -438,6 +459,15 @@ class PiCamera(BaseCamera):
                 )
             except Exception as exc:
                 logger.warning("Could not set picamera2 FrameRate control: %s", exc)
+
+    def set_resolution(self, width: int, height: int) -> None:
+        """Update preview resolution and schedule hardware reconfiguration."""
+        w = max(160, int(width))
+        h = max(120, int(height))
+        self.width = w
+        self.height = h
+        self._pending_reconfigure = (w, h)
+        logger.info("PiCamera preview resolution updated to %dx%d (reconfiguration scheduled)", w, h)
 
     @property
     def backend_name(self) -> str:
@@ -494,9 +524,35 @@ class PiCamera(BaseCamera):
             loop_start = time.time()
             self._frame_count += 1
 
+            if self._pending_reconfigure is not None:
+                try:
+                    req_w, req_h = self._pending_reconfigure
+                    self._pending_reconfigure = None
+                    if self._picam2 is not None:
+                        logger.info("Reconfiguring picamera2 hardware to %dx%d...", req_w, req_h)
+                        self._picam2.stop()
+                        duration_us = int(1_000_000 / max(1, self.target_fps))
+                        video_config = self._picam2.create_video_configuration(
+                            main={"size": (req_w, req_h), "format": "RGB888"},
+                            controls={
+                                "FrameRate": float(self.target_fps),
+                                "FrameDurationLimits": (duration_us, duration_us),
+                            },
+                        )
+                        self._picam2.configure(video_config)
+                        self._picam2.start()
+                        logger.info("picamera2 hardware reconfigured to %dx%d", req_w, req_h)
+                except Exception as reconf_exc:
+                    logger.warning("picamera2 hardware reconfigure failed (%s), using software resize", reconf_exc)
+
             try:
                 # Capture frame array from picamera2 (returns RGB)
                 frame_arr = self._picam2.capture_array("main")
+
+                # Resize if frame dimensions differ from target preview resolution
+                h_cur, w_cur = frame_arr.shape[:2]
+                if cv2 is not None and (w_cur != self.width or h_cur != self.height):
+                    frame_arr = cv2.resize(frame_arr, (self.width, self.height), interpolation=cv2.INTER_LINEAR)
 
                 # Diagnostic check for pitch-black frames (e.g. lens cap or cable fault)
                 mean_brightness = float(frame_arr.mean()) if hasattr(frame_arr, "mean") else 100.0

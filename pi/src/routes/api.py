@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Response, status
 from src.camera import get_camera
 from src.config import settings
-from src.models import CameraConfigUpdate, SystemStatus
+from src.models import CameraConfigUpdate, SystemStatus, parse_resolution
 from src.streamer import get_streamer
 
 router = APIRouter(prefix="/api", tags=["System"])
@@ -66,6 +66,25 @@ async def update_camera_config(config_update: CameraConfigUpdate) -> dict[str, A
         cam = get_camera()
         if hasattr(cam, "quality"):
             cam.quality = config_update.quality
+
+    # Parse and apply resolution (either '720p' style string or explicit width/height)
+    res_tuple = parse_resolution(
+        resolution=config_update.resolution,
+        aspect_ratio=config_update.aspect_ratio or "16:9",
+        width=config_update.width,
+        height=config_update.height,
+    )
+    if res_tuple is not None:
+        new_width, new_height = res_tuple
+        settings.preview_width = new_width
+        settings.preview_height = new_height
+        cam = get_camera()
+        if hasattr(cam, "set_resolution"):
+            cam.set_resolution(new_width, new_height)
+        else:
+            cam.width = new_width
+            cam.height = new_height
+
     if config_update.swap_rb is not None:
         settings.swap_rb = config_update.swap_rb
 
@@ -73,6 +92,8 @@ async def update_camera_config(config_update: CameraConfigUpdate) -> dict[str, A
         "message": "Config updated successfully",
         "fps": settings.preview_fps,
         "quality": settings.preview_quality,
+        "width": settings.preview_width,
+        "height": settings.preview_height,
         "swap_rb": settings.swap_rb,
     }
 

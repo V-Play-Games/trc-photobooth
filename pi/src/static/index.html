@@ -316,6 +316,25 @@
       background: linear-gradient(135deg, #00f0b5, #00b88b);
     }
 
+    .active-ratio, .btn-active {
+      background: rgba(99, 102, 241, 0.28) !important;
+      border-color: var(--accent-primary) !important;
+      color: #ffffff !important;
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.35);
+    }
+
+    .res-step-label {
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .res-step-label:hover {
+      color: #a5b4fc;
+    }
+    .res-step-label.active-step {
+      color: var(--accent-primary);
+      font-weight: 600;
+    }
+
     /* Sidebar / Diagnostics Card */
     .sidebar {
       display: flex;
@@ -526,10 +545,41 @@
         </div>
         <div class="form-group">
           <div class="form-label">
-            <span>Target FPS</span>
+            <span>Target Frame Rate</span>
             <span id="fpsDisplay">15 fps</span>
           </div>
-          <input type="range" id="fpsSlider" class="range-input" min="5" max="30" step="1" value="15">
+          <input type="range" id="fpsSlider" class="range-input" min="5" max="60" step="1" value="15">
+          <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">
+            <span>5 fps</span>
+            <span>15 fps</span>
+            <span>30 fps</span>
+            <span>60 fps</span>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 14px;">
+          <div class="form-label">
+            <span>Resolution</span>
+            <span id="resDisplay" style="color: #a5b4fc; font-weight: 600;">480p (640x480)</span>
+          </div>
+          <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+            <button type="button" id="ratio169Btn" class="btn active-ratio" style="flex: 1; padding: 5px 6px; font-size: 0.72rem; justify-content: center;">16:9 Widescreen</button>
+            <button type="button" id="ratio43Btn" class="btn" style="flex: 1; padding: 5px 6px; font-size: 0.72rem; justify-content: center;">4:3 Sensor Native</button>
+          </div>
+          <input type="range" id="resSlider" class="range-input" min="0" max="4" step="1" value="2">
+          <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-muted); margin-top: 4px;">
+            <span class="res-step-label" data-idx="0">240p</span>
+            <span class="res-step-label" data-idx="1">360p</span>
+            <span class="res-step-label active-step" data-idx="2">480p</span>
+            <span class="res-step-label" data-idx="3">720p</span>
+            <span class="res-step-label" data-idx="4">1080p</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px;">
+            <button type="button" class="btn res-pill-btn" data-p="360p" style="padding: 4px 2px; font-size: 0.7rem; justify-content: center;">360p</button>
+            <button type="button" class="btn res-pill-btn" data-p="480p" style="padding: 4px 2px; font-size: 0.7rem; justify-content: center;">480p</button>
+            <button type="button" class="btn res-pill-btn" data-p="720p" style="padding: 4px 2px; font-size: 0.7rem; justify-content: center;">720p HD</button>
+            <button type="button" class="btn res-pill-btn" data-p="1080p" style="padding: 4px 2px; font-size: 0.7rem; justify-content: center;">1080p FHD</button>
+          </div>
         </div>
         <div class="form-group" style="margin-top: 14px;">
           <div class="form-label">
@@ -781,6 +831,83 @@
     });
 
     // Dynamic config sliders
+    const RES_PRESETS = {
+      '16:9': [
+        { p: '240p', w: 426, h: 240, label: '240p (426x240)' },
+        { p: '360p', w: 640, h: 360, label: '360p (640x360)' },
+        { p: '480p', w: 854, h: 480, label: '480p (854x480)' },
+        { p: '720p', w: 1280, h: 720, label: '720p HD (1280x720)' },
+        { p: '1080p', w: 1920, h: 1080, label: '1080p FHD (1920x1080)' },
+      ],
+      '4:3': [
+        { p: '240p', w: 320, h: 240, label: '240p (320x240)' },
+        { p: '360p', w: 480, h: 360, label: '360p (480x360)' },
+        { p: '480p', w: 640, h: 480, label: '480p VGA (640x480)' },
+        { p: '720p', w: 960, h: 720, label: '720p (960x720)' },
+        { p: '1080p', w: 1440, h: 1080, label: '1080p (1440x1080)' },
+      ]
+    };
+    let currentAspectRatio = '16:9';
+    let currentResIdx = 2; // Default 480p
+
+    const resSlider = document.getElementById('resSlider');
+    const resDisplay = document.getElementById('resDisplay');
+    const ratio169Btn = document.getElementById('ratio169Btn');
+    const ratio43Btn = document.getElementById('ratio43Btn');
+    const resStepLabels = document.querySelectorAll('.res-step-label');
+    const resPillBtns = document.querySelectorAll('.res-pill-btn');
+
+    function updateResolutionUI(idx, ratio) {
+      if (ratio) {
+        currentAspectRatio = ratio;
+        ratio169Btn.classList.toggle('active-ratio', ratio === '16:9');
+        ratio43Btn.classList.toggle('active-ratio', ratio === '4:3');
+      }
+      currentResIdx = Math.max(0, Math.min(4, idx));
+      if (resSlider) resSlider.value = currentResIdx;
+
+      const list = RES_PRESETS[currentAspectRatio];
+      const selected = list[currentResIdx];
+      if (resDisplay) resDisplay.innerText = selected.label;
+
+      resStepLabels.forEach((el, i) => {
+        el.classList.toggle('active-step', i === currentResIdx);
+      });
+      resPillBtns.forEach(btn => {
+        btn.classList.toggle('btn-active', btn.dataset.p === selected.p);
+      });
+    }
+
+    async function applyResolution(idx, ratio) {
+      updateResolutionUI(idx, ratio);
+      const selected = RES_PRESETS[currentAspectRatio][currentResIdx];
+      try {
+        await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resolution: selected.p,
+            aspect_ratio: currentAspectRatio,
+            width: selected.w,
+            height: selected.h
+          })
+        });
+      } catch (err) {
+        console.error('Failed to update resolution:', err);
+      }
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({
+            action: 'set_resolution',
+            value: selected.p,
+            aspect_ratio: currentAspectRatio,
+            width: selected.w,
+            height: selected.h
+          }));
+        } catch (e) {}
+      }
+    }
+
     let configDebounceTimer = null;
     async function updateConfig() {
       const fps = parseInt(fpsSlider.value, 10);
@@ -824,6 +951,20 @@
             qualitySlider.value = cfg.quality;
             qualityDisplay.innerText = `${cfg.quality}%`;
           }
+          if (cfg.width && cfg.height) {
+            const ratio = (cfg.width / cfg.height) > 1.5 ? '16:9' : '4:3';
+            const list = RES_PRESETS[ratio];
+            let bestIdx = 2;
+            let minDiff = Infinity;
+            list.forEach((item, i) => {
+              const diff = Math.abs(item.h - cfg.height);
+              if (diff < minDiff) {
+                minDiff = diff;
+                bestIdx = i;
+              }
+            });
+            updateResolutionUI(bestIdx, ratio);
+          }
           if (cfg.swap_rb !== undefined) {
             updateSwapRbDisplay(cfg.swap_rb);
           }
@@ -844,6 +985,43 @@
       debouncedUpdateConfig();
     });
     qualitySlider.addEventListener('change', updateConfig);
+
+    if (resSlider) {
+      resSlider.addEventListener('input', () => {
+        updateResolutionUI(parseInt(resSlider.value, 10));
+      });
+      resSlider.addEventListener('change', () => {
+        applyResolution(parseInt(resSlider.value, 10));
+      });
+    }
+
+    if (ratio169Btn) {
+      ratio169Btn.addEventListener('click', () => {
+        applyResolution(currentResIdx, '16:9');
+      });
+    }
+    if (ratio43Btn) {
+      ratio43Btn.addEventListener('click', () => {
+        applyResolution(currentResIdx, '4:3');
+      });
+    }
+
+    resStepLabels.forEach(el => {
+      el.addEventListener('click', () => {
+        applyResolution(parseInt(el.dataset.idx, 10));
+      });
+    });
+
+    resPillBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetP = btn.dataset.p;
+        const list = RES_PRESETS[currentAspectRatio];
+        const idx = list.findIndex(item => item.p === targetP);
+        if (idx !== -1) {
+          applyResolution(idx);
+        }
+      });
+    });
 
     if (swapRbBtn) swapRbBtn.addEventListener('click', toggleSwapRb);
     if (sidebarSwapRbBtn) sidebarSwapRbBtn.addEventListener('click', toggleSwapRb);
