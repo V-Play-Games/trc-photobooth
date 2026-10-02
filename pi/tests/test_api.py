@@ -70,7 +70,7 @@ def test_config_endpoints(client: TestClient) -> None:
 
 
 def test_serve_static_html(client: TestClient) -> None:
-    """GET / and GET /test.html should return the HTML test monitor."""
+    """GET / and GET /test.html should return the React app and HTML test monitor."""
     res_root = client.get("/")
     assert res_root.status_code == 200
     assert "TRC Photo Booth" in res_root.text
@@ -78,6 +78,20 @@ def test_serve_static_html(client: TestClient) -> None:
     res_test = client.get("/test.html")
     assert res_test.status_code == 200
     assert "cameraCanvas" in res_test.text
+
+
+def test_serve_vite_assets(client: TestClient) -> None:
+    """GET /assets/... should serve Vite bundled scripts and stylesheets."""
+    import re
+    res_root = client.get("/")
+    assert res_root.status_code == 200
+    # Find asset paths in index.html
+    matches = re.findall(r'(?:src|href)="(?:\./)?(assets/[^"]+)"', res_root.text)
+    assert len(matches) > 0, "No assets found in index.html"
+    for asset_path in matches:
+        res_asset = client.get(f"/{asset_path}")
+        assert res_asset.status_code == 200
+        assert len(res_asset.content) > 100
 
 
 def test_websocket_feed_streaming(client: TestClient) -> None:

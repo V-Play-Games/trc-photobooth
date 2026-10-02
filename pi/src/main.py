@@ -70,18 +70,30 @@ if settings.static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(settings.static_dir)), name="static")
 
 
+@app.api_route("/assets/{file_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+async def serve_asset_file(file_path: str) -> FileResponse:
+    """Serve Vite bundled asset files."""
+    asset_file = settings.static_dir / "assets" / file_path
+    if asset_file.exists():
+        return FileResponse(asset_file)
+    from fastapi import HTTPException
+    raise HTTPException(status_code=404, detail="Asset not found")
+
+
 @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 async def serve_index() -> FileResponse:
-    """Serve the Phase 1 live feed monitor interface."""
+    """Serve the React Photo Booth web application."""
     index_path = settings.static_dir / "index.html"
     return FileResponse(index_path)
 
 
 @app.api_route("/test.html", methods=["GET", "HEAD"], include_in_schema=False)
 async def serve_test_page() -> FileResponse:
-    """Serve test.html (alias for index.html) as specified in Phase 1 deliverable."""
-    index_path = settings.static_dir / "index.html"
-    return FileResponse(index_path)
+    """Serve test.html diagnostic monitor."""
+    test_path = settings.static_dir / "test.html"
+    if not test_path.exists():
+        test_path = settings.static_dir / "index.html"
+    return FileResponse(test_path)
 
 
 if __name__ == "__main__":

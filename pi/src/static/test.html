@@ -1,0 +1,1777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TRC Photo Booth — Live Stream Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0a0d14;
+      --bg-card: rgba(18, 24, 38, 0.75);
+      --bg-card-border: rgba(255, 255, 255, 0.08);
+      --accent-primary: #00d9a5;
+      --accent-glow: rgba(0, 217, 165, 0.35);
+      --accent-danger: #ff3366;
+      --accent-warning: #ffb703;
+      --text-main: #f0f4fc;
+      --text-muted: #8c9bb5;
+      --font-ui: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 10% 20%, rgba(0, 217, 165, 0.08) 0px, transparent 50%),
+        radial-gradient(at 90% 80%, rgba(139, 92, 246, 0.08) 0px, transparent 50%);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 28px;
+      border-bottom: 1px solid var(--bg-card-border);
+      backdrop-filter: blur(16px);
+      background: rgba(10, 13, 20, 0.85);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #00d9a5, #0099ff);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
+    .brand-text h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: linear-gradient(90deg, #ffffff, #a5b4fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-text p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
+    }
+
+    .header-badges {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      backdrop-filter: blur(8px);
+    }
+
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .badge-live {
+      color: #00d9a5;
+    }
+    .badge-live .badge-dot {
+      background: #00d9a5;
+      box-shadow: 0 0 8px #00d9a5;
+      animation: pulse 1.8s infinite;
+    }
+
+    .badge-offline {
+      color: var(--accent-danger);
+    }
+    .badge-offline .badge-dot {
+      background: var(--accent-danger);
+      box-shadow: 0 0 8px var(--accent-danger);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      max-width: 1300px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 1000px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Viewport Panel */
+    .viewport-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 18px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .viewport-container {
+      position: relative;
+      width: 100%;
+      background: #04060a;
+      border-radius: 12px;
+      overflow: hidden;
+      aspect-ratio: 4 / 3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    #cameraCanvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Framing Guides Overlay */
+    .frame-guides {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: block;
+    }
+
+    .frame-guide-corner {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      border-color: rgba(0, 217, 165, 0.6);
+      border-style: solid;
+      border-width: 0;
+    }
+
+    .frame-guide-corner.tl { top: 16px; left: 16px; border-top-width: 2px; border-left-width: 2px; }
+    .frame-guide-corner.tr { top: 16px; right: 16px; border-top-width: 2px; border-right-width: 2px; }
+    .frame-guide-corner.bl { bottom: 16px; left: 16px; border-bottom-width: 2px; border-left-width: 2px; }
+    .frame-guide-corner.br { bottom: 16px; right: 16px; border-bottom-width: 2px; border-right-width: 2px; }
+
+    /* HUD overlay */
+    .hud-overlay {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+
+    .hud-pill {
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(8px);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hud-fps {
+      color: #00d9a5;
+      font-weight: 600;
+    }
+
+    /* Connecting overlay state */
+    .viewport-loader {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top-color: var(--accent-primary);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Controls Bar */
+    .controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-top: 4px;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-main);
+      padding: 9px 16px;
+      border-radius: 10px;
+      font-family: var(--font-ui);
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #00d9a5, #00a87e);
+      color: #04120e;
+      font-weight: 600;
+      border: none;
+      box-shadow: 0 4px 15px rgba(0, 217, 165, 0.3);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 6px 20px rgba(0, 217, 165, 0.5);
+      background: linear-gradient(135deg, #00f0b5, #00b88b);
+    }
+
+    .active-ratio, .btn-active {
+      background: rgba(99, 102, 241, 0.28) !important;
+      border-color: var(--accent-primary) !important;
+      color: #ffffff !important;
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.35);
+    }
+
+    .btn-active-telemetry {
+      background: rgba(0, 217, 165, 0.2) !important;
+      border-color: var(--accent-primary) !important;
+      color: #00d9a5 !important;
+      box-shadow: 0 0 12px var(--accent-glow) !important;
+    }
+
+    /* Phase 2: Capture, Countdown & Flash Overlays */
+    .flash-overlay {
+      position: absolute;
+      inset: 0;
+      background: #ffffff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 50;
+      transition: opacity 0.5s cubic-bezier(0.1, 0.9, 0.2, 1);
+    }
+    .flash-active {
+      opacity: 0.95;
+      transition: opacity 0.04s ease-in;
+    }
+
+    .countdown-overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(6px);
+      z-index: 40;
+      pointer-events: none;
+    }
+    .countdown-number {
+      font-size: 7rem;
+      font-weight: 900;
+      font-family: var(--font-ui);
+      background: linear-gradient(135deg, #ffffff, #00d9a5);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 35px rgba(0, 217, 165, 0.9));
+      animation: countPulse 0.95s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite;
+    }
+    .countdown-label {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #f0f4fc;
+      margin-top: 4px;
+    }
+    @keyframes countPulse {
+      0% { transform: scale(0.6); opacity: 0; }
+      40% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(1); opacity: 0.9; }
+    }
+
+    .recording-banner {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(239, 68, 68, 0.92);
+      color: white;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      z-index: 45;
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+      animation: pulse 1.2s infinite;
+    }
+
+    /* Phase 2: Capture Bar */
+    .capture-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+    }
+
+    .capture-timer-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Phase 2: Captures Gallery */
+    .captures-section {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .captures-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .captures-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 12px;
+      max-height: 420px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .capture-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .capture-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(0, 217, 165, 0.4);
+    }
+    .capture-thumb {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      background: #000;
+      cursor: pointer;
+    }
+    .capture-info {
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.75rem;
+    }
+    .capture-badge-photo {
+      background: rgba(0, 217, 165, 0.15);
+      color: #00d9a5;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.68rem;
+    }
+    .capture-badge-gif {
+      background: rgba(139, 92, 246, 0.2);
+      color: #c4b5fd;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.68rem;
+    }
+    .capture-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    /* Modal */
+    .preview-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(12px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .preview-content {
+      max-width: 90vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+    .preview-media {
+      max-width: 100%;
+      max-height: 75vh;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+      object-fit: contain;
+    }
+
+    .res-step-label {
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .res-step-label:hover {
+      color: #a5b4fc;
+    }
+    .res-step-label.active-step {
+      color: var(--accent-primary);
+      font-weight: 600;
+    }
+
+    /* Sidebar / Diagnostics Card */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-main);
+    }
+
+    .telemetry-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    .telemetry-table tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .telemetry-table tr:last-child {
+      border-bottom: none;
+    }
+
+    .telemetry-table td {
+      padding: 10px 0;
+    }
+
+    .telemetry-label {
+      color: var(--text-muted);
+    }
+
+    .telemetry-value {
+      text-align: right;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    /* Slider / Form inputs */
+    .form-group {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .range-input {
+      width: 100%;
+      accent-color: var(--accent-primary);
+      cursor: pointer;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--bg-card-border);
+      background: rgba(10, 13, 20, 0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">📸</div>
+      <div class="brand-text">
+        <h1>TRC Photo Booth</h1>
+        <p>Phase 1 • Live Camera Feed Monitor</p>
+      </div>
+    </div>
+    <div class="header-badges">
+      <div id="statusBadge" class="badge badge-offline">
+        <span class="badge-dot"></span>
+        <span id="statusText">CONNECTING...</span>
+      </div>
+      <div class="badge">
+        <span id="backendText">Camera: Initializing</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Viewport Panel -->
+    <section class="viewport-panel">
+      <div class="viewport-container" id="viewport">
+        <canvas id="cameraCanvas" width="640" height="480"></canvas>
+        
+        <div class="frame-guides" id="guidesOverlay">
+          <div class="frame-guide-corner tl"></div>
+          <div class="frame-guide-corner tr"></div>
+          <div class="frame-guide-corner bl"></div>
+          <div class="frame-guide-corner br"></div>
+        </div>
+
+        <div class="hud-overlay">
+          <div class="hud-pill">
+            <span>FPS:</span>
+            <span id="hudFps" class="hud-fps">0.0</span>
+          </div>
+          <div class="hud-pill">
+            <span id="hudResolution">640x480</span>
+            <span>•</span>
+            <span id="hudBandwidth">0 KB/s</span>
+          </div>
+        </div>
+
+        <div id="loader" class="viewport-loader">
+          <div class="spinner"></div>
+          <span>Awaiting WebSocket frame stream...</span>
+        </div>
+
+        <!-- Phase 2: Overlays -->
+        <div id="flashOverlay" class="flash-overlay"></div>
+        <div id="countdownOverlay" class="countdown-overlay">
+          <span id="countdownNumber" class="countdown-number">3</span>
+          <span id="countdownLabel" class="countdown-label">GET READY</span>
+        </div>
+        <div id="recordingBanner" class="recording-banner">
+          <span class="badge-dot" style="background: white;"></span>
+          <span>RECORDING GIF...</span>
+        </div>
+      </div>
+
+      <!-- Primary Phase 2 Capture Actions -->
+      <div class="capture-bar">
+        <div class="capture-timer-group">
+          <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">Timer:</label>
+          <select id="countdownSelect" class="btn" style="padding: 7px 10px; font-size: 0.82rem; border-color: rgba(255,255,255,0.15); cursor: pointer;">
+            <option value="3" selected>⏱️ 3s Countdown</option>
+            <option value="5">⏱️ 5s Countdown</option>
+            <option value="10">⏱️ 10s Countdown</option>
+            <option value="0">⚡ Instant (0s)</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <button id="triggerPhotoBtn" class="btn btn-primary" style="padding: 10px 22px; font-size: 0.92rem; font-weight: 700; gap: 8px;">
+            <span style="font-size: 1.15rem;">📸</span> Take Photo
+          </button>
+          <button id="triggerGifBtn" class="btn" style="padding: 10px 20px; font-size: 0.92rem; font-weight: 700; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; border: none; box-shadow: 0 4px 15px rgba(139, 92, 246, 0.35); gap: 8px;">
+            <span style="font-size: 1.15rem;">🎞️</span> Record GIF
+          </button>
+        </div>
+      </div>
+
+      <!-- Controls Bar -->
+      <div class="controls-bar">
+        <div class="control-group">
+          <button id="togglePlayBtn" class="btn">
+            <span id="playIcon">⏸</span>
+            <span id="playText">Pause</span>
+          </button>
+          <button id="toggleGuidesBtn" class="btn">
+            <span>⛶</span> Guides
+          </button>
+          <button id="snapshotBtn" class="btn btn-primary">
+            <span>📷</span> Download Frame
+          </button>
+          <button id="swapRbBtn" class="btn" title="Toggle Red/Blue channels (fixes blue tint/avatar face)">
+            <span>🔄</span> Swap R/B
+          </button>
+          <button id="flipBtn" class="btn" title="Invert camera output horizontally (left-to-right mirror flip)">
+            <span id="flipIcon">🪞</span> <span id="flipText">Flip L/R</span>
+          </button>
+        </div>
+        <div class="control-group">
+          <button id="fullscreenBtn" class="btn">
+            <span>⛶</span> Fullscreen
+          </button>
+        </div>
+      </div>
+
+      <!-- Recent Captures Gallery -->
+      <div class="captures-section">
+        <div class="captures-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h3 style="font-size: 0.95rem; font-weight: 600;">Recent Captures Gallery</h3>
+            <span id="galleryCountBadge" class="badge" style="padding: 2px 8px; font-size: 0.72rem;">0 captures</span>
+          </div>
+          <button id="refreshGalleryBtn" class="btn" style="padding: 5px 10px; font-size: 0.75rem;">
+            <span>🔄</span> Refresh
+          </button>
+        </div>
+        <div id="capturesGrid" class="captures-grid">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Sidebar Diagnostics -->
+    <aside class="sidebar">
+      <div class="card">
+        <div class="card-title">
+          <span>Stream Diagnostics</span>
+          <span style="font-size: 0.75rem; color: var(--accent-primary);">● LIVE</span>
+        </div>
+        <table class="telemetry-table">
+          <tbody>
+            <tr>
+              <td class="telemetry-label">Status</td>
+              <td class="telemetry-value" id="statStatus">Disconnected</td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Backend</td>
+              <td class="telemetry-value" id="statBackend">—</td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Client Render FPS</td>
+              <td class="telemetry-value" id="statClientFps">0.0</td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Server Camera FPS</td>
+              <td class="telemetry-value" id="statServerFps">—</td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Frames Received</td>
+              <td class="telemetry-value" id="statFramesRecv">0</td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Active Clients</td>
+              <td class="telemetry-value" id="statClients">—</td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Uptime</td>
+              <td class="telemetry-value" id="statUptime">0s</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Stream Tuning</span>
+        </div>
+        <div class="form-group">
+          <div class="form-label">
+            <span>Target Frame Rate</span>
+            <span id="fpsDisplay">15 fps</span>
+          </div>
+          <input type="range" id="fpsSlider" class="range-input" min="5" max="60" step="1" value="15">
+          <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">
+            <span>5 fps</span>
+            <span>15 fps</span>
+            <span>30 fps</span>
+            <span>60 fps</span>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 14px;">
+          <div class="form-label">
+            <span>Resolution</span>
+            <span id="resDisplay" style="color: #a5b4fc; font-weight: 600;">480p (640x480)</span>
+          </div>
+          <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+            <button type="button" id="ratio169Btn" class="btn active-ratio" style="flex: 1; padding: 5px 6px; font-size: 0.72rem; justify-content: center;">16:9 Widescreen</button>
+            <button type="button" id="ratio43Btn" class="btn" style="flex: 1; padding: 5px 6px; font-size: 0.72rem; justify-content: center;">4:3 Sensor Native</button>
+          </div>
+          <input type="range" id="resSlider" class="range-input" min="0" max="4" step="1" value="2">
+          <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-muted); margin-top: 4px;">
+            <span class="res-step-label" data-idx="0">240p</span>
+            <span class="res-step-label" data-idx="1">360p</span>
+            <span class="res-step-label active-step" data-idx="2">480p</span>
+            <span class="res-step-label" data-idx="3">720p</span>
+            <span class="res-step-label" data-idx="4">1080p</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px;">
+            <button type="button" class="btn res-pill-btn" data-p="360p" style="padding: 4px 2px; font-size: 0.7rem; justify-content: center;">360p</button>
+            <button type="button" class="btn res-pill-btn" data-p="480p" style="padding: 4px 2px; font-size: 0.7rem; justify-content: center;">480p</button>
+            <button type="button" class="btn res-pill-btn" data-p="720p" style="padding: 4px 2px; font-size: 0.7rem; justify-content: center;">720p HD</button>
+            <button type="button" class="btn res-pill-btn" data-p="1080p" style="padding: 4px 2px; font-size: 0.7rem; justify-content: center;">1080p FHD</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top: 14px;">
+          <div class="form-label">
+            <span>JPEG Quality</span>
+            <span id="qualityDisplay">70%</span>
+          </div>
+          <input type="range" id="qualitySlider" class="range-input" min="20" max="95" step="5" value="70">
+        </div>
+        <div class="form-group" style="margin-top: 14px;">
+          <div class="form-label">
+            <span>Color Channels</span>
+            <span id="swapRbIndicator" style="font-size: 0.78rem; font-weight: 600; color: #00d9a5;">Normal</span>
+          </div>
+          <button id="sidebarSwapRbBtn" class="btn" style="width: 100%; justify-content: center; margin-top: 6px; font-size: 0.8rem; border: 1px solid rgba(165, 180, 252, 0.3); background: rgba(99, 102, 241, 0.1);">
+            <span>🔄 Invert Red/Blue</span>
+          </button>
+        </div>
+        <div class="form-group" style="margin-top: 14px;">
+          <div class="form-label">
+            <span>Mirror / Left-Right Flip</span>
+            <span id="flipIndicator" style="font-size: 0.78rem; font-weight: 600; color: #00d9a5;">Mirrored</span>
+          </div>
+          <button id="sidebarFlipBtn" class="btn" style="width: 100%; justify-content: center; margin-top: 6px; font-size: 0.8rem; border: 1px solid rgba(0, 217, 165, 0.3); background: rgba(0, 217, 165, 0.1);">
+            <span>🪞 Invert Output (Flip L/R)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Hardware Telemetry (On-Demand) -->
+      <div class="card" id="hardwareCard">
+        <div class="card-title">
+          <span>⚡ Hardware Telemetry</span>
+          <span id="telemetryModeBadge" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 12px; background: rgba(255,255,255,0.06); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1);">
+            💤 On-Demand (Idle)
+          </span>
+        </div>
+        <p style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4;">
+          Zero compute overhead when idle. Activate real-time streaming or sample once to inspect CPU, memory, and temps.
+        </p>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+          <button id="toggleRealtimeStatsBtn" class="btn" style="flex: 1.2; justify-content: center; font-size: 0.78rem; padding: 8px 10px;">
+            <span id="realtimeStatsIcon">⚡</span> <span id="realtimeStatsText">Start Live Stats</span>
+          </button>
+          <button id="sampleOnceBtn" class="btn" style="flex: 1; justify-content: center; font-size: 0.78rem; padding: 8px 10px;" title="Sample hardware metrics once without continuous loop">
+            <span>🔄 Sample Once</span>
+          </button>
+        </div>
+
+        <table class="telemetry-table" style="font-size: 0.8rem;">
+          <tbody>
+            <tr>
+              <td class="telemetry-label">CPU Usage</td>
+              <td class="telemetry-value">
+                <span id="hwCpuPct" style="font-size: 0.95rem; font-weight: 700; color: #00d9a5;">—</span>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="2" style="padding: 2px 0 8px 0;">
+                <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;">
+                  <div id="hwCpuBar" style="width: 0%; height: 100%; background: #00d9a5; transition: width 0.3s ease, background 0.3s ease;"></div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">CPU Temperature</td>
+              <td class="telemetry-value">
+                <span id="hwCpuTemp" style="font-weight: 600;">—</span>
+                <span id="hwTempBadge" style="display: none; margin-left: 6px; font-size: 0.68rem; padding: 1px 6px; border-radius: 8px;"></span>
+              </td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">RAM Memory</td>
+              <td class="telemetry-value">
+                <span id="hwMemValue" style="font-size: 0.78rem;">—</span>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="2" style="padding: 2px 0 8px 0;">
+                <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;">
+                  <div id="hwMemBar" style="width: 0%; height: 100%; background: #6366f1; transition: width 0.3s ease;"></div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Load Avg (1/5/15m)</td>
+              <td class="telemetry-value" id="hwLoadAvg" style="font-size: 0.75rem;">—</td>
+            </tr>
+            <tr>
+              <td class="telemetry-label">Cores / Throttle</td>
+              <td class="telemetry-value" id="hwThrottled" style="font-size: 0.75rem;">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    TRC Photo Booth Prototype • Phase 1 WebSocket Stream Engine • Ready for Local WiFi Remote Clients
+  </footer>
+
+  <script>
+    // Configuration & State
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/feed`;
+
+    let ws = null;
+    let isPaused = false;
+    let isGuidesVisible = true;
+    let frameCount = 0;
+    let bytesReceivedSec = 0;
+    let lastFpsUpdateTime = performance.now();
+    let framesThisSecond = 0;
+
+    const canvas = document.getElementById('cameraCanvas');
+    const ctx = canvas.getContext('2d');
+    const loader = document.getElementById('loader');
+    const statusBadge = document.getElementById('statusBadge');
+    const statusText = document.getElementById('statusText');
+    const backendText = document.getElementById('backendText');
+    const hudFps = document.getElementById('hudFps');
+    const hudBandwidth = document.getElementById('hudBandwidth');
+    const hudResolution = document.getElementById('hudResolution');
+
+    const statStatus = document.getElementById('statStatus');
+    const statBackend = document.getElementById('statBackend');
+    const statClientFps = document.getElementById('statClientFps');
+    const statServerFps = document.getElementById('statServerFps');
+    const statFramesRecv = document.getElementById('statFramesRecv');
+    const statClients = document.getElementById('statClients');
+    const statUptime = document.getElementById('statUptime');
+
+    const togglePlayBtn = document.getElementById('togglePlayBtn');
+    const playIcon = document.getElementById('playIcon');
+    const playText = document.getElementById('playText');
+    const toggleGuidesBtn = document.getElementById('toggleGuidesBtn');
+    const guidesOverlay = document.getElementById('guidesOverlay');
+    const snapshotBtn = document.getElementById('snapshotBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const fpsSlider = document.getElementById('fpsSlider');
+    const fpsDisplay = document.getElementById('fpsDisplay');
+    const qualitySlider = document.getElementById('qualitySlider');
+    const qualityDisplay = document.getElementById('qualityDisplay');
+    const swapRbBtn = document.getElementById('swapRbBtn');
+    const sidebarSwapRbBtn = document.getElementById('sidebarSwapRbBtn');
+    const swapRbIndicator = document.getElementById('swapRbIndicator');
+    let isSwapRb = false;
+
+    const flipBtn = document.getElementById('flipBtn');
+    const sidebarFlipBtn = document.getElementById('sidebarFlipBtn');
+    const flipIndicator = document.getElementById('flipIndicator');
+    let isFlip = true;
+
+    // Connect WebSocket
+    function connectWebSocket() {
+      statStatus.innerText = 'Connecting...';
+      statusText.innerText = 'CONNECTING...';
+      statusBadge.className = 'badge badge-offline';
+
+      ws = new WebSocket(wsUrl);
+      ws.binaryType = 'blob';
+
+      ws.onopen = () => {
+        statusText.innerText = 'STREAMING LIVE';
+        statusBadge.className = 'badge badge-live';
+        statStatus.innerText = 'Connected';
+      };
+
+      ws.onmessage = async (event) => {
+        if (typeof event.data === 'string') {
+          // JSON control / telemetry / capture message
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'status') {
+              updateTelemetry(msg);
+            } else if (msg.type === 'countdown_tick') {
+              handleCountdownTick(msg);
+            } else if (msg.type === 'gif_recording') {
+              handleGifRecording(msg);
+            } else if (msg.type === 'capture_result') {
+              handleCaptureResult(msg.data);
+            } else if (msg.type === 'gif_result') {
+              handleGifResult(msg.data);
+            }
+          } catch (e) {
+            console.error('Failed to parse text frame:', e);
+          }
+          return;
+        }
+
+        if (isPaused) return;
+
+        // Binary blob: raw JPEG frame
+        const blob = event.data;
+        frameCount++;
+        framesThisSecond++;
+        bytesReceivedSec += blob.size;
+        statFramesRecv.innerText = frameCount.toLocaleString();
+
+        try {
+          // Render image bitmap efficiently to canvas
+          const bitmap = await createImageBitmap(blob);
+          if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+            hudResolution.innerText = `${bitmap.width}x${bitmap.height}`;
+          }
+          ctx.drawImage(bitmap, 0, 0);
+          bitmap.close();
+
+          if (loader.style.display !== 'none') {
+            loader.style.display = 'none';
+          }
+        } catch (err) {
+          console.error('Frame decode error:', err);
+        }
+      };
+
+      ws.onclose = () => {
+        statusText.innerText = 'DISCONNECTED';
+        statusBadge.className = 'badge badge-offline';
+        statStatus.innerText = 'Disconnected';
+        loader.style.display = 'flex';
+        // Auto-reconnect after 1.5s
+        setTimeout(connectWebSocket, 1500);
+      };
+
+      ws.onerror = (err) => {
+        console.error('WebSocket Error:', err);
+        ws.close();
+      };
+    }
+
+    // Client FPS & Bandwidth Calculation Loop
+    setInterval(() => {
+      const now = performance.now();
+      const elapsed = (now - lastFpsUpdateTime) / 1000;
+      if (elapsed > 0) {
+        const clientFps = (framesThisSecond / elapsed).toFixed(1);
+        const kbSec = (bytesReceivedSec / 1024 / elapsed).toFixed(1);
+
+        hudFps.innerText = clientFps;
+        statClientFps.innerText = clientFps;
+        hudBandwidth.innerText = `${kbSec} KB/s`;
+
+        framesThisSecond = 0;
+        bytesReceivedSec = 0;
+        lastFpsUpdateTime = now;
+      }
+    }, 1000);
+
+    function updateSwapRbDisplay(swapRb) {
+      isSwapRb = !!swapRb;
+      if (swapRbIndicator) {
+        swapRbIndicator.innerText = isSwapRb ? 'Inverted (Active)' : 'Normal';
+        swapRbIndicator.style.color = isSwapRb ? '#f43f5e' : '#00d9a5';
+      }
+      if (swapRbBtn) {
+        swapRbBtn.style.borderColor = isSwapRb ? '#f43f5e' : '';
+        swapRbBtn.style.color = isSwapRb ? '#fda4af' : '';
+        swapRbBtn.style.background = isSwapRb ? 'rgba(244, 63, 94, 0.15)' : '';
+      }
+      if (sidebarSwapRbBtn) {
+        sidebarSwapRbBtn.style.borderColor = isSwapRb ? '#f43f5e' : 'rgba(165, 180, 252, 0.3)';
+        sidebarSwapRbBtn.style.color = isSwapRb ? '#fda4af' : '';
+        sidebarSwapRbBtn.style.background = isSwapRb ? 'rgba(244, 63, 94, 0.15)' : 'rgba(99, 102, 241, 0.1)';
+      }
+    }
+
+    async function toggleSwapRb() {
+      const nextVal = !isSwapRb;
+      updateSwapRbDisplay(nextVal);
+      try {
+        await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ swap_rb: nextVal })
+        });
+      } catch (err) {
+        console.error('Failed to toggle swap_rb:', err);
+      }
+    }
+
+    // Horizontal Flip (Left to Right Mirror)
+    function updateFlipDisplay(flip) {
+      isFlip = !!flip;
+      if (flipIndicator) {
+        flipIndicator.innerText = isFlip ? 'Mirrored (Active)' : 'Normal (Unflipped)';
+        flipIndicator.style.color = isFlip ? '#00d9a5' : '#8c9bb5';
+      }
+      if (flipBtn) {
+        flipBtn.style.borderColor = isFlip ? '#00d9a5' : '';
+        flipBtn.style.color = isFlip ? '#00d9a5' : '';
+        flipBtn.style.background = isFlip ? 'rgba(0, 217, 165, 0.15)' : '';
+      }
+      if (sidebarFlipBtn) {
+        sidebarFlipBtn.style.borderColor = isFlip ? '#00d9a5' : 'rgba(255, 255, 255, 0.12)';
+        sidebarFlipBtn.style.color = isFlip ? '#00d9a5' : '';
+        sidebarFlipBtn.style.background = isFlip ? 'rgba(0, 217, 165, 0.15)' : 'rgba(255, 255, 255, 0.06)';
+      }
+    }
+
+    async function toggleFlip() {
+      const nextVal = !isFlip;
+      updateFlipDisplay(nextVal);
+      try {
+        await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ flip_horizontal: nextVal })
+        });
+      } catch (err) {
+        console.error('Failed to toggle flip_horizontal:', err);
+      }
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ action: 'flip_horizontal', value: nextVal }));
+        } catch (e) {}
+      }
+    }
+
+    // On-Demand Hardware Telemetry
+    const toggleRealtimeStatsBtn = document.getElementById('toggleRealtimeStatsBtn');
+    const sampleOnceBtn = document.getElementById('sampleOnceBtn');
+    const telemetryModeBadge = document.getElementById('telemetryModeBadge');
+    const realtimeStatsText = document.getElementById('realtimeStatsText');
+    const realtimeStatsIcon = document.getElementById('realtimeStatsIcon');
+
+    const hwCpuPct = document.getElementById('hwCpuPct');
+    const hwCpuBar = document.getElementById('hwCpuBar');
+    const hwCpuTemp = document.getElementById('hwCpuTemp');
+    const hwTempBadge = document.getElementById('hwTempBadge');
+    const hwMemValue = document.getElementById('hwMemValue');
+    const hwMemBar = document.getElementById('hwMemBar');
+    const hwLoadAvg = document.getElementById('hwLoadAvg');
+    const hwThrottled = document.getElementById('hwThrottled');
+
+    let isLiveStatsActive = false;
+    let liveStatsInterval = null;
+
+    function renderHardwareStats(data) {
+      if (!data) return;
+
+      // CPU %
+      const cpu = typeof data.cpu_percent === 'number' ? data.cpu_percent : 0;
+      hwCpuPct.innerText = `${cpu.toFixed(1)}%`;
+      hwCpuBar.style.width = `${Math.min(100, Math.max(0, cpu))}%`;
+      if (cpu > 80) {
+        hwCpuPct.style.color = '#ff3366';
+        hwCpuBar.style.background = '#ff3366';
+      } else if (cpu > 55) {
+        hwCpuPct.style.color = '#ffb703';
+        hwCpuBar.style.background = '#ffb703';
+      } else {
+        hwCpuPct.style.color = '#00d9a5';
+        hwCpuBar.style.background = '#00d9a5';
+      }
+
+      // CPU Temperature
+      if (typeof data.cpu_temp_c === 'number' && data.cpu_temp_c !== null) {
+        const temp = data.cpu_temp_c;
+        hwCpuTemp.innerText = `${temp.toFixed(1)} °C`;
+        hwTempBadge.style.display = 'inline-block';
+        if (temp < 50) {
+          hwTempBadge.innerText = '❄️ Cool';
+          hwTempBadge.style.background = 'rgba(0, 217, 165, 0.15)';
+          hwTempBadge.style.color = '#00d9a5';
+        } else if (temp < 65) {
+          hwTempBadge.innerText = '⚡ Normal';
+          hwTempBadge.style.background = 'rgba(14, 165, 233, 0.15)';
+          hwTempBadge.style.color = '#38bdf8';
+        } else if (temp < 75) {
+          hwTempBadge.innerText = '🔥 Warm';
+          hwTempBadge.style.background = 'rgba(245, 158, 11, 0.15)';
+          hwTempBadge.style.color = '#fbbf24';
+        } else {
+          hwTempBadge.innerText = '⚠️ Hot';
+          hwTempBadge.style.background = 'rgba(239, 68, 68, 0.2)';
+          hwTempBadge.style.color = '#f87171';
+        }
+      } else {
+        hwCpuTemp.innerText = 'N/A';
+        hwTempBadge.style.display = 'none';
+      }
+
+      // Memory (RAM)
+      if (data.memory) {
+        const used = Math.round(data.memory.used_mb);
+        const total = Math.round(data.memory.total_mb);
+        const pct = data.memory.percent;
+        hwMemValue.innerText = `${used} MB / ${total} MB (${pct.toFixed(1)}%)`;
+        hwMemBar.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+      }
+
+      // Load Avg
+      if (data.load_avg && data.load_avg.length) {
+        hwLoadAvg.innerText = data.load_avg.join(', ');
+      }
+
+      // Cores / Throttle
+      const cores = data.cpu_count || 1;
+      const throttleStr = data.throttled ? `Throttle: ${data.throttled}` : 'Healthy';
+      hwThrottled.innerText = `${cores} Cores • ${throttleStr}`;
+    }
+
+    async function fetchSystemStats() {
+      try {
+        const res = await fetch('/api/system/stats');
+        if (res.ok) {
+          const data = await res.json();
+          renderHardwareStats(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch system stats:', err);
+      }
+    }
+
+    function startLiveStats() {
+      if (isLiveStatsActive) return;
+      isLiveStatsActive = true;
+      toggleRealtimeStatsBtn.classList.add('btn-active-telemetry');
+      realtimeStatsIcon.innerText = '⏹';
+      realtimeStatsText.innerText = 'Stop Live Stats';
+      telemetryModeBadge.innerText = '🟢 Live Monitoring (1.5s)';
+      telemetryModeBadge.style.color = '#00d9a5';
+      telemetryModeBadge.style.borderColor = 'rgba(0, 217, 165, 0.4)';
+      fetchSystemStats();
+      liveStatsInterval = setInterval(fetchSystemStats, 1500);
+    }
+
+    function stopLiveStats() {
+      if (!isLiveStatsActive) return;
+      isLiveStatsActive = false;
+      if (liveStatsInterval) {
+        clearInterval(liveStatsInterval);
+        liveStatsInterval = null;
+      }
+      toggleRealtimeStatsBtn.classList.remove('btn-active-telemetry');
+      realtimeStatsIcon.innerText = '⚡';
+      realtimeStatsText.innerText = 'Start Live Stats';
+      telemetryModeBadge.innerText = '💤 On-Demand (Idle)';
+      telemetryModeBadge.style.color = 'var(--text-muted)';
+      telemetryModeBadge.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+    }
+
+    if (toggleRealtimeStatsBtn) {
+      toggleRealtimeStatsBtn.addEventListener('click', () => {
+        if (isLiveStatsActive) {
+          stopLiveStats();
+        } else {
+          startLiveStats();
+        }
+      });
+    }
+
+    if (sampleOnceBtn) {
+      sampleOnceBtn.addEventListener('click', () => {
+        fetchSystemStats();
+      });
+    }
+
+    // Suspend polling if browser tab is blurred/hidden to avoid wasting Pi resources
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && isLiveStatsActive) {
+        stopLiveStats();
+      }
+    });
+
+    // Periodically poll server status
+    async function pollServerStatus() {
+      try {
+        const res = await fetch('/api/status');
+        if (res.ok) {
+          const data = await res.json();
+          statBackend.innerText = data.camera_backend;
+          backendText.innerText = `Camera: ${data.camera_backend.toUpperCase()}`;
+          statServerFps.innerText = `${data.actual_fps} fps`;
+          statClients.innerText = data.connected_clients;
+          statUptime.innerText = `${Math.floor(data.uptime_seconds)}s`;
+          updateSwapRbDisplay(data.swap_rb);
+          if (data.flip_horizontal !== undefined) {
+            updateFlipDisplay(data.flip_horizontal);
+          }
+        }
+      } catch (e) {
+        // Silently retry
+      }
+    }
+    setInterval(pollServerStatus, 2500);
+    pollServerStatus();
+
+    // Controls Handlers
+    togglePlayBtn.addEventListener('click', () => {
+      isPaused = !isPaused;
+      if (isPaused) {
+        playIcon.innerText = '▶';
+        playText.innerText = 'Resume';
+        statusText.innerText = 'PAUSED';
+      } else {
+        playIcon.innerText = '⏸';
+        playText.innerText = 'Pause';
+        statusText.innerText = 'STREAMING LIVE';
+      }
+    });
+
+    toggleGuidesBtn.addEventListener('click', () => {
+      isGuidesVisible = !isGuidesVisible;
+      guidesOverlay.style.display = isGuidesVisible ? 'block' : 'none';
+    });
+
+    snapshotBtn.addEventListener('click', () => {
+      // Direct snapshot from canvas
+      const link = document.createElement('a');
+      link.download = `photobooth-${Date.now()}.jpg`;
+      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.click();
+    });
+
+    fullscreenBtn.addEventListener('click', () => {
+      const el = document.getElementById('viewport');
+      if (!document.fullscreenElement) {
+        el.requestFullscreen().catch(err => alert(`Fullscreen error: ${err.message}`));
+      } else {
+        document.exitFullscreen();
+      }
+    });
+
+    // Dynamic config sliders
+    const RES_PRESETS = {
+      '16:9': [
+        { p: '240p', w: 426, h: 240, label: '240p (426x240)' },
+        { p: '360p', w: 640, h: 360, label: '360p (640x360)' },
+        { p: '480p', w: 854, h: 480, label: '480p (854x480)' },
+        { p: '720p', w: 1280, h: 720, label: '720p HD (1280x720)' },
+        { p: '1080p', w: 1920, h: 1080, label: '1080p FHD (1920x1080)' },
+      ],
+      '4:3': [
+        { p: '240p', w: 320, h: 240, label: '240p (320x240)' },
+        { p: '360p', w: 480, h: 360, label: '360p (480x360)' },
+        { p: '480p', w: 640, h: 480, label: '480p VGA (640x480)' },
+        { p: '720p', w: 960, h: 720, label: '720p (960x720)' },
+        { p: '1080p', w: 1440, h: 1080, label: '1080p (1440x1080)' },
+      ]
+    };
+    let currentAspectRatio = '16:9';
+    let currentResIdx = 2; // Default 480p
+
+    const resSlider = document.getElementById('resSlider');
+    const resDisplay = document.getElementById('resDisplay');
+    const ratio169Btn = document.getElementById('ratio169Btn');
+    const ratio43Btn = document.getElementById('ratio43Btn');
+    const resStepLabels = document.querySelectorAll('.res-step-label');
+    const resPillBtns = document.querySelectorAll('.res-pill-btn');
+
+    function updateResolutionUI(idx, ratio) {
+      if (ratio) {
+        currentAspectRatio = ratio;
+        ratio169Btn.classList.toggle('active-ratio', ratio === '16:9');
+        ratio43Btn.classList.toggle('active-ratio', ratio === '4:3');
+      }
+      currentResIdx = Math.max(0, Math.min(4, idx));
+      if (resSlider) resSlider.value = currentResIdx;
+
+      const list = RES_PRESETS[currentAspectRatio];
+      const selected = list[currentResIdx];
+      if (resDisplay) resDisplay.innerText = selected.label;
+
+      resStepLabels.forEach((el, i) => {
+        el.classList.toggle('active-step', i === currentResIdx);
+      });
+      resPillBtns.forEach(btn => {
+        btn.classList.toggle('btn-active', btn.dataset.p === selected.p);
+      });
+    }
+
+    async function applyResolution(idx, ratio) {
+      updateResolutionUI(idx, ratio);
+      const selected = RES_PRESETS[currentAspectRatio][currentResIdx];
+      try {
+        await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resolution: selected.p,
+            aspect_ratio: currentAspectRatio,
+            width: selected.w,
+            height: selected.h
+          })
+        });
+      } catch (err) {
+        console.error('Failed to update resolution:', err);
+      }
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({
+            action: 'set_resolution',
+            value: selected.p,
+            aspect_ratio: currentAspectRatio,
+            width: selected.w,
+            height: selected.h
+          }));
+        } catch (e) {}
+      }
+    }
+
+    let configDebounceTimer = null;
+    async function updateConfig() {
+      const fps = parseInt(fpsSlider.value, 10);
+      const quality = parseInt(qualitySlider.value, 10);
+      fpsDisplay.innerText = `${fps} fps`;
+      qualityDisplay.innerText = `${quality}%`;
+
+      try {
+        await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fps, quality })
+        });
+      } catch (err) {
+        console.error('Failed to update config:', err);
+      }
+
+      // Also notify WebSocket if connected
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ action: 'set_fps', value: fps }));
+        } catch (e) {}
+      }
+    }
+
+    function debouncedUpdateConfig() {
+      clearTimeout(configDebounceTimer);
+      configDebounceTimer = setTimeout(updateConfig, 100);
+    }
+
+    async function fetchInitialConfig() {
+      try {
+        const res = await fetch('/api/config');
+        if (res.ok) {
+          const cfg = await res.json();
+          if (cfg.fps) {
+            fpsSlider.value = cfg.fps;
+            fpsDisplay.innerText = `${cfg.fps} fps`;
+          }
+          if (cfg.quality) {
+            qualitySlider.value = cfg.quality;
+            qualityDisplay.innerText = `${cfg.quality}%`;
+          }
+          if (cfg.width && cfg.height) {
+            const ratio = (cfg.width / cfg.height) > 1.5 ? '16:9' : '4:3';
+            const list = RES_PRESETS[ratio];
+            let bestIdx = 2;
+            let minDiff = Infinity;
+            list.forEach((item, i) => {
+              const diff = Math.abs(item.h - cfg.height);
+              if (diff < minDiff) {
+                minDiff = diff;
+                bestIdx = i;
+              }
+            });
+            updateResolutionUI(bestIdx, ratio);
+          }
+          if (cfg.swap_rb !== undefined) {
+            updateSwapRbDisplay(cfg.swap_rb);
+          }
+          if (cfg.flip_horizontal !== undefined) {
+            updateFlipDisplay(cfg.flip_horizontal);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch initial config:', err);
+      }
+    }
+
+    fpsSlider.addEventListener('input', () => {
+      fpsDisplay.innerText = `${fpsSlider.value} fps`;
+      debouncedUpdateConfig();
+    });
+    fpsSlider.addEventListener('change', updateConfig);
+
+    qualitySlider.addEventListener('input', () => {
+      qualityDisplay.innerText = `${qualitySlider.value}%`;
+      debouncedUpdateConfig();
+    });
+    qualitySlider.addEventListener('change', updateConfig);
+
+    if (resSlider) {
+      resSlider.addEventListener('input', () => {
+        updateResolutionUI(parseInt(resSlider.value, 10));
+      });
+      resSlider.addEventListener('change', () => {
+        applyResolution(parseInt(resSlider.value, 10));
+      });
+    }
+
+    if (ratio169Btn) {
+      ratio169Btn.addEventListener('click', () => {
+        applyResolution(currentResIdx, '16:9');
+      });
+    }
+    if (ratio43Btn) {
+      ratio43Btn.addEventListener('click', () => {
+        applyResolution(currentResIdx, '4:3');
+      });
+    }
+
+    resStepLabels.forEach(el => {
+      el.addEventListener('click', () => {
+        applyResolution(parseInt(el.dataset.idx, 10));
+      });
+    });
+
+    resPillBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetP = btn.dataset.p;
+        const list = RES_PRESETS[currentAspectRatio];
+        const idx = list.findIndex(item => item.p === targetP);
+        if (idx !== -1) {
+          applyResolution(idx);
+        }
+      });
+    });
+
+    if (swapRbBtn) swapRbBtn.addEventListener('click', toggleSwapRb);
+    if (sidebarSwapRbBtn) sidebarSwapRbBtn.addEventListener('click', toggleSwapRb);
+    if (flipBtn) flipBtn.addEventListener('click', toggleFlip);
+    if (sidebarFlipBtn) sidebarFlipBtn.addEventListener('click', toggleFlip);
+
+    // =========================================================================
+    // Phase 2: Capture, Countdown, GIF, and Gallery Logic
+    // =========================================================================
+    const countdownSelect = document.getElementById('countdownSelect');
+    const triggerPhotoBtn = document.getElementById('triggerPhotoBtn');
+    const triggerGifBtn = document.getElementById('triggerGifBtn');
+    const flashOverlay = document.getElementById('flashOverlay');
+    const countdownOverlay = document.getElementById('countdownOverlay');
+    const countdownNumber = document.getElementById('countdownNumber');
+    const countdownLabel = document.getElementById('countdownLabel');
+    const recordingBanner = document.getElementById('recordingBanner');
+    const capturesGrid = document.getElementById('capturesGrid');
+    const galleryCountBadge = document.getElementById('galleryCountBadge');
+    const refreshGalleryBtn = document.getElementById('refreshGalleryBtn');
+
+    const previewModal = document.getElementById('previewModal');
+    const previewTitle = document.getElementById('previewTitle');
+    const previewImage = document.getElementById('previewImage');
+    const previewDownloadLink = document.getElementById('previewDownloadLink');
+    const closePreviewBtn = document.getElementById('closePreviewBtn');
+
+    function triggerFlash() {
+      if (!flashOverlay) return;
+      flashOverlay.classList.add('flash-active');
+      setTimeout(() => {
+        flashOverlay.classList.remove('flash-active');
+      }, 70);
+    }
+
+    function handleCountdownTick(msg) {
+      if (countdownOverlay) {
+        countdownOverlay.style.display = 'flex';
+        if (msg.seconds_left > 0) {
+          countdownNumber.innerText = msg.seconds_left;
+          countdownLabel.innerText = msg.action === 'gif' ? 'BURST GIF COMING...' : 'GET READY!';
+        } else {
+          countdownNumber.innerText = '📸';
+          countdownLabel.innerText = 'SMILE!';
+          triggerFlash();
+          setTimeout(() => {
+            countdownOverlay.style.display = 'none';
+          }, 350);
+        }
+      }
+    }
+
+    function handleGifRecording(msg) {
+      if (countdownOverlay) countdownOverlay.style.display = 'none';
+      if (recordingBanner) {
+        recordingBanner.style.display = 'flex';
+      }
+    }
+
+    function handleCaptureResult(data) {
+      if (countdownOverlay) countdownOverlay.style.display = 'none';
+      if (recordingBanner) recordingBanner.style.display = 'none';
+      triggerFlash();
+      loadCaptures();
+    }
+
+    function handleGifResult(data) {
+      if (countdownOverlay) countdownOverlay.style.display = 'none';
+      if (recordingBanner) recordingBanner.style.display = 'none';
+      loadCaptures();
+    }
+
+    async function triggerCapture(type) {
+      const countdown = parseInt(countdownSelect.value, 10);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        if (type === 'photo') {
+          ws.send(JSON.stringify({ action: 'trigger_capture', countdown }));
+        } else if (type === 'gif') {
+          ws.send(JSON.stringify({ action: 'trigger_gif', countdown, frames: 10, interval_ms: 150 }));
+        }
+      } else {
+        // Fallback to REST endpoint
+        try {
+          const ep = type === 'photo' ? '/api/captures/photo' : '/api/captures/gif';
+          await fetch(ep, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ countdown_seconds: countdown, frames: 10, interval_ms: 150 })
+          });
+          loadCaptures();
+        } catch (err) {
+          console.error('REST capture trigger failed:', err);
+        }
+      }
+    }
+
+    if (triggerPhotoBtn) {
+      triggerPhotoBtn.addEventListener('click', () => triggerCapture('photo'));
+    }
+    if (triggerGifBtn) {
+      triggerGifBtn.addEventListener('click', () => triggerCapture('gif'));
+    }
+
+    // Gallery loading & rendering
+    async function loadCaptures() {
+      try {
+        const res = await fetch('/api/captures');
+        if (res.ok) {
+          const items = await res.json();
+          renderCaptures(items);
+        }
+      } catch (err) {
+        console.error('Failed loading captures:', err);
+      }
+    }
+
+    function renderCaptures(items) {
+      if (!capturesGrid) return;
+      if (galleryCountBadge) {
+        galleryCountBadge.innerText = `${items.length} capture${items.length === 1 ? '' : 's'}`;
+      }
+
+      if (!items || items.length === 0) {
+        capturesGrid.innerHTML = `
+          <div style="grid-column: 1/-1; text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 0.85rem; border: 1px dashed rgba(255,255,255,0.08); border-radius: 12px;">
+            <span>📸 No captures taken yet. Click "Take Photo" or "Record GIF" above!</span>
+          </div>
+        `;
+        return;
+      }
+
+      capturesGrid.innerHTML = items.map(item => {
+        const isGif = item.type === 'gif';
+        const badgeClass = isGif ? 'capture-badge-gif' : 'capture-badge-photo';
+        const badgeText = isGif ? `🎞️ GIF (${item.frames || 10}f)` : '📷 PHOTO';
+        const dateStr = new Date(item.created_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const sizeKb = Math.round(item.size_bytes / 1024);
+
+        return `
+          <div class="capture-card" data-id="${item.id}">
+            <img class="capture-thumb" src="${item.url}" alt="${item.filename}" onclick="openPreview('${item.url}', '${item.filename}', '${item.type}')">
+            <div class="capture-info">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="${badgeClass}">${badgeText}</span>
+                <span style="color: var(--text-muted); font-size: 0.7rem;">${dateStr}</span>
+              </div>
+              <div style="color: var(--text-muted); font-size: 0.7rem; font-family: var(--font-mono);">
+                ${item.width}x${item.height} • ${sizeKb} KB
+              </div>
+              <div class="capture-actions">
+                <a href="${item.url}" download="${item.filename}" class="btn" style="flex: 1; padding: 4px 6px; font-size: 0.72rem; justify-content: center; text-decoration: none;">
+                  ⬇️ Download
+                </a>
+                <button class="btn" style="padding: 4px 8px; font-size: 0.72rem; color: #ff3366;" onclick="deleteCaptureItem('${item.id}')" title="Delete capture">
+                  🗑️
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    window.openPreview = function(url, filename, type) {
+      if (!previewModal) return;
+      previewTitle.innerText = `${type === 'gif' ? '🎞️ Animated GIF' : '📸 High-Res Photo'}: ${filename}`;
+      previewImage.src = url;
+      previewDownloadLink.href = url;
+      previewDownloadLink.download = filename;
+      previewModal.style.display = 'flex';
+    };
+
+    window.deleteCaptureItem = async function(id) {
+      if (!confirm('Are you sure you want to delete this capture?')) return;
+      try {
+        const res = await fetch(`/api/captures/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          loadCaptures();
+        }
+      } catch (err) {
+        console.error('Delete failed:', err);
+      }
+    };
+
+    if (closePreviewBtn) {
+      closePreviewBtn.addEventListener('click', () => {
+        if (previewModal) previewModal.style.display = 'none';
+        if (previewImage) previewImage.src = '';
+      });
+    }
+
+    if (previewModal) {
+      previewModal.addEventListener('click', (e) => {
+        if (e.target === previewModal) {
+          previewModal.style.display = 'none';
+          if (previewImage) previewImage.src = '';
+        }
+      });
+    }
+
+    if (refreshGalleryBtn) {
+      refreshGalleryBtn.addEventListener('click', loadCaptures);
+    }
+
+    // Initial connection & config load
+    fetchInitialConfig();
+    connectWebSocket();
+    loadCaptures();
+  </script>
+
+  <!-- Lightbox Preview Modal -->
+  <div id="previewModal" class="preview-modal">
+    <div class="preview-content">
+      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <h3 id="previewTitle" style="font-size: 1rem; color: #fff;">Capture Preview</h3>
+        <button id="closePreviewBtn" class="btn" style="padding: 6px 12px; font-size: 0.8rem;">✕ Close</button>
+      </div>
+      <img id="previewImage" class="preview-media" src="" alt="Capture">
+      <div style="display: flex; gap: 12px;">
+        <a id="previewDownloadLink" href="" download class="btn btn-primary" style="text-decoration: none; padding: 10px 20px;">
+          ⬇️ Download Original
+        </a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
