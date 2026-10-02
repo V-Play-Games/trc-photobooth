@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     webcam_device: int = 0
     # Force synthetic test pattern instead of physical laptop webcam
     use_synthetic: bool = False
+    # Manual Red/Blue channel swap override if needed for non-standard camera modules
+    swap_rb: bool = False
 
     # Preview stream configuration (optimized for low latency over local WiFi)
     preview_width: int = 640

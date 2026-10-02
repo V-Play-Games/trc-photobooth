@@ -397,11 +397,9 @@ class PiCamera(BaseCamera):
         from picamera2 import Picamera2
 
         self._picam2 = Picamera2()
-        # Use create_video_configuration (NOT create_preview_configuration).
-        # create_preview_configuration attempts to hook DRM/KMS HDMI display scanout,
-        # which can freeze headless web servers or blank the screen!
+        # Use create_video_configuration with RGB888 format
         video_config = self._picam2.create_video_configuration(
-            main={"size": (self.width, self.height), "format": "BGR888"},
+            main={"size": (self.width, self.height), "format": "RGB888"},
             controls={"FrameRate": self.target_fps},
         )
         self._picam2.configure(video_config)
@@ -439,7 +437,7 @@ class PiCamera(BaseCamera):
             self._frame_count += 1
 
             try:
-                # Capture frame array from picamera2
+                # Capture frame array from picamera2 (returns RGB)
                 frame_arr = self._picam2.capture_array("main")
 
                 # Diagnostic check for pitch-black frames (e.g. lens cap or cable fault)
@@ -453,18 +451,24 @@ class PiCamera(BaseCamera):
                     )
                     self._last_dark_warn_time = now
 
-                # Fast encoding
+                # Fast encoding: picamera2 outputs in standard RGB order.
+                # cv2.imencode expects BGR, so convert RGB -> BGR to avoid inverted red/blue channels (avatar effect)
                 if cv2 is not None:
-                    # frame_arr is BGR888
+                    if not settings.swap_rb:
+                        bgr_frame = cv2.cvtColor(frame_arr, cv2.COLOR_RGB2BGR)
+                    else:
+                        bgr_frame = frame_arr
                     encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), int(self.quality)]
-                    ret, encimg = cv2.imencode(".jpg", frame_arr, encode_param)
+                    ret, encimg = cv2.imencode(".jpg", bgr_frame, encode_param)
                     if ret:
                         jpeg_bytes = encimg.tobytes()
                     else:
                         raise RuntimeError("cv2.imencode failed on picamera2 frame")
                 else:
-                    # Fallback to Pillow
-                    img = Image.fromarray(frame_arr[..., ::-1])  # BGR to RGB
+                    # Fallback to Pillow (Image.fromarray natively expects RGB)
+                    if settings.swap_rb:
+                        frame_arr = frame_arr[..., ::-1]
+                    img = Image.fromarray(frame_arr)
                     buf = io.BytesIO()
                     img.save(buf, format="JPEG", quality=self.quality)
                     jpeg_bytes = buf.getvalue()
@@ -493,11 +497,13 @@ class PiCamera(BaseCamera):
         if not self._picam2:
             raise RuntimeError("Camera hardware not active")
         capture_config = self._picam2.create_still_configuration(
-            main={"size": (settings.capture_width, settings.capture_height), "format": "BGR888"}
+            main={"size": (settings.capture_width, settings.capture_height), "format": "RGB888"}
         )
         frame_arr = self._picam2.capture_array(capture_config)
         try:
             import cv2
+            if not settings.swap_rb:
+                frame_arr = cv2.cvtColor(frame_arr, cv2.COLOR_RGB2BGR)
             encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), int(settings.capture_quality)]
             ret, encimg = cv2.imencode(".jpg", frame_arr, encode_param)
             if ret:
@@ -505,7 +511,9 @@ class PiCamera(BaseCamera):
         except ImportError:
             pass
 
-        img = Image.fromarray(frame_arr[..., ::-1])
+        if settings.swap_rb:
+            frame_arr = frame_arr[..., ::-1]
+        img = Image.fromarray(frame_arr)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=settings.capture_quality)
         return buf.getvalue()
