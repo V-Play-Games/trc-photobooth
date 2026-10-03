@@ -104,34 +104,35 @@ An immersive, simplified, 4-quadrant photobooth experience tailored for event gu
 
 ---
 
-## Cloudinary Upload Configuration
+## ☁️ Cloudinary Configuration (2×2 Collage Upload & QR Code)
 
-Images are saved to the local session folder ready for upload to Cloudinary. Configure your Cloudinary credentials via environment variables or Gradle project properties:
+When a 4-photo photobooth session finishes, the Android app stitches the 4 shots into a high-resolution 1200×1400 2×2 grid collage and uploads it to Cloudinary, generating a QR code on screen for guests to scan.
 
-| Environment Variable | Description | Example |
-|---|---|---|
-| `CLOUDINARY_CLOUD_NAME` | Cloudinary account cloud name | `my-photobooth` |
-| `CLOUDINARY_API_KEY` | Cloudinary API Key | `123456789012345` |
-| `CLOUDINARY_API_SECRET` | Cloudinary API Secret | `abcdef0123456789` |
-| `CLOUDINARY_UPLOAD_PRESET` | Unsigned upload preset (optional) | `trc_booth_preset` |
+### Step 1: Create an Unsigned Upload Preset in Cloudinary
+1. Open Cloudinary Console -> **Settings** -> **Upload**.
+2. Under **Upload presets**, click **Add upload preset**.
+3. Set **Signing Mode** to **Unsigned** (required for client uploads).
+4. Save the preset name (e.g. `trc_photobooth`).
 
-### Setting Environment Variables
+### Step 2: Supply Credentials to Android
 
-**Using shell environment variables:**
+You can supply the credentials via **`app/gradle.properties`** (recommended):
+
+```properties
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_UPLOAD_PRESET=your_unsigned_preset
+```
+
+Or via environment variables:
 ```bash
 export CLOUDINARY_CLOUD_NAME="your_cloud_name"
-export CLOUDINARY_API_KEY="your_api_key"
-export CLOUDINARY_API_SECRET="your_api_secret"
-export CLOUDINARY_UPLOAD_PRESET="your_upload_preset"
+export CLOUDINARY_UPLOAD_PRESET="your_unsigned_preset"
 ./gradlew assembleDebug
 ```
 
-**Using `~/.gradle/gradle.properties` or `app/gradle.properties`:**
-```properties
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
-CLOUDINARY_UPLOAD_PRESET=your_upload_preset
+Or pass as Gradle project properties:
+```bash
+./gradlew assembleDebug -PCLOUDINARY_CLOUD_NAME="your_cloud_name" -PCLOUDINARY_UPLOAD_PRESET="your_unsigned_preset"
 ```
 
 These values are compiled into `BuildConfig` at build time and accessed via `CloudinaryConfig.fromBuildConfig()`.

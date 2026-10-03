@@ -4,6 +4,8 @@ import android.app.Application
 import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.trc.photobooth.data.CloudinaryConfig
+import com.trc.photobooth.data.CloudinaryUploader
 import com.trc.photobooth.data.PhotoBoothRepository
 import com.trc.photobooth.data.models.ConnectionStatus
 import com.trc.photobooth.filters.FilterPreset
@@ -30,10 +32,26 @@ enum class BoothState {
     COMPLETE,
 }
 
+sealed interface BoothUploadState {
+    data object Idle : BoothUploadState
+    data class Generating(val message: String = "Creating 2x2 collage...") : BoothUploadState
+    data class Uploading(val message: String = "Uploading collage to Cloudinary...") : BoothUploadState
+    data class Success(val url: String) : BoothUploadState
+    data class Error(val error: String) : BoothUploadState
+}
+
 class BoothScreenViewModel(application: Application) : AndroidViewModel(application) {
 
-    val repository = PhotoBoothRepository(application, viewModelScope)
+    val repository = PhotoBoothRepository.getInstance(application)
     val hapticHelper = HapticHelper(application)
+
+    init {
+        repository.connectIfNeeded()
+    }
+
+    fun reconnect() {
+        repository.reconnect()
+    }
 
     // State machine status
     private val _boothState = MutableStateFlow(BoothState.IDLE)
@@ -83,6 +101,23 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
 
     private val _sessionTimestamp = MutableStateFlow<String?>(null)
     val sessionTimestamp: StateFlow<String?> = _sessionTimestamp.asStateFlow()
+
+    // 2x2 Composite Collage
+    private val _collageBitmap = MutableStateFlow<Bitmap?>(null)
+    val collageBitmap: StateFlow<Bitmap?> = _collageBitmap.asStateFlow()
+
+    private val _collageFile = MutableStateFlow<File?>(null)
+    val collageFile: StateFlow<File?> = _collageFile.asStateFlow()
+
+    // Cloudinary URL and QR Code
+    private val _cloudinaryUrl = MutableStateFlow<String?>(null)
+    val cloudinaryUrl: StateFlow<String?> = _cloudinaryUrl.asStateFlow()
+
+    private val _qrCodeBitmap = MutableStateFlow<Bitmap?>(null)
+    val qrCodeBitmap: StateFlow<Bitmap?> = _qrCodeBitmap.asStateFlow()
+
+    private val _uploadState = MutableStateFlow<BoothUploadState>(BoothUploadState.Idle)
+    val uploadState: StateFlow<BoothUploadState> = _uploadState.asStateFlow()
 
     // Pass-through connection flows from repository
     val connectionStatus: StateFlow<ConnectionStatus> = repository.status
@@ -200,8 +235,60 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
             _savedSessionFiles.value = files
             _boothState.value = BoothState.COMPLETE
 
-            _toastMessage.emit("Saved ${files.size} photos to Pictures/TRCPhotoBooth/sessions/$timestamp")
+            // 6. Generate 2x2 collage
+            _uploadState.value = BoothUploadState.Generating("Creating 2x2 collage...")
+            val collage = BitmapUtils.createCollage(captures, timestamp)
+            _collageBitmap.value = collage
+            val cFile = BitmapUtils.saveCollage(getApplication(), collage, timestamp)
+            _collageFile.value = cFile
+
+            // 7. Upload collage to Cloudinary & Generate QR code
+            uploadCollageInternal(collage, timestamp)
         }
+    }
+
+    private fun uploadCollageInternal(collage: Bitmap, timestamp: String) {
+        viewModelScope.launch {
+            val config = CloudinaryConfig.fromBuildConfig()
+            if (!config.isConfigured) {
+                _uploadState.value = BoothUploadState.Error(
+                    "Cloudinary not configured. Set CLOUDINARY_CLOUD_NAME and CLOUDINARY_UPLOAD_PRESET."
+                )
+                return@launch
+            }
+
+            _uploadState.value = BoothUploadState.Uploading("Uploading collage to Cloudinary...")
+            val result = CloudinaryUploader.uploadBitmap(
+                bitmap = collage,
+                fileName = "collage_${timestamp}.jpg",
+                folder = "trc-photobooth/sessions/$timestamp",
+                config = config,
+            )
+
+            result.fold(
+                onSuccess = { url ->
+                    _cloudinaryUrl.value = url
+                    val qr = BitmapUtils.generateQrCodeBitmap(url, 512)
+                    _qrCodeBitmap.value = qr
+                    _uploadState.value = BoothUploadState.Success(url)
+                    _toastMessage.emit("Collage uploaded! Scan QR Code 📱")
+                },
+                onFailure = { err ->
+                    val msg = err.message ?: "Upload failed"
+                    _uploadState.value = BoothUploadState.Error(msg)
+                    _toastMessage.emit("Cloudinary upload failed: $msg")
+                }
+            )
+        }
+    }
+
+    /**
+     * Retry uploading the collage if it failed or was offline.
+     */
+    fun retryUpload() {
+        val collage = _collageBitmap.value ?: return
+        val ts = _sessionTimestamp.value ?: return
+        uploadCollageInternal(collage, ts)
     }
 
     /**
@@ -216,6 +303,11 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
         _currentCountdown.value = null
         _savedSessionFiles.value = emptyList()
         _sessionTimestamp.value = null
+        _collageBitmap.value = null
+        _collageFile.value = null
+        _cloudinaryUrl.value = null
+        _qrCodeBitmap.value = null
+        _uploadState.value = BoothUploadState.Idle
         _boothState.value = BoothState.IDLE
         if (_selectedFilter.value.id != FilterPresets.RANDOM.id) {
             _currentFeedFilter.value = _selectedFilter.value

@@ -30,6 +30,7 @@ interface HeaderProps {
   onManualReconnect?: () => void
   onOpenGallery: () => void
   onOpenSettings: () => void
+  onLaunchBooth?: () => void
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -48,6 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
   onManualReconnect,
   onOpenGallery,
   onOpenSettings,
+  onLaunchBooth,
 }) => {
   const isConnected = connectionStatus === 'connected'
   const isConnecting = connectionStatus === 'connecting'
@@ -170,6 +172,20 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <SettingsIcon size={18} />
         </button>
+
+        {/* Launch Booth Mode */}
+        {onLaunchBooth && (
+          <button
+            type="button"
+            className="header-booth-launch-btn"
+            onClick={onLaunchBooth}
+            title="Launch 4-Quadrant Photo Booth Mode"
+            aria-label="Launch Photo Booth Mode"
+          >
+            <Camera size={14} />
+            <span>BOOTH</span>
+          </button>
+        )}
       </div>
     </header>
   )

@@ -526,6 +526,50 @@ class PiCamera(BaseCamera):
         self._picam2 = None
         self._last_dark_warn_time = 0.0
         self._pending_reconfigure: tuple[int, int] | None = None
+        self._picam2_lock = threading.Lock()
+
+    def _get_sensor_mode(self, req_w: int, req_h: int, fps: int) -> tuple[int, int]:
+        """Select optimal uncropped hardware sensor readout mode to prevent optical zoom-in.
+
+        For OV5647 (5MP 4:3 native):
+          Mode 0: 640x480   @ 62.5 fps (crop: 16, 0, 2560, 1920 -> 98.8% full FOV, high-speed 60fps)
+          Mode 1: 1296x972  @ 46.3 fps (crop: 0, 0, 2592, 1944  -> 100.0% FULL FOV, 2x2 binned)
+          Mode 2: 1920x1080 @ 32.8 fps (crop: 348, 434, 1928, 1080 -> 41.3% CROP - NEVER auto-select!)
+          Mode 3: 2592x1944 @ 15.6 fps (crop: 0, 0, 2592, 1944  -> 100.0% FULL FOV, full 5MP)
+        """
+        if not self._picam2 or not hasattr(self._picam2, "sensor_modes") or not self._picam2.sensor_modes:
+            return (1296, 972)
+
+        # 1. High framerate (> 45 fps, e.g. 60 fps):
+        # Use high-speed uncropped Mode 0 (640x480 @ 62.5 fps)
+        if fps > 45:
+            for mode in self._picam2.sensor_modes:
+                if mode.get("fps", 0) >= 55.0:
+                    return mode["size"]
+            return (640, 480)
+
+        # 2. High resolution (> 1296x972, e.g. 1440x1080 or full 5MP):
+        # Use full 5MP uncropped Mode 3 (2592x1944)
+        if req_w > 1296 or req_h > 972:
+            max_w, max_h = 2592, 1944
+            for mode in self._picam2.sensor_modes:
+                mw, mh = mode.get("size", (0, 0))
+                if mw * mh > max_w * max_h:
+                    max_w, max_h = mw, mh
+            return (max_w, max_h)
+
+        # 3. Standard / 720p 4:3 preview (e.g. 960x720, 640x480):
+        # Use uncropped Mode 1 (1296x972, 2x2 binned, 0 crop, up to 46 fps).
+        # The Broadcom hardware ISP scales this down to 960x720 (or 640x480) with 100% full FOV.
+        for mode in self._picam2.sensor_modes:
+            mw, mh = mode.get("size", (0, 0))
+            cl = mode.get("crop_limits")
+            if cl and len(cl) == 4:
+                cx, cy, cw, ch = cl
+                if cw >= 2560 and ch >= 1920 and mw < 2592 and mode.get("fps", 0) >= fps:
+                    return (mw, mh)
+
+        return (1296, 972)
 
     @BaseCamera.target_fps.setter
     def target_fps(self, fps: int) -> None:
@@ -566,11 +610,19 @@ class PiCamera(BaseCamera):
         from picamera2 import Picamera2
 
         self._picam2 = Picamera2()
-        # Use create_video_configuration with RGB888 format and FrameDurationLimits
         fps = max(1, self.target_fps)
         duration_us = int(1_000_000 / fps)
+        sensor_size = self._get_sensor_mode(self.width, self.height, fps)
+        logger.info(
+            "picamera2 hardware mode selected: sensor output_size=%s for preview %dx%d @ %d fps",
+            sensor_size,
+            self.width,
+            self.height,
+            fps,
+        )
         video_config = self._picam2.create_video_configuration(
             main={"size": (self.width, self.height), "format": "RGB888"},
+            sensor={"output_size": sensor_size},
             controls={
                 "FrameRate": float(fps),
                 "FrameDurationLimits": (duration_us, duration_us),
@@ -669,24 +721,37 @@ class PiCamera(BaseCamera):
                     self._pending_reconfigure = None
                     if self._picam2 is not None:
                         logger.info("Reconfiguring picamera2 hardware to %dx%d...", req_w, req_h)
-                        self._picam2.stop()
-                        duration_us = int(1_000_000 / max(1, self.target_fps))
-                        video_config = self._picam2.create_video_configuration(
-                            main={"size": (req_w, req_h), "format": "RGB888"},
-                            controls={
-                                "FrameRate": float(self.target_fps),
-                                "FrameDurationLimits": (duration_us, duration_us),
-                            },
-                        )
-                        self._picam2.configure(video_config)
-                        self._picam2.start()
+                        with self._picam2_lock:
+                            self._picam2.stop()
+                            duration_us = int(1_000_000 / max(1, self.target_fps))
+                            sensor_size = self._get_sensor_mode(req_w, req_h, self.target_fps)
+                            logger.info(
+                                "picamera2 reconfigure: sensor output_size=%s for %dx%d @ %d fps",
+                                sensor_size,
+                                req_w,
+                                req_h,
+                                self.target_fps,
+                            )
+                            video_config = self._picam2.create_video_configuration(
+                                main={"size": (req_w, req_h), "format": "RGB888"},
+                                sensor={"output_size": sensor_size},
+                                controls={
+                                    "FrameRate": float(self.target_fps),
+                                    "FrameDurationLimits": (duration_us, duration_us),
+                                },
+                            )
+                            self._picam2.configure(video_config)
+                            self._picam2.start()
                         logger.info("picamera2 hardware reconfigured to %dx%d", req_w, req_h)
                 except Exception as reconf_exc:
                     logger.warning("picamera2 hardware reconfigure failed (%s), using software resize", reconf_exc)
 
             try:
                 # Capture frame array from picamera2 (returns RGB)
-                frame_arr = self._picam2.capture_array("main")
+                with self._picam2_lock:
+                    if not self._picam2 or not self.is_connected:
+                        continue
+                    frame_arr = self._picam2.capture_array("main")
                 self.consecutive_errors = 0
                 self.is_connected = True
 
@@ -785,10 +850,25 @@ class PiCamera(BaseCamera):
             img.save(buf, format="JPEG", quality=settings.capture_quality)
             return buf.getvalue()
 
-        capture_config = self._picam2.create_still_configuration(
-            main={"size": (settings.capture_width, settings.capture_height), "format": "RGB888"}
-        )
-        frame_arr = self._picam2.capture_array(capture_config)
+        # Select maximum uncropped sensor resolution (5MP 2592x1944 on OV5647)
+        max_w, max_h = settings.capture_width, settings.capture_height
+        if self._picam2 and hasattr(self._picam2, "sensor_modes"):
+            for mode in self._picam2.sensor_modes:
+                mw, mh = mode.get("size", (0, 0))
+                if mw * mh > max_w * max_h:
+                    max_w, max_h = mw, mh
+
+        try:
+            with self._picam2_lock:
+                capture_config = self._picam2.create_still_configuration(
+                    main={"size": (max_w, max_h), "format": "RGB888"},
+                    sensor={"output_size": (max_w, max_h)},
+                )
+                frame_arr = self._picam2.switch_mode_and_capture_array(capture_config)
+        except Exception as exc:
+            logger.warning("switch_mode_and_capture_array failed (%s), falling back to capture_array", exc)
+            with self._picam2_lock:
+                frame_arr = self._picam2.capture_array("main")
         try:
             import cv2
             if settings.swap_rb:

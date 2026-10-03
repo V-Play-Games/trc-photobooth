@@ -308,7 +308,7 @@ class WebSocketClient(
         sendCommand("{\"action\":\"set_quality\",\"value\":$quality}")
     }
 
-    fun setResolution(res: String, aspectRatio: String = "16:9") {
+    fun setResolution(res: String, aspectRatio: String = "4:3") {
         sendCommand("{\"action\":\"set_resolution\",\"value\":\"$res\",\"aspect_ratio\":\"$aspectRatio\"}")
     }
 

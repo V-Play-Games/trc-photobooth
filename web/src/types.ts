@@ -13,6 +13,7 @@ export type FilterId =
   | 'vignette'
   | 'film_grain'
   | 'polaroid'
+  | 'random'
 
 export interface FilterPreset {
   id: FilterId
@@ -24,6 +25,10 @@ export interface FilterPreset {
   description: string
   badgeText: string
 }
+
+export type AppMode = 'admin' | 'booth'
+
+export type BoothPhase = 'idle' | 'capturing' | 'complete'
 
 export type CaptureType = 'photo' | 'gif'
 

@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
 
 class MainScreenViewModel(application: Application) : AndroidViewModel(application) {
 
-    val repository = PhotoBoothRepository(application, viewModelScope)
+    val repository = PhotoBoothRepository.getInstance(application)
     val networkDiscovery = NetworkDiscovery(application)
     val hapticHelper = HapticHelper(application)
     val notificationHelper = NotificationHelper(application)
@@ -79,7 +79,7 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
 
     init {
         // Start connection with saved host
-        repository.reconnect()
+        repository.connectIfNeeded()
 
         // Handle incoming capture celebrations
         viewModelScope.launch {

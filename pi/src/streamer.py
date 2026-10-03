@@ -366,7 +366,7 @@ class Streamer:
                                     })
                                 elif action == "set_resolution":
                                     res_val = payload.get("value")
-                                    ratio = payload.get("aspect_ratio", "16:9")
+                                    ratio = payload.get("aspect_ratio", "4:3")
                                     w_val = payload.get("width")
                                     h_val = payload.get("height")
                                     from src.models import parse_resolution

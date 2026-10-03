@@ -220,24 +220,115 @@ An interactive, automated photobooth experience tailored for event guests:
   photo_4_<filter>.jpg
   ```
 
-### Cloudinary Configuration
+---
 
-Local sessions are structured and ready for Cloudinary upload. Supply credentials via environment variables or `gradle.properties`:
+## ☁️ Cloudinary Configuration (2×2 Collage Upload & QR Code)
 
-| Variable | Description |
-|---|---|
-| `CLOUDINARY_CLOUD_NAME` | Cloudinary account cloud name |
-| `CLOUDINARY_API_KEY` | Cloudinary API Key |
-| `CLOUDINARY_API_SECRET` | Cloudinary API Secret |
-| `CLOUDINARY_UPLOAD_PRESET` | Unsigned upload preset (optional) |
+Both the **Native Android App** and **Web Client** integrate with Cloudinary to automatically host composite photos and generate instant download QR codes:
+
+```
+┌──────────────────┐     ┌───────────────────────┐     ┌──────────────────────┐     ┌──────────────────┐
+│  4 Photos Taken  │ ──▶ │ Stitched 2×2 Collage  │ ──▶ │ Upload to Cloudinary │ ──▶ │ QR Code Displayed│
+│ (Sequential 2×2) │     │ (1200×1400 composite) │     │  (Direct HTTPS POST) │     │ (Scan to Download)
+└──────────────────┘     └───────────────────────┘     └──────────────────────┘     └──────────────────┘
+```
+
+When a 4-photo session completes:
+1. The app stitches the 4 photos into a high-resolution 1200×1400 **2×2 grid collage** with branded header and timestamp.
+2. The collage is uploaded directly to Cloudinary.
+3. A **QR code** pointing to the Cloudinary URL is generated and displayed on screen so guests can scan and download their photos immediately.
+
+---
+
+### Step 1: Get Cloudinary Credentials
+
+1. Create a free account at [cloudinary.com](https://cloudinary.com/) (or log in).
+2. On your Cloudinary **Dashboard**, locate your **Cloud Name** (e.g. `dxy8abc12`).
+
+---
+
+### Step 2: Create an Unsigned Upload Preset (Recommended)
+
+An **Unsigned Upload Preset** allows mobile and web clients to upload directly to Cloudinary securely without exposing your API Secret in client builds:
+
+1. In the Cloudinary Console, click the **Settings** (gear icon) in the bottom-left.
+2. Select the **Upload** tab.
+3. Scroll down to **Upload presets** and click **Add upload preset**.
+4. Change **Signing Mode** from *Signed* to **Unsigned** (⚠️ critical).
+5. (Optional) Set the **Preset name** (e.g. `trc_photobooth` or leave the generated name).
+6. (Optional) Set **Folder** to `trc-photobooth/sessions`.
+7. Click **Save** in the top right.
+
+---
+
+### Step 3: Configure Android App (`app/`)
+
+Choose any of the three options below to provide your Cloudinary credentials at build time:
+
+#### Option A: In `app/gradle.properties` (Recommended for Local Dev)
+Open [`app/gradle.properties`](file:///data/Projects/trc-photobooth/app/gradle.properties) and set:
+
+```properties
+CLOUDINARY_CLOUD_NAME=your_cloud_name_here
+CLOUDINARY_UPLOAD_PRESET=your_unsigned_preset_here
+# Optional (only needed if using signed uploads instead of upload preset):
+CLOUDINARY_API_KEY=your_api_key_here
+CLOUDINARY_API_SECRET=your_api_secret_here
+```
+
+#### Option B: Environment Variables
+Export variables in your terminal before building:
 
 ```bash
-export CLOUDINARY_CLOUD_NAME="my_cloud"
-export CLOUDINARY_API_KEY="123456789012345"
-export CLOUDINARY_API_SECRET="abcdef0123456789"
-export CLOUDINARY_UPLOAD_PRESET="trc_preset"
-cd app && ./gradlew assembleDebug
+export CLOUDINARY_CLOUD_NAME="your_cloud_name_here"
+export CLOUDINARY_UPLOAD_PRESET="your_unsigned_preset_here"
+
+cd app
+./gradlew assembleDebug
 ```
+
+#### Option C: Command Line Arguments
+Pass parameters directly to Gradle:
+
+```bash
+cd app
+./gradlew assembleDebug \
+  -PCLOUDINARY_CLOUD_NAME="your_cloud_name_here" \
+  -PCLOUDINARY_UPLOAD_PRESET="your_unsigned_preset_here"
+```
+
+The APK will be generated at `app/app/build/outputs/apk/debug/app-debug.apk`.
+
+---
+
+### Step 4: Configure Web Client (`web/`)
+
+For the React Web client:
+
+1. Copy the example configuration:
+   ```bash
+   cp web/.env.example web/.env
+   ```
+2. Edit `web/.env`:
+   ```bash
+   VITE_CLOUDINARY_CLOUD_NAME=your_cloud_name_here
+   VITE_CLOUDINARY_UPLOAD_PRESET=your_unsigned_preset_here
+   ```
+3. Rebuild the static bundle:
+   ```bash
+   cd web
+   npm run build
+   ```
+   *(Assets are automatically compiled to `pi/src/static/` to be served by the Pi backend).*
+
+---
+
+### Step 5: Verify & Test
+
+1. Launch Photobooth mode on Android or Web.
+2. Tap **START BOOTH** and complete the 4-photo sequence.
+3. Upon completion, the screen will show **"Uploading 2×2 grid collage to Cloudinary..."** followed by the generated **QR Code** and collage preview.
+4. Scan the QR code using any smartphone camera to open and download the high-resolution composite photo!
 
 ---
 

@@ -75,16 +75,16 @@ fun QuadrantGrid(
 ) {
     Column(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .fillMaxSize()
+            .padding(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         // Top Row: Quadrants 0 & 1
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             QuadrantCell(
                 index = 0,
@@ -115,7 +115,7 @@ fun QuadrantGrid(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             QuadrantCell(
                 index = 2,

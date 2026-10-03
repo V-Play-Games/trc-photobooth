@@ -12,6 +12,7 @@ import { SettingsModal } from './components/SettingsModal'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useCaptures } from './hooks/useCaptures'
+import { BoothView } from './components/booth/BoothView'
 import {
   isSoundEnabled,
   playCountdownTick,
@@ -19,9 +20,14 @@ import {
   playSmileChime,
   setSoundEnabled,
 } from './utils/audio'
-import type { CaptureMetadata, CaptureType, FilterId } from './types'
+import type { AppMode, CaptureMetadata, CaptureType, FilterId } from './types'
 
 export function App() {
+  const [appMode, setAppMode] = useState<AppMode>(() => {
+    const urlParam = new URLSearchParams(window.location.search).get('mode')
+    return urlParam === 'booth' ? 'booth' : 'admin'
+  })
+
   const [activeFilter, setActiveFilter] = useState<FilterId>('none')
   const [showGuides, setShowGuides] = useState<boolean>(false)
   const [captureMode, setCaptureMode] = useState<CaptureType>('photo')
@@ -191,6 +197,27 @@ export function App() {
     }
   }
 
+  if (appMode === 'booth') {
+    return (
+      <div className="photobooth-app booth-mode-active">
+        <BoothView
+          lastFrameBitmap={lastFrameBitmap}
+          isConnected={status === 'connected'}
+          isFlipped={isFlipped}
+          onBackToAdmin={() => setAppMode('admin')}
+          onShowToast={showToast}
+        />
+
+        {/* Toast Notification */}
+        {toastMessage && (
+          <div className="photobooth-toast" role="status">
+            <span className="toast-text">{toastMessage}</span>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="photobooth-app">
       {/* Top Navigation */}
@@ -210,6 +237,7 @@ export function App() {
         onManualReconnect={reconnect}
         onOpenGallery={() => setIsGalleryOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onLaunchBooth={() => setAppMode('booth')}
       />
 
       {/* Reconnection Alert Banner when offline */}

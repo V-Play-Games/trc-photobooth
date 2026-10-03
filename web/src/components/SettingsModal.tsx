@@ -40,9 +40,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const currentFps = cameraConfig.fps ?? 15
   const currentQuality = cameraConfig.quality ?? 70
   const activeRes: '480p' | '720p' | '1080p' = cameraConfig.width
-    ? cameraConfig.width >= 1920
+    ? cameraConfig.width >= 1400
       ? '1080p'
-      : cameraConfig.width >= 1280
+      : cameraConfig.width >= 900
         ? '720p'
         : '480p'
     : '480p'
@@ -66,7 +66,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   }
 
   const handleResolutionSelect = (res: '480p' | '720p' | '1080p') => {
-    onSetResolution(res, res === '480p' ? '4:3' : '16:9')
+    onSetResolution(res, '4:3')
   }
 
   return (
@@ -162,16 +162,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   className={`res-pill ${activeRes === '720p' ? 'active' : ''}`}
                   onClick={() => handleResolutionSelect('720p')}
                 >
-                  <span className="res-name">720p (16:9)</span>
-                  <span className="res-specs">1280×720 • HD</span>
+                  <span className="res-name">720p (4:3)</span>
+                  <span className="res-specs">960×720 • HD Full Sensor</span>
                 </button>
                 <button
                   type="button"
                   className={`res-pill ${activeRes === '1080p' ? 'active' : ''}`}
                   onClick={() => handleResolutionSelect('1080p')}
                 >
-                  <span className="res-name">1080p (16:9)</span>
-                  <span className="res-specs">1920×1080 • Ultra</span>
+                  <span className="res-name">1080p (4:3)</span>
+                  <span className="res-specs">1440×1080 • FHD Full Sensor</span>
                 </button>
               </div>
             </div>

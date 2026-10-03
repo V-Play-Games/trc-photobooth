@@ -101,9 +101,37 @@ export const FILTER_PRESETS: Record<FilterId, FilterPreset> = {
     description: 'Classic instant camera color grading with optional vintage border',
     badgeText: 'POLAROID',
   },
+  random: {
+    id: 'random',
+    name: 'Random',
+    tagline: 'Surprise Each Shot',
+    cssFilter: 'none',
+    canvasFilter: 'none',
+    accentColor: '#a855f7',
+    description: 'Picks a random filter for each photo in the sequence',
+    badgeText: '🎲 RANDOM',
+  },
 }
 
+export const CONCRETE_FILTER_IDS: FilterId[] = [
+  'none',
+  'bw',
+  'sepia',
+  'vintage',
+  'cool',
+  'warm',
+  'high_contrast',
+  'vignette',
+  'film_grain',
+  'polaroid',
+]
+
 export const FILTER_LIST: FilterPreset[] = Object.values(FILTER_PRESETS)
+
+export function getRandomConcreteFilter(): FilterId {
+  const index = Math.floor(Math.random() * CONCRETE_FILTER_IDS.length)
+  return CONCRETE_FILTER_IDS[index]
+}
 
 /**
  * Procedurally render a vignette gradient on the given canvas context.
@@ -279,6 +307,112 @@ export async function bakeFilterToImageBlob(
   // Clean up object URL if created
   if (typeof sourceUrlOrBlob !== 'string') {
     URL.revokeObjectURL(url)
+  }
+
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob)
+        else reject(new Error('Canvas blob export failed'))
+      },
+      'image/jpeg',
+      0.95,
+    )
+  })
+}
+
+/**
+ * Bake a selected filter preset onto an ImageBitmap.
+ * Used by the 4-quadrant photo booth sequence for instant capture baking.
+ */
+export async function bakeFilterFromImageBitmap(
+  bitmap: ImageBitmap,
+  filterId: FilterId,
+  includePolaroidFrame = false,
+): Promise<Blob> {
+  const concreteId = filterId === 'random' ? getRandomConcreteFilter() : filterId
+  const preset = FILTER_PRESETS[concreteId] || FILTER_PRESETS.none
+
+  const srcWidth = bitmap.width
+  const srcHeight = bitmap.height
+
+  let targetWidth = srcWidth
+  let targetHeight = srcHeight
+  let imgX = 0
+  let imgY = 0
+
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) throw new Error('Could not obtain canvas 2D context')
+
+  if (includePolaroidFrame || concreteId === 'polaroid') {
+    const borderHorizontal = Math.round(srcWidth * 0.05)
+    const borderTop = Math.round(srcHeight * 0.05)
+    const borderBottom = Math.round(srcHeight * 0.18)
+
+    targetWidth = srcWidth + borderHorizontal * 2
+    targetHeight = srcHeight + borderTop + borderBottom
+    imgX = borderHorizontal
+    imgY = borderTop
+
+    canvas.width = targetWidth
+    canvas.height = targetHeight
+
+    ctx.fillStyle = '#f8f6f0'
+    ctx.fillRect(0, 0, targetWidth, targetHeight)
+
+    ctx.save()
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.15)'
+    ctx.shadowBlur = 10
+    ctx.shadowOffsetY = 2
+    ctx.fillStyle = '#000'
+    ctx.fillRect(imgX, imgY, srcWidth, srcHeight)
+    ctx.restore()
+  } else {
+    canvas.width = targetWidth
+    canvas.height = targetHeight
+  }
+
+  // Draw filtered image
+  ctx.save()
+  if (preset.canvasFilter && preset.canvasFilter !== 'none') {
+    ctx.filter = preset.canvasFilter
+  }
+  ctx.drawImage(bitmap, imgX, imgY, srcWidth, srcHeight)
+  ctx.restore()
+
+  // Apply special overlays inside photo area
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(imgX, imgY, srcWidth, srcHeight)
+  ctx.clip()
+
+  if (concreteId === 'vignette') {
+    ctx.translate(imgX, imgY)
+    drawVignetteOverlay(ctx, srcWidth, srcHeight, 0.65)
+  } else if (concreteId === 'film_grain') {
+    ctx.translate(imgX, imgY)
+    drawFilmGrainOverlay(ctx, srcWidth, srcHeight, 0.1)
+  }
+  ctx.restore()
+
+  if (includePolaroidFrame || concreteId === 'polaroid') {
+    ctx.save()
+    ctx.fillStyle = '#475569'
+    ctx.font = `600 ${Math.max(16, Math.round(targetWidth * 0.028))}px 'Plus Jakarta Sans', sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    const dateText = new Date().toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    ctx.fillText(
+      `TRC Photo Booth • ${dateText}`,
+      targetWidth / 2,
+      targetHeight - (targetHeight - (imgY + srcHeight)) / 2,
+    )
+    ctx.restore()
   }
 
   return new Promise<Blob>((resolve, reject) => {

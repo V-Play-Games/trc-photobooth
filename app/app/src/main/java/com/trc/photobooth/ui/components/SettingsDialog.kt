@@ -239,7 +239,7 @@ fun SettingsDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            listOf("640x480" to "480p SD", "1280x720" to "720p HD", "1920x1080" to "1080p FHD").forEach { (res, label) ->
+                            listOf("640x480" to "480p SD", "960x720" to "720p HD", "1440x1080" to "1080p FHD").forEach { (res, label) ->
                                 val curRes = "${cameraConfig.width ?: 640}x${cameraConfig.height ?: 480}"
                                 val isSel = curRes == res
                                 Box(

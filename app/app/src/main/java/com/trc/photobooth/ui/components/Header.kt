@@ -83,25 +83,25 @@ fun Header(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // Camera Brand Icon
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(NeonPink.copy(alpha = 0.35f), CyberCyan.copy(alpha = 0.35f))
-                        )
-                    )
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CameraAlt,
-                    contentDescription = "Photo Booth",
-                    tint = TextMain,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
+//            Box(
+//                modifier = Modifier
+//                    .size(36.dp)
+//                    .clip(RoundedCornerShape(8.dp))
+//                    .background(
+//                        Brush.linearGradient(
+//                            listOf(NeonPink.copy(alpha = 0.35f), CyberCyan.copy(alpha = 0.35f))
+//                        )
+//                    )
+//                    .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp)),
+//                contentAlignment = Alignment.Center,
+//            ) {
+//                Icon(
+//                    imageVector = Icons.Default.CameraAlt,
+//                    contentDescription = "Photo Booth",
+//                    tint = TextMain,
+//                    modifier = Modifier.size(20.dp),
+//                )
+//            }
 
             // Brand Titles
             Column {
@@ -132,11 +132,11 @@ fun Header(
             }
 
             // Status Pill
-            StatusPill(
-                status = connectionStatus,
-                fps = fps,
-                latencyMs = latencyMs,
-            )
+//            StatusPill(
+//                status = connectionStatus,
+//                fps = fps,
+//                latencyMs = latencyMs,
+//            )
         }
 
         // Right: Tool Buttons
@@ -161,31 +161,31 @@ fun Header(
             )
 
             // Gallery Button with Counter
-            Box {
-                ToolButton(
-                    icon = Icons.Default.PhotoLibrary,
-                    isActive = false,
-                    onClick = onOpenGallery,
-                    contentDescription = "Open Gallery",
-                )
-                if (capturesCount > 0) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .size(18.dp)
-                            .clip(CircleShape)
-                            .background(NeonPink),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = capturesCount.coerceAtMost(99).toString(),
-                            color = Color.White,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                }
-            }
+//            Box {
+//                ToolButton(
+//                    icon = Icons.Default.PhotoLibrary,
+//                    isActive = false,
+//                    onClick = onOpenGallery,
+//                    contentDescription = "Open Gallery",
+//                )
+//                if (capturesCount > 0) {
+//                    Box(
+//                        modifier = Modifier
+//                            .align(Alignment.TopEnd)
+//                            .size(18.dp)
+//                            .clip(CircleShape)
+//                            .background(NeonPink),
+//                        contentAlignment = Alignment.Center,
+//                    ) {
+//                        Text(
+//                            text = capturesCount.coerceAtMost(99).toString(),
+//                            color = Color.White,
+//                            fontSize = 9.sp,
+//                            fontWeight = FontWeight.Bold,
+//                        )
+//                    }
+//                }
+//            }
 
             // Settings Button
             ToolButton(

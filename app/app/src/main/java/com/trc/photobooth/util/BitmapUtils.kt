@@ -17,6 +17,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.qrcode.QRCodeWriter
 import com.trc.photobooth.filters.FilterPreset
 import java.io.File
 import java.io.FileOutputStream
@@ -232,5 +235,239 @@ object BitmapUtils {
             }
         }
         return savedFiles
+    }
+
+    /**
+     * Creates a high-resolution 2x2 grid collage of the 4 captured photos.
+     * Dimensions: 1200 x 1400 px, with a branded header, 2x2 photo cells with sleek borders,
+     * and a branded footer with timestamp.
+     */
+    fun createCollage(
+        photos: List<Bitmap>,
+        sessionTimestamp: String,
+        title: String = "TRC PHOTO BOOTH"
+    ): Bitmap {
+        val collageWidth = 1200
+        val collageHeight = 1400
+
+        val collage = Bitmap.createBitmap(collageWidth, collageHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(collage)
+
+        // Dark cyberpunk background
+        val bgPaint = Paint().apply {
+            color = Color.parseColor("#0B0F17")
+            style = Paint.Style.FILL
+        }
+        canvas.drawRect(0f, 0f, collageWidth.toFloat(), collageHeight.toFloat(), bgPaint)
+
+        // Subtle gradient card border
+        val borderPaint = Paint().apply {
+            color = Color.parseColor("#1E293B")
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+        }
+        canvas.drawRect(12f, 12f, collageWidth - 12f, collageHeight - 12f, borderPaint)
+
+        // Accent top bar
+        val accentPaint = Paint().apply {
+            color = Color.parseColor("#FF3366")
+            style = Paint.Style.FILL
+        }
+        canvas.drawRect(24f, 24f, collageWidth - 24f, 30f, accentPaint)
+
+        // Header text: "TRC PHOTO BOOTH"
+        val headerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 44f
+            isFakeBoldText = true
+            letterSpacing = 0.15f
+            textAlign = Paint.Align.CENTER
+        }
+        canvas.drawText(title, collageWidth / 2f, 95f, headerPaint)
+
+        val subHeaderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#00F0FF")
+            textSize = 20f
+            isFakeBoldText = true
+            letterSpacing = 0.1f
+            textAlign = Paint.Align.CENTER
+        }
+        canvas.drawText("4-SHOT COMPOSITE MEMORY", collageWidth / 2f, 130f, subHeaderPaint)
+
+        // 2x2 Grid Layout
+        val gridMarginLeft = 40f
+        val gridMarginTop = 160f
+        val gridGap = 20f
+        val availableWidth = collageWidth - (gridMarginLeft * 2) - gridGap
+        val cellWidth = availableWidth / 2f
+        val cellHeight = cellWidth * (3f / 4f) // standard 4:3 photo ratio, approx 550x412.5 px
+
+        val photoPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        val photoBorderPaint = Paint().apply {
+            color = Color.parseColor("#334155")
+            style = Paint.Style.STROKE
+            strokeWidth = 3f
+        }
+
+        // 4 slots: 0=TL, 1=TR, 2=BL, 3=BR
+        val coords = listOf(
+            Pair(gridMarginLeft, gridMarginTop),
+            Pair(gridMarginLeft + cellWidth + gridGap, gridMarginTop),
+            Pair(gridMarginLeft, gridMarginTop + cellHeight + gridGap),
+            Pair(gridMarginLeft + cellWidth + gridGap, gridMarginTop + cellHeight + gridGap)
+        )
+
+        for (i in 0 until 4) {
+            val (left, top) = coords[i]
+            val right = left + cellWidth
+            val bottom = top + cellHeight
+            val dstRect = RectF(left, top, right, bottom)
+
+            val photo = photos.getOrNull(i)
+            if (photo != null) {
+                // Center-crop source photo into cell
+                val srcW = photo.width
+                val srcH = photo.height
+                val targetRatio = cellWidth / cellHeight
+                val srcRatio = srcW.toFloat() / srcH.toFloat()
+
+                val srcCrop = if (srcRatio > targetRatio) {
+                    val newW = (srcH * targetRatio).toInt()
+                    val xOffset = (srcW - newW) / 2
+                    Rect(xOffset, 0, xOffset + newW, srcH)
+                } else {
+                    val newH = (srcW / targetRatio).toInt()
+                    val yOffset = (srcH - newH) / 2
+                    Rect(0, yOffset, srcW, yOffset + newH)
+                }
+
+                canvas.drawBitmap(photo, srcCrop, dstRect, photoPaint)
+            } else {
+                val emptyPaint = Paint().apply {
+                    color = Color.parseColor("#151C2C")
+                    style = Paint.Style.FILL
+                }
+                canvas.drawRect(dstRect, emptyPaint)
+            }
+
+            // Cell border
+            canvas.drawRect(dstRect, photoBorderPaint)
+        }
+
+        // Footer Section
+        val gridBottom = gridMarginTop + (cellHeight * 2) + gridGap
+        val footerAccentPaint = Paint().apply {
+            color = Color.parseColor("#00E599")
+            style = Paint.Style.FILL
+        }
+        canvas.drawRect(24f, collageHeight - 30f, collageWidth - 24f, collageHeight - 24f, footerAccentPaint)
+
+        val footerTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#94A3B8")
+            textSize = 22f
+            isFakeBoldText = true
+            textAlign = Paint.Align.CENTER
+        }
+
+        val dateStr = try {
+            val parsed = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).parse(sessionTimestamp)
+            SimpleDateFormat("MMMM d, yyyy • h:mm a", Locale.getDefault()).format(parsed ?: Date())
+        } catch (e: Exception) {
+            sessionTimestamp
+        }
+
+        canvas.drawText("CAPTURED WITH TRC PHOTO BOOTH • $dateStr", collageWidth / 2f, gridBottom + 65f, footerTextPaint)
+
+        val urlBadgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#64748B")
+            textSize = 18f
+            textAlign = Paint.Align.CENTER
+        }
+        canvas.drawText("SCAN QR CODE TO VIEW DIGITAL ORIGINAL", collageWidth / 2f, gridBottom + 105f, urlBadgePaint)
+
+        return collage
+    }
+
+    /**
+     * Saves the 2x2 collage bitmap to the session directory in Pictures.
+     */
+    fun saveCollage(
+        context: Context,
+        collageBitmap: Bitmap,
+        sessionTimestamp: String,
+    ): File? {
+        val baseDir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+            "TRCPhotoBooth/sessions/$sessionTimestamp"
+        )
+        if (!baseDir.exists()) {
+            baseDir.mkdirs()
+        }
+
+        val collageFile = File(baseDir, "photo_collage_grid.jpg")
+        return try {
+            FileOutputStream(collageFile).use { out ->
+                collageBitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                out.flush()
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, "photo_collage_grid.jpg")
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                    put(
+                        MediaStore.Images.Media.RELATIVE_PATH,
+                        "${Environment.DIRECTORY_PICTURES}/TRCPhotoBooth/sessions/$sessionTimestamp"
+                    )
+                    put(MediaStore.Images.Media.IS_PENDING, 0)
+                }
+                try {
+                    context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                } catch (ignored: Exception) {}
+            } else {
+                val scanIntent = Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE).apply {
+                    data = Uri.fromFile(collageFile)
+                }
+                context.sendBroadcast(scanIntent)
+            }
+            collageFile
+        } catch (e: Exception) {
+            Log.e("BitmapUtils", "Failed to save collage: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Generates a QR code bitmap for the given URL/content string.
+     */
+    fun generateQrCodeBitmap(
+        content: String,
+        sizePx: Int = 512,
+        foregroundColor: Int = Color.BLACK,
+        backgroundColor: Int = Color.WHITE,
+    ): Bitmap? {
+        return try {
+            val hints = mapOf(
+                EncodeHintType.MARGIN to 1,
+                EncodeHintType.CHARACTER_SET to "UTF-8"
+            )
+            val bitMatrix = QRCodeWriter().encode(
+                content,
+                BarcodeFormat.QR_CODE,
+                sizePx,
+                sizePx,
+                hints
+            )
+            val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+            for (x in 0 until sizePx) {
+                for (y in 0 until sizePx) {
+                    bmp.setPixel(x, y, if (bitMatrix[x, y]) foregroundColor else backgroundColor)
+                }
+            }
+            bmp
+        } catch (e: Exception) {
+            Log.e("BitmapUtils", "Failed to generate QR code: ${e.message}", e)
+            null
+        }
     }
 }

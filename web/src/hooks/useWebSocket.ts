@@ -279,7 +279,7 @@ export function useWebSocket({
   )
 
   const setResolutionSetting = useCallback(
-    (value: string, aspectRatio = '16:9') => {
+    (value: string, aspectRatio = '4:3') => {
       return sendCommand({
         action: 'set_resolution',
         value,

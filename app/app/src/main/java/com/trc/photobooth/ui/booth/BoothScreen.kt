@@ -7,6 +7,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,15 +27,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -46,11 +50,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.trc.photobooth.util.BitmapUtils
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trc.photobooth.data.models.ConnectionStatus
@@ -103,6 +110,11 @@ fun BoothScreen(
     val savedSessionFiles by viewModel.savedSessionFiles.collectAsStateWithLifecycle()
     val sessionTimestamp by viewModel.sessionTimestamp.collectAsStateWithLifecycle()
 
+    val uploadState by viewModel.uploadState.collectAsStateWithLifecycle()
+    val collageBitmap by viewModel.collageBitmap.collectAsStateWithLifecycle()
+    val qrCodeBitmap by viewModel.qrCodeBitmap.collectAsStateWithLifecycle()
+    val cloudinaryUrl by viewModel.cloudinaryUrl.collectAsStateWithLifecycle()
+
     val connectionStatus by viewModel.connectionStatus.collectAsStateWithLifecycle()
     val lastFrame by viewModel.lastFrame.collectAsStateWithLifecycle()
 
@@ -127,259 +139,265 @@ fun BoothScreen(
             .fillMaxSize()
             .background(BgBase),
     ) {
-        Column(
+        // Layer 1: Full-Screen Camera Quadrant Grid (takes the full screen)
+        QuadrantGrid(
+            capturedPhotos = capturedPhotos,
+            activeQuadrant = activeQuadrant,
+            lastFrameBitmap = lastFrame,
+            activeFilter = currentFeedFilter,
+            resolvedFilters = resolvedFilters,
             modifier = Modifier.fillMaxSize(),
+        )
+
+        // Layer 2: Countdown & Strobe Flash Overlay (during sequence)
+        if (isCapturing) {
+            BoothCountdownOverlay(
+                photoIndex = activeQuadrant,
+                countdownSeconds = currentCountdown,
+                flashEvent = viewModel.flashEvent,
+                isComplete = isComplete,
+                activeFilterName = currentFeedFilter.name,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        // Layer 3: Floating Top App Bar / Header: Only visible when NOT capturing
+        AnimatedVisibility(
+            visible = !isCapturing,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+            modifier = Modifier.align(Alignment.TopCenter),
         ) {
-            // Top App Bar / Header: Only visible when NOT capturing
-            AnimatedVisibility(
-                visible = !isCapturing,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically(),
+            Row(
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xD90B0F17))
+                    .border(width = 1.dp, color = BorderSubtle, shape = RoundedCornerShape(16.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(60.dp)
-                        .background(Color(0xE60B0F17))
-                        .border(width = 1.dp, color = BorderSubtle)
-                        .statusBarsPadding()
-                        .padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x33FF3366))
+                            .border(1.dp, NeonPink.copy(alpha = 0.6f), CircleShape),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        IconButton(
-                            onClick = onBack,
-                            enabled = !isCapturing,
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back to Admin",
-                                tint = TextMain,
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                text = "TRC PHOTO BOOTH",
-                                color = TextMain,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 1.4.sp,
-                                fontFamily = FontFamily.Monospace,
-                            )
-                            Text(
-                                text = if (isComplete) "SESSION COMPLETE" else "4-SHOT BOOTH EXPERIENCE",
-                                color = if (isComplete) EmeraldGreen else CyberCyan,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = null,
+                            tint = NeonPink,
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
 
-                    // Status Pill
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (connectionStatus == ConnectionStatus.CONNECTED) Color(0x1A00E599)
-                                else Color(0x1AFF3366)
-                            )
-                            .border(
-                                1.dp,
-                                if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen.copy(alpha = 0.5f)
-                                else NeonPink.copy(alpha = 0.5f),
-                                RoundedCornerShape(12.dp)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen
-                                    else NeonPink
-                                ),
+                    Column {
+                        Text(
+                            text = "TRC PHOTO BOOTH",
+                            color = TextMain,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.4.sp,
+                            fontFamily = FontFamily.Monospace,
                         )
                         Text(
-                            text = if (connectionStatus == ConnectionStatus.CONNECTED) "READY" else "OFFLINE",
-                            color = if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen else NeonPink,
+                            text = if (isComplete) "SESSION COMPLETE" else "4-SHOT BOOTH EXPERIENCE",
+                            color = if (isComplete) EmeraldGreen else CyberCyan,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
                         )
                     }
                 }
-            }
 
-            // Quadrant Grid (2x2) taking main screen area
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                QuadrantGrid(
-                    capturedPhotos = capturedPhotos,
-                    activeQuadrant = activeQuadrant,
-                    lastFrameBitmap = lastFrame,
-                    activeFilter = currentFeedFilter,
-                    resolvedFilters = resolvedFilters,
-                    modifier = Modifier.fillMaxSize(),
-                )
-
-                // Countdown Overlay (during sequence)
-                if (isCapturing) {
-                    BoothCountdownOverlay(
-                        photoIndex = activeQuadrant,
-                        countdownSeconds = currentCountdown,
-                        flashEvent = viewModel.flashEvent,
-                        isComplete = isComplete,
-                        activeFilterName = currentFeedFilter.name,
+                // Status Pill
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (connectionStatus == ConnectionStatus.CONNECTED) Color(0x1A00E599)
+                            else Color(0x1AFF3366)
+                        )
+                        .border(
+                            1.dp,
+                            if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen.copy(alpha = 0.5f)
+                            else NeonPink.copy(alpha = 0.5f),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .clickable(enabled = connectionStatus != ConnectionStatus.CONNECTED) {
+                            viewModel.reconnect()
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen
+                                else NeonPink
+                            ),
+                    )
+                    Text(
+                        text = if (connectionStatus == ConnectionStatus.CONNECTED) "READY" else "OFFLINE",
+                        color = if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen else NeonPink,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
                     )
                 }
             }
+        }
 
-            // Bottom Control Area: Varies by state
-            when {
-                isIdle -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xF0070B12))
-                            .border(1.dp, BorderSubtle)
-                            .navigationBarsPadding()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+        // Layer 4: Floating Bottom Controls
+        when {
+            isIdle -> {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xD9070B12))
+                        .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    // Filter Selection Strip (Includes RANDOM)
+                    BoothFilterStrip(
+                        selectedFilter = selectedFilter,
+                        onSelectFilter = viewModel::selectFilter,
+                        enabled = true,
+                    )
+
+                    // Timer Options & Start Button Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        // Filter Selection Strip (Includes RANDOM)
-                        BoothFilterStrip(
-                            selectedFilter = selectedFilter,
-                            onSelectFilter = viewModel::selectFilter,
-                            enabled = true,
-                        )
-
-                        // Timer Options & Start Button Row
+                        // Timer Selector Pills
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(BgCard)
+                                .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            // Timer Selector Pills
-                            Row(
+                            Icon(
+                                imageVector = Icons.Default.Timer,
+                                contentDescription = null,
+                                tint = TextMuted,
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(BgCard)
-                                    .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
-                                    .padding(4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Timer,
-                                    contentDescription = null,
-                                    tint = TextMuted,
+                                    .padding(start = 4.dp)
+                                    .size(14.dp),
+                            )
+
+                            listOf(3, 5, 10).forEach { seconds ->
+                                val isSelected = timerSeconds == seconds
+                                Box(
                                     modifier = Modifier
-                                        .padding(start = 4.dp)
-                                        .size(14.dp),
-                                )
-
-                                listOf(3, 5, 10).forEach { seconds ->
-                                    val isSelected = timerSeconds == seconds
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(
-                                                if (isSelected) CyberCyan.copy(alpha = 0.25f)
-                                                else Color.Transparent
-                                            )
-                                            .border(
-                                                width = if (isSelected) 1.dp else 0.dp,
-                                                color = if (isSelected) CyberCyan else Color.Transparent,
-                                                shape = RoundedCornerShape(8.dp),
-                                            )
-                                            .clickable { viewModel.setTimerSeconds(seconds) }
-                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text(
-                                            text = "${seconds}s",
-                                            color = if (isSelected) CyberCyan else TextMuted,
-                                            fontSize = 12.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                            fontFamily = FontFamily.Monospace,
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            if (isSelected) CyberCyan.copy(alpha = 0.25f)
+                                            else Color.Transparent
                                         )
-                                    }
-                                }
-                            }
-
-                            // Big Start Button
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            listOf(NeonPink, Color(0xFFE11D48), PurpleNeon)
+                                        .border(
+                                            width = if (isSelected) 1.dp else 0.dp,
+                                            color = if (isSelected) CyberCyan else Color.Transparent,
+                                            shape = RoundedCornerShape(8.dp),
                                         )
-                                    )
-                                    .clickable(
-                                        enabled = connectionStatus == ConnectionStatus.CONNECTED,
-                                        onClick = viewModel::startSession,
-                                    ),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        .clickable { viewModel.setTimerSeconds(seconds) }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center,
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CameraAlt,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(18.dp),
-                                    )
                                     Text(
-                                        text = "START BOOTH",
-                                        color = Color.White,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Black,
-                                        letterSpacing = 1.2.sp,
+                                        text = "${seconds}s",
+                                        color = if (isSelected) CyberCyan else TextMuted,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                         fontFamily = FontFamily.Monospace,
                                     )
                                 }
                             }
                         }
+
+                        // Big Start Button
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(NeonPink, Color(0xFFE11D48), PurpleNeon)
+                                    )
+                                )
+                                .clickable(
+                                    enabled = connectionStatus == ConnectionStatus.CONNECTED,
+                                    onClick = viewModel::startSession,
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CameraAlt,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Text(
+                                    text = "START BOOTH",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 1.2.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                )
+                            }
+                        }
                     }
                 }
+            }
 
-                isComplete -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xF0070B12))
-                            .border(1.dp, BorderSubtle)
-                            .navigationBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+            isComplete -> {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Color(0xF0070B14))
+                        .border(1.dp, BorderSubtle, RoundedCornerShape(22.dp))
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    // Header Bar: Status + Local Share
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        // Success Status Card
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0x2000E599))
-                                .border(1.dp, EmeraldGreen.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-                                .padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
@@ -387,77 +405,47 @@ fun BoothScreen(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = null,
                                 tint = EmeraldGreen,
-                                modifier = Modifier.size(20.dp),
+                                modifier = Modifier.size(18.dp),
                             )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "All 4 Photos Saved Locally! 🎉",
-                                    color = EmeraldGreen,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                Text(
-                                    text = "Ready for Cloudinary: Pictures/TRCPhotoBooth/sessions/${sessionTimestamp ?: ""}",
-                                    color = TextSubtle,
-                                    fontSize = 11.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                )
-                            }
+                            Text(
+                                text = "4-SHOT COLLAGE READY! 🎉",
+                                color = TextMain,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                            )
                         }
 
-                        // Action Buttons: New Session & Return to Admin
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            // Back to Admin
+                        if (collageBitmap != null) {
                             Box(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .height(46.dp)
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .clip(RoundedCornerShape(8.dp))
                                     .background(BgCard)
-                                    .border(1.dp, BorderMedium, RoundedCornerShape(10.dp))
-                                    .clickable(onClick = onBack),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = "BACK TO ADMIN",
-                                    color = TextMain,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace,
-                                )
-                            }
-
-                            // New Session Button
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(46.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            listOf(NeonPink, PurpleNeon)
+                                    .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        BitmapUtils.shareBitmap(
+                                            context,
+                                            collageBitmap!!,
+                                            "TRC Photo Booth Collage"
                                         )
-                                    )
-                                    .clickable(onClick = viewModel::resetSession),
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Replay,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(16.dp),
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = "Share",
+                                        tint = CyberCyan,
+                                        modifier = Modifier.size(13.dp),
                                     )
                                     Text(
-                                        text = "NEW SESSION",
-                                        color = Color.White,
-                                        fontSize = 12.sp,
+                                        text = "SHARE",
+                                        color = CyberCyan,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = FontFamily.Monospace,
                                     )
@@ -465,20 +453,266 @@ fun BoothScreen(
                             }
                         }
                     }
-                }
 
-                isCapturing -> {
-                    // During capture: sequence in progress label
+                    // Main Content: Uploading Progress OR Cloudinary QR Code OR Error/Retry
+                    when (val state = uploadState) {
+                        is BoothUploadState.Generating, is BoothUploadState.Uploading -> {
+                            val msg = if (state is BoothUploadState.Generating) state.message else (state as BoothUploadState.Uploading).message
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color(0x1A00F0FF))
+                                    .border(1.dp, CyberCyan.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(32.dp),
+                                    color = CyberCyan,
+                                    strokeWidth = 3.dp,
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = msg,
+                                        color = CyberCyan,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace,
+                                    )
+                                    Text(
+                                        text = "Uploading 2×2 grid collage to Cloudinary...",
+                                        color = TextMuted,
+                                        fontSize = 10.sp,
+                                    )
+                                }
+                            }
+                        }
+
+                        is BoothUploadState.Success -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color(0x1F00E599))
+                                    .border(1.dp, EmeraldGreen.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                // White rounded box for QR Code
+                                if (qrCodeBitmap != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(118.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Color.White)
+                                            .padding(6.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Image(
+                                            bitmap = qrCodeBitmap!!.asImageBitmap(),
+                                            contentDescription = "QR Code to download photo collage",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Fit,
+                                        )
+                                    }
+                                }
+
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CloudDone,
+                                            contentDescription = null,
+                                            tint = EmeraldGreen,
+                                            modifier = Modifier.size(15.dp),
+                                        )
+                                        Text(
+                                            text = "SCAN FOR PHOTOS",
+                                            color = EmeraldGreen,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace,
+                                            letterSpacing = 1.sp,
+                                        )
+                                    }
+
+                                    Text(
+                                        text = "Scan QR code with your phone to view and download your 2×2 collage.",
+                                        color = TextMain,
+                                        fontSize = 11.sp,
+                                        lineHeight = 15.sp,
+                                    )
+
+                                    if (cloudinaryUrl != null) {
+                                        Text(
+                                            text = cloudinaryUrl!!,
+                                            color = CyberCyan,
+                                            fontSize = 9.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            maxLines = 1,
+                                        )
+                                    }
+                                }
+
+                                // 2x2 Collage Thumbnail
+                                if (collageBitmap != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(width = 60.dp, height = 70.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                BitmapUtils.shareBitmap(
+                                                    context,
+                                                    collageBitmap!!,
+                                                    "TRC Photo Booth Collage"
+                                                )
+                                            },
+                                    ) {
+                                        Image(
+                                            bitmap = collageBitmap!!.asImageBitmap(),
+                                            contentDescription = "2x2 Collage Preview",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        is BoothUploadState.Error -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color(0x1AFF3366))
+                                    .border(1.dp, NeonPink.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Saved locally to Gallery! 🎉",
+                                        color = EmeraldGreen,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    Text(
+                                        text = state.error,
+                                        color = TextSubtle,
+                                        fontSize = 10.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        maxLines = 2,
+                                    )
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(BgCard)
+                                        .border(1.dp, NeonPink, RoundedCornerShape(8.dp))
+                                        .clickable { viewModel.retryUpload() }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = "Retry",
+                                            tint = NeonPink,
+                                            modifier = Modifier.size(13.dp),
+                                        )
+                                        Text(
+                                            text = "RETRY",
+                                            color = NeonPink,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        is BoothUploadState.Idle -> {
+                            // No-op
+                        }
+                    }
+
+                    // Big Full-Width Start New Session Button (NO Return to Admin button)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xE6070B12))
-                            .navigationBarsPadding()
-                            .padding(vertical = 12.dp),
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(NeonPink, Color(0xFFE11D48), PurpleNeon)
+                                )
+                            )
+                            .clickable(onClick = viewModel::resetSession),
                         contentAlignment = Alignment.Center,
                     ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Replay,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Text(
+                                text = "START NEW SESSION",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.2.sp,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
+                    }
+                }
+            }
+
+            isCapturing -> {
+                // During capture: sequence in progress label
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(bottom = 16.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xD9070B12))
+                        .border(1.dp, NeonPink.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(NeonPink),
+                        )
                         Text(
-                            text = "CAPTURING SEQUENCE IN PROGRESS • DO NOT EXIT",
+                            text = "PHOTO ${activeQuadrant + 1} OF 4 • SEQUENCE IN PROGRESS",
                             color = NeonPink,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,

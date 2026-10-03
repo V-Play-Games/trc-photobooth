@@ -11,6 +11,7 @@ import com.trc.photobooth.data.models.GifRecordingState
 import com.trc.photobooth.data.models.SystemStats
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -89,6 +90,12 @@ class PhotoBoothRepository(
         fetchCaptures()
     }
 
+    fun connectIfNeeded() {
+        if (status.value == ConnectionStatus.DISCONNECTED) {
+            reconnect()
+        }
+    }
+
     fun disconnect() {
         wsClient.disconnect()
     }
@@ -161,6 +168,22 @@ class PhotoBoothRepository(
         } catch (e: Exception) {
             Log.e(tag, "Failed deleting capture $id", e)
             false
+        }
+    }
+
+    companion object {
+        @Volatile
+        private var instance: PhotoBoothRepository? = null
+
+        fun getInstance(context: Context): PhotoBoothRepository {
+            return instance ?: synchronized(this) {
+                instance ?: PhotoBoothRepository(
+                    context.applicationContext,
+                    CoroutineScope(SupervisorJob() + Dispatchers.Default)
+                ).also {
+                    instance = it
+                }
+            }
         }
     }
 }

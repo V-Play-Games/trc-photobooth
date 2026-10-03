@@ -65,7 +65,7 @@ RESOLUTION_PRESETS_4_3: dict[str, tuple[int, int]] = {
 
 def parse_resolution(
     resolution: str | None = None,
-    aspect_ratio: str = "16:9",
+    aspect_ratio: str = "4:3",
     width: int | None = None,
     height: int | None = None,
 ) -> tuple[int, int] | None:
@@ -74,7 +74,7 @@ def parse_resolution(
         key = resolution.strip().lower()
         if not key.endswith("p") and key.isdigit():
             key = f"{key}p"
-        mapping = RESOLUTION_PRESETS_4_3 if aspect_ratio == "4:3" else RESOLUTION_PRESETS_16_9
+        mapping = RESOLUTION_PRESETS_16_9 if aspect_ratio == "16:9" else RESOLUTION_PRESETS_4_3
         if key in mapping:
             return mapping[key]
         if "x" in key:
@@ -92,7 +92,7 @@ class CameraConfigUpdate(BaseModel):
     fps: int | None = Field(None, ge=1, le=60, description="Target preview FPS")
     quality: int | None = Field(None, ge=10, le=100, description="JPEG quality 10-100")
     resolution: str | None = Field(None, description="Standard 'p' resolution: '240p', '360p', '480p', '720p', '1080p'")
-    aspect_ratio: Literal["16:9", "4:3"] | None = Field("16:9", description="Fixed aspect ratio: '16:9' or '4:3'")
+    aspect_ratio: Literal["16:9", "4:3"] | None = Field("4:3", description="Fixed aspect ratio: '4:3' or '16:9'")
     width: int | None = Field(None, ge=160, le=2592, description="Preview frame width in pixels")
     height: int | None = Field(None, ge=120, le=1944, description="Preview frame height in pixels")
     swap_rb: bool | None = Field(None, description="Invert Red/Blue color channels")
