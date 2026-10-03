@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Share
@@ -417,38 +418,78 @@ fun BoothScreen(
                         }
 
                         if (collageBitmap != null) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(BgCard)
-                                    .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        BitmapUtils.shareBitmap(
-                                            context,
-                                            collageBitmap!!,
-                                            "TRC Photo Booth Collage"
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(BgCard)
+                                        .border(1.dp, EmeraldGreen.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            BitmapUtils.printBitmap(
+                                                context,
+                                                collageBitmap!!,
+                                                "TRC Photo Booth Collage"
+                                            )
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Print,
+                                            contentDescription = "Print",
+                                            tint = EmeraldGreen,
+                                            modifier = Modifier.size(13.dp),
+                                        )
+                                        Text(
+                                            text = "PRINT",
+                                            color = EmeraldGreen,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace,
                                         )
                                     }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(BgCard)
+                                        .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            BitmapUtils.shareBitmap(
+                                                context,
+                                                collageBitmap!!,
+                                                "TRC Photo Booth Collage"
+                                            )
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center,
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Share,
-                                        contentDescription = "Share",
-                                        tint = CyberCyan,
-                                        modifier = Modifier.size(13.dp),
-                                    )
-                                    Text(
-                                        text = "SHARE",
-                                        color = CyberCyan,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = FontFamily.Monospace,
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Share,
+                                            contentDescription = "Share",
+                                            tint = CyberCyan,
+                                            modifier = Modifier.size(13.dp),
+                                        )
+                                        Text(
+                                            text = "SHARE",
+                                            color = CyberCyan,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -566,11 +607,11 @@ fun BoothScreen(
                                 if (collageBitmap != null) {
                                     Box(
                                         modifier = Modifier
-                                            .size(width = 60.dp, height = 70.dp)
+                                            .size(width = 64.dp, height = 64.dp)
                                             .clip(RoundedCornerShape(8.dp))
                                             .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
                                             .clickable {
-                                                BitmapUtils.shareBitmap(
+                                                BitmapUtils.printBitmap(
                                                     context,
                                                     collageBitmap!!,
                                                     "TRC Photo Booth Collage"
@@ -648,6 +689,49 @@ fun BoothScreen(
 
                         is BoothUploadState.Idle -> {
                             // No-op
+                        }
+                    }
+
+                    // Print from Printer Button (displayed right after QR is generated)
+                    if (uploadState is BoothUploadState.Success && collageBitmap != null) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(EmeraldGreen, Color(0xFF00C853))
+                                    )
+                                )
+                                .clickable {
+                                    BitmapUtils.printBitmap(
+                                        context,
+                                        collageBitmap!!,
+                                        "TRC Photo Booth Collage"
+                                    )
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Print,
+                                    contentDescription = null,
+                                    tint = Color(0xFF070B14),
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Text(
+                                    text = "PRINT FROM PRINTER",
+                                    color = Color(0xFF070B14),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 0.8.sp,
+                                )
+                            }
                         }
                     }
 

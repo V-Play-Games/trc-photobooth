@@ -1,65 +1,14 @@
 import QRCode from 'qrcode'
 
 /**
- * Creates a high-resolution 2x2 grid collage of 4 photo blobs on an HTML5 canvas.
- * Dimensions: 1200 x 1400 px with branded header, 2x2 photo cells with borders, and footer.
+ * Creates a 2x2 grid collage strictly of the 4 captured photos.
+ * No black background, borders, headers, or footers - strictly the 4 photos tiled together.
  */
 export async function createCollageGridBlob(
   photoBlobs: (Blob | null)[],
-  sessionTimestamp: string,
-  title = 'TRC PHOTO BOOTH',
+  _sessionTimestamp: string = '',
+  _title = 'TRC PHOTO BOOTH',
 ): Promise<Blob> {
-  const width = 1200
-  const height = 1400
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')
-
-  if (!ctx) {
-    throw new Error('Failed to acquire 2D canvas context for collage')
-  }
-
-  // Dark cyberpunk background
-  ctx.fillStyle = '#0B0F17'
-  ctx.fillRect(0, 0, width, height)
-
-  // Card outline border
-  ctx.strokeStyle = '#1E293B'
-  ctx.lineWidth = 4
-  ctx.strokeRect(12, 12, width - 24, height - 24)
-
-  // Accent top stripe
-  ctx.fillStyle = '#FF3366'
-  ctx.fillRect(24, 24, width - 48, 6)
-
-  // Header Title
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'alphabetic'
-  ctx.fillStyle = '#FFFFFF'
-  ctx.font = 'bold 44px monospace'
-  ctx.fillText(title, width / 2, 95)
-
-  // Subtitle
-  ctx.fillStyle = '#00F0FF'
-  ctx.font = 'bold 20px monospace'
-  ctx.fillText('4-SHOT COMPOSITE MEMORY', width / 2, 130)
-
-  // 2x2 Grid calculations
-  const gridMarginLeft = 40
-  const gridMarginTop = 160
-  const gridGap = 20
-  const availableWidth = width - gridMarginLeft * 2 - gridGap
-  const cellWidth = availableWidth / 2
-  const cellHeight = cellWidth * (3 / 4) // 4:3 photo ratio, ~412.5px
-
-  const coords = [
-    { x: gridMarginLeft, y: gridMarginTop },
-    { x: gridMarginLeft + cellWidth + gridGap, y: gridMarginTop },
-    { x: gridMarginLeft, y: gridMarginTop + cellHeight + gridGap },
-    { x: gridMarginLeft + cellWidth + gridGap, y: gridMarginTop + cellHeight + gridGap },
-  ]
-
   // Load and draw the 4 photos
   const loadImgPromises = photoBlobs.map((blob) => {
     if (!blob) return Promise.resolve(null)
@@ -79,6 +28,32 @@ export async function createCollageGridBlob(
   })
 
   const loadedImages = await Promise.all(loadImgPromises)
+
+  const firstImg = loadedImages.find((img) => img !== null)
+  const cellWidth = firstImg ? (firstImg.naturalWidth || firstImg.width) : 640
+  const cellHeight = firstImg ? (firstImg.naturalHeight || firstImg.height) : 480
+
+  const width = cellWidth * 2
+  const height = cellHeight * 2
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+
+  if (!ctx) {
+    throw new Error('Failed to acquire 2D canvas context for collage')
+  }
+
+  // Clean neutral white canvas - never black
+  ctx.fillStyle = '#FFFFFF'
+  ctx.fillRect(0, 0, width, height)
+
+  const coords = [
+    { x: 0, y: 0 },
+    { x: cellWidth, y: 0 },
+    { x: 0, y: cellHeight },
+    { x: cellWidth, y: cellHeight },
+  ]
 
   for (let i = 0; i < 4; i++) {
     const { x, y } = coords[i]
@@ -106,33 +81,10 @@ export async function createCollageGridBlob(
 
       ctx.drawImage(img, sx, sy, sw, sh, x, y, cellWidth, cellHeight)
     } else {
-      // Empty placeholder
-      ctx.fillStyle = '#151C2C'
+      ctx.fillStyle = '#FFFFFF'
       ctx.fillRect(x, y, cellWidth, cellHeight)
     }
-
-    // Cell border
-    ctx.strokeStyle = '#334155'
-    ctx.lineWidth = 3
-    ctx.strokeRect(x, y, cellWidth, cellHeight)
   }
-
-  // Footer Section
-  const gridBottom = gridMarginTop + cellHeight * 2 + gridGap
-  ctx.fillStyle = '#00E599'
-  ctx.fillRect(24, height - 30, width - 48, 6)
-
-  ctx.fillStyle = '#94A3B8'
-  ctx.font = 'bold 22px monospace'
-  ctx.fillText(
-    `CAPTURED WITH TRC PHOTO BOOTH • ${sessionTimestamp}`,
-    width / 2,
-    gridBottom + 65,
-  )
-
-  ctx.fillStyle = '#64748B'
-  ctx.font = '18px monospace'
-  ctx.fillText('SCAN QR CODE TO VIEW DIGITAL ORIGINAL', width / 2, gridBottom + 105)
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
@@ -141,7 +93,7 @@ export async function createCollageGridBlob(
         else reject(new Error('Canvas toBlob returned null'))
       },
       'image/jpeg',
-      0.92,
+      0.95,
     )
   })
 }
