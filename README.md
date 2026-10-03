@@ -108,7 +108,7 @@ trc-photobooth/
 │   │   └── index.css           # Glassmorphism dark-theme design system
 │   ├── vite.config.ts          # Build configuration targeting pi/src/static
 │   └── package.json
-├── app/                        # Native Android App (Phase 4 — Upcoming)
+├── app/                        # Native Android Client (Kotlin + Jetpack Compose, 4-Quadrant Photobooth & Admin UI)
 └── roadmap.md                  # Prototype phases and development roadmap
 ```
 
@@ -186,6 +186,59 @@ npm run lint
 npm run build
 ```
 
+To run unit tests and build the Android client APK:
+
+```bash
+cd app
+./gradlew testDebugUnitTest
+./gradlew assembleDebug
+```
+
+---
+
+## 📱 Android Client (`app/`)
+
+The native Android app provides two distinct interfaces:
+
+### 1. Admin Studio Workspace
+The full-featured technician interface with live FPS/latency HUD, mirror flipping, guide overlays, 10 filter presets, manual high-res photo and burst GIF triggers, capture gallery with lightbox sharing, and mDNS auto-discovery.
+- Launch the booth from the **BOOTH** button in the header bar.
+
+### 2. Dedicated 4-Quadrant Photobooth Interface
+An interactive, automated photobooth experience tailored for event guests:
+- **Sequential 2×2 Grid**: Captures 4 photos sequentially:
+  - Quadrant 1 (Top-Left) → Quadrant 2 (Top-Right) → Quadrant 3 (Bottom-Left) → Quadrant 4 (Bottom-Right)
+- **Live Preview First in Quadrant 1**: The live camera stream appears immediately in the top-left quadrant with the active filter.
+- **Filters Including 🎲 RANDOM**: Guests can choose their favorite style, or pick **RANDOM** which applies a different random concrete filter for each of the 4 shots.
+- **Configurable Timer**: Choose 3s, 5s, or 10s delay between shots with haptic ticks and animated countdown ring.
+- **Unstoppable Capture Sequence**: Once the guest taps **START BOOTH**, photos start getting clicked automatically without intervention; the sequence cannot be cancelled or stopped mid-session.
+- **Session Saving**: Automatically saves all 4 images to `Pictures/TRCPhotoBooth/sessions/<timestamp>/`:
+  ```
+  photo_1_<filter>.jpg
+  photo_2_<filter>.jpg
+  photo_3_<filter>.jpg
+  photo_4_<filter>.jpg
+  ```
+
+### Cloudinary Configuration
+
+Local sessions are structured and ready for Cloudinary upload. Supply credentials via environment variables or `gradle.properties`:
+
+| Variable | Description |
+|---|---|
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary account cloud name |
+| `CLOUDINARY_API_KEY` | Cloudinary API Key |
+| `CLOUDINARY_API_SECRET` | Cloudinary API Secret |
+| `CLOUDINARY_UPLOAD_PRESET` | Unsigned upload preset (optional) |
+
+```bash
+export CLOUDINARY_CLOUD_NAME="my_cloud"
+export CLOUDINARY_API_KEY="123456789012345"
+export CLOUDINARY_API_SECRET="abcdef0123456789"
+export CLOUDINARY_UPLOAD_PRESET="trc_preset"
+cd app && ./gradlew assembleDebug
+```
+
 ---
 
 ## 📡 API & WebSocket Reference
@@ -241,7 +294,7 @@ Settings can be customized using environment variables or a `.env` file in the `
 - [x] **Phase 1: Pi Camera & WebSocket Streaming Hub** (Hardware capture, bounded queues, dev monitor)
 - [x] **Phase 2: Photo Capture, Animated GIFs & Countdown** (High-res stills, burst GIF engine, storage)
 - [x] **Phase 3: React Web Client** (Vite + React, dark theme design system, 10 filters, gallery drawer, filter baking)
-- [ ] **Phase 4: Native Android Client** (Kotlin + Jetpack Compose, mDNS auto-discovery, native sharing)
+- [x] **Phase 4: Native Android Client** (Kotlin + Jetpack Compose, 4-quadrant photobooth, mDNS auto-discovery, native sharing)
 - [ ] **Phase 5: Polish & Hardware Integration** (Thermal management, kiosk auto-launch, enclosure setup)
 
 Refer to [`roadmap.md`](file:///data/Projects/trc-photobooth/roadmap.md) for full phase specifications and delivery logs.

@@ -74,6 +74,70 @@ app/
 
 ---
 
+## Photobooth Mode & Admin Workspace
+
+The Android application provides two operational modes:
+
+### 1. Admin Studio Workspace (`MainScreen`)
+The comprehensive administrative interface with live telemetry, camera resolution/quality/FPS tuning, preview flipping, guides, studio filter carousel, high-res manual shutter, burst GIF recording, capture gallery, and network service discovery settings.
+- Tap the **BOOTH** button in the top app bar to enter Photobooth mode.
+
+### 2. Event Photobooth Mode (`BoothScreen`)
+An immersive, simplified, 4-quadrant photobooth experience tailored for event guests:
+- **2×2 Quadrant Grid**: Takes 4 photos sequentially:
+  - Quadrant 1 (Top-Left)
+  - Quadrant 2 (Top-Right)
+  - Quadrant 3 (Bottom-Left)
+  - Quadrant 4 (Bottom-Right)
+- **Live Preview First in Quadrant 1**: Before starting, the live camera feed appears directly in the first quadrant (top-left).
+- **Filter Selection**: Choose any of the 10 studio presets, or select **🎲 RANDOM** which automatically picks a surprise concrete filter for each photo in the sequence.
+- **Timer Selector**: Configurable countdown delay between shots (3s, 5s, 10s).
+- **Unstoppable Capture Sequence**: Once the user taps **START BOOTH**, the 4-photo capture runs automatically without intervention. Navigation and back buttons are locked until the entire 4-shot sequence finishes.
+- **Local Session Saving**: All 4 captured photos are baked with their respective filters and saved directly to the device directory:
+  ```
+  Pictures/TRCPhotoBooth/sessions/<timestamp>/
+  ├── photo_1_<filter>.jpg
+  ├── photo_2_<filter>.jpg
+  ├── photo_3_<filter>.jpg
+  └── photo_4_<filter>.jpg
+  ```
+
+---
+
+## Cloudinary Upload Configuration
+
+Images are saved to the local session folder ready for upload to Cloudinary. Configure your Cloudinary credentials via environment variables or Gradle project properties:
+
+| Environment Variable | Description | Example |
+|---|---|---|
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary account cloud name | `my-photobooth` |
+| `CLOUDINARY_API_KEY` | Cloudinary API Key | `123456789012345` |
+| `CLOUDINARY_API_SECRET` | Cloudinary API Secret | `abcdef0123456789` |
+| `CLOUDINARY_UPLOAD_PRESET` | Unsigned upload preset (optional) | `trc_booth_preset` |
+
+### Setting Environment Variables
+
+**Using shell environment variables:**
+```bash
+export CLOUDINARY_CLOUD_NAME="your_cloud_name"
+export CLOUDINARY_API_KEY="your_api_key"
+export CLOUDINARY_API_SECRET="your_api_secret"
+export CLOUDINARY_UPLOAD_PRESET="your_upload_preset"
+./gradlew assembleDebug
+```
+
+**Using `~/.gradle/gradle.properties` or `app/gradle.properties`:**
+```properties
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+CLOUDINARY_UPLOAD_PRESET=your_upload_preset
+```
+
+These values are compiled into `BuildConfig` at build time and accessed via `CloudinaryConfig.fromBuildConfig()`.
+
+---
+
 ## Building & Installing
 
 ### Prerequisites

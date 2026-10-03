@@ -18,11 +18,14 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import com.trc.photobooth.filters.FilterPreset
+import java.io.File
+import java.io.FileOutputStream
 import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.random.Random
+import android.util.Log
 
 object BitmapUtils {
 
@@ -168,5 +171,66 @@ object BitmapUtils {
         if (uri != null) {
             shareImage(context, uri)
         }
+    }
+
+    /**
+     * Saves a 4-photo booth session to a dedicated session folder:
+     * Pictures/TRCPhotoBooth/sessions/<timestamp>/
+     * Ready for Cloudinary upload and local browsing.
+     * Returns the list of saved Files.
+     */
+    fun saveSessionPhotos(
+        context: Context,
+        sessionTimestamp: String,
+        photos: List<Bitmap>,
+        filters: List<FilterPreset>,
+    ): List<File> {
+        val baseDir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+            "TRCPhotoBooth/sessions/$sessionTimestamp"
+        )
+        if (!baseDir.exists()) {
+            baseDir.mkdirs()
+        }
+
+        val savedFiles = mutableListOf<File>()
+
+        photos.forEachIndexed { index, bitmap ->
+            val presetId = filters.getOrNull(index)?.id ?: "raw"
+            val filename = "photo_${index + 1}_$presetId.jpg"
+            val targetFile = File(baseDir, filename)
+
+            try {
+                FileOutputStream(targetFile).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                    out.flush()
+                }
+                savedFiles.add(targetFile)
+
+                // Index in MediaStore on Android 10+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val values = ContentValues().apply {
+                        put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+                        put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                        put(
+                            MediaStore.Images.Media.RELATIVE_PATH,
+                            "${Environment.DIRECTORY_PICTURES}/TRCPhotoBooth/sessions/$sessionTimestamp"
+                        )
+                        put(MediaStore.Images.Media.IS_PENDING, 0)
+                    }
+                    try {
+                        context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                    } catch (ignored: Exception) {}
+                } else {
+                    val scanIntent = Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE).apply {
+                        data = Uri.fromFile(targetFile)
+                    }
+                    context.sendBroadcast(scanIntent)
+                }
+            } catch (e: Exception) {
+                Log.e("BitmapUtils", "Failed to save photo ${index + 1}: ${e.message}")
+            }
+        }
+        return savedFiles
     }
 }

@@ -187,7 +187,17 @@ object FilterPresets {
         isPolaroid = true,
     )
 
-    val ALL: List<FilterPreset> = listOf(
+    // 11. Random filter (changes every shot in booth mode)
+    val RANDOM = FilterPreset(
+        id = "random",
+        name = "Random",
+        tagline = "Surprise Each Shot",
+        badgeText = "🎲 RANDOM",
+        accentColor = Color(0xFFA855F7),
+        description = "Picks a random filter for each photo in the sequence",
+    )
+
+    val CONCRETE_PRESETS: List<FilterPreset> = listOf(
         NONE,
         BW,
         SEPIA,
@@ -199,6 +209,12 @@ object FilterPresets {
         FILM_GRAIN,
         POLAROID,
     )
+
+    val ALL: List<FilterPreset> = CONCRETE_PRESETS + RANDOM
+
+    fun getRandomConcreteFilter(): FilterPreset {
+        return CONCRETE_PRESETS.random()
+    }
 
     fun getById(id: String): FilterPreset {
         return ALL.firstOrNull { it.id == id } ?: NONE

@@ -55,6 +55,7 @@ import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun MainScreen(
+    onNavigateToBooth: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: MainScreenViewModel = viewModel(),
 ) {
@@ -114,6 +115,7 @@ fun MainScreen(
                 onToggleFlip = viewModel::toggleFlip,
                 onOpenGallery = viewModel::openGallery,
                 onOpenSettings = viewModel::openSettings,
+                onNavigateToBooth = onNavigateToBooth,
                 modifier = Modifier.statusBarsPadding()
             )
 

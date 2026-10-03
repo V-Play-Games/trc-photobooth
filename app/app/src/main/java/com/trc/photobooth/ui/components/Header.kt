@@ -64,6 +64,7 @@ fun Header(
     onToggleFlip: () -> Unit,
     onOpenGallery: () -> Unit,
     onOpenSettings: () -> Unit,
+    onNavigateToBooth: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -193,6 +194,40 @@ fun Header(
                 onClick = onOpenSettings,
                 contentDescription = "Settings",
             )
+
+            // Launch Booth Button
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(NeonPink, Color(0xFF8B5CF6))
+                        )
+                    )
+                    .clickable { onNavigateToBooth() }
+                    .padding(horizontal = 9.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CameraAlt,
+                        contentDescription = "Booth Mode",
+                        tint = Color.White,
+                        modifier = Modifier.size(13.dp),
+                    )
+                    Text(
+                        text = "BOOTH",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 0.8.sp,
+                    )
+                }
+            }
         }
     }
 }

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import com.trc.photobooth.ui.booth.BoothScreen
 import com.trc.photobooth.ui.main.MainScreen
 
 @Composable
@@ -16,7 +17,14 @@ fun MainNavigation() {
     entryProvider =
       entryProvider {
         entry<Main> {
-          MainScreen()
+          MainScreen(
+            onNavigateToBooth = { backStack.add(Booth) }
+          )
+        }
+        entry<Booth> {
+          BoothScreen(
+            onBack = { backStack.removeLastOrNull() }
+          )
         }
       },
   )

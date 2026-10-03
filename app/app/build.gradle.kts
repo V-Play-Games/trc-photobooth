@@ -13,6 +13,23 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+        val cloudinaryCloudName = (project.findProperty("CLOUDINARY_CLOUD_NAME") as? String)
+            ?: System.getenv("CLOUDINARY_CLOUD_NAME")
+            ?: ""
+        val cloudinaryApiKey = (project.findProperty("CLOUDINARY_API_KEY") as? String)
+            ?: System.getenv("CLOUDINARY_API_KEY")
+            ?: ""
+        val cloudinaryApiSecret = (project.findProperty("CLOUDINARY_API_SECRET") as? String)
+            ?: System.getenv("CLOUDINARY_API_SECRET")
+            ?: ""
+        val cloudinaryUploadPreset = (project.findProperty("CLOUDINARY_UPLOAD_PRESET") as? String)
+            ?: System.getenv("CLOUDINARY_UPLOAD_PRESET")
+            ?: ""
+
+        buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"$cloudinaryCloudName\"")
+        buildConfigField("String", "CLOUDINARY_API_KEY", "\"$cloudinaryApiKey\"")
+        buildConfigField("String", "CLOUDINARY_API_SECRET", "\"$cloudinaryApiSecret\"")
+        buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"$cloudinaryUploadPreset\"")
     }
 
     buildTypes {
@@ -28,7 +45,7 @@ android {
     buildFeatures {
       compose = true
       aidl = false
-      buildConfig = false
+      buildConfig = true
       shaders = false
     }
 
