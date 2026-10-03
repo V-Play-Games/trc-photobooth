@@ -38,6 +38,22 @@ class Settings(BaseSettings):
     # Path to static assets
     static_dir: Path = Path(__file__).resolve().parent / "static"
 
+    # Capture Storage & Memory Management (Phase 5)
+    max_captures: int = 50
+    max_capture_store_mb: int = 150
+    captures_dir: Path = Path(__file__).resolve().parent.parent / "captures"
+
+    # Performance & Power Management (Phase 5)
+    idle_fps: int = 2  # Throttled FPS when 0 clients are connected to save Pi CPU/temp
+    adaptive_quality: bool = True  # Dynamically adapt quality when client load changes
+
+    # Resilience & Hardware Telemetry (Phase 5)
+    status_led_pin: int = -1  # GPIO pin for hardware status LED (-1 = disabled)
+    enable_mdns: bool = True  # In-app mDNS / Zeroconf advertisement
+    mdns_service_name: str = "TRC Photo Booth"
+    enable_watchdog: bool = True  # Watchdog heartbeat timer
+    watchdog_timeout: float = 15.0  # Seconds before watchdog warns of loop stall
+
     # CORS configuration for development
     cors_origins: list[str] = ["*"]
 

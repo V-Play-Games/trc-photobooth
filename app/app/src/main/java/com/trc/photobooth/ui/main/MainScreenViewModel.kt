@@ -13,7 +13,9 @@ import com.trc.photobooth.data.models.GifRecordingState
 import com.trc.photobooth.data.models.SystemStats
 import com.trc.photobooth.filters.FilterPreset
 import com.trc.photobooth.filters.FilterPresets
+import com.trc.photobooth.util.HapticHelper
 import com.trc.photobooth.util.NetworkDiscovery
+import com.trc.photobooth.util.NotificationHelper
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -26,6 +28,8 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
 
     val repository = PhotoBoothRepository(application, viewModelScope)
     val networkDiscovery = NetworkDiscovery(application)
+    val hapticHelper = HapticHelper(application)
+    val notificationHelper = NotificationHelper(application)
 
     // UI Configuration & Tool States
     private val _activeFilter = MutableStateFlow(FilterPresets.NONE)
@@ -82,6 +86,32 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
             repository.captureResult.collect { capture ->
                 val typeName = if (capture.type == "gif") "Animated GIF" else "High-res photo"
                 _toastMessage.tryEmit("📸 $typeName captured!")
+                hapticHelper.captureComplete()
+                notificationHelper.showCaptureReadyNotification(
+                    title = "📸 Capture Ready!",
+                    message = "Your $typeName is saved and ready in the gallery.",
+                    isGif = capture.type == "gif"
+                )
+            }
+        }
+
+        // Handle countdown ticks with subtle haptics
+        viewModelScope.launch {
+            var lastSeconds: Int? = null
+            repository.countdown.collect { state ->
+                if (state != null && state.secondsLeft != lastSeconds) {
+                    lastSeconds = state.secondsLeft
+                    hapticHelper.tick()
+                } else if (state == null) {
+                    lastSeconds = null
+                }
+            }
+        }
+
+        // Handle camera shutter snap on flash event
+        viewModelScope.launch {
+            repository.flashEvent.collect {
+                hapticHelper.shutterSnap()
             }
         }
 

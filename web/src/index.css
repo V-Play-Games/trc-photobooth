@@ -2204,3 +2204,113 @@ button {
   transform: translateY(-1px);
   box-shadow: 0 4px 15px var(--color-primary-glow);
 }
+
+/* ==========================================================================
+   Phase 5 Polish: Reconnect Banner, Smooth Transitions, and Micro-interactions
+   ========================================================================== */
+
+/* Smooth Filter Transition */
+.preview-canvas {
+  transition: filter 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: filter;
+}
+
+/* Clickable Status Pill */
+.status-pill.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.status-pill.clickable:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 12px rgba(255, 51, 102, 0.4);
+}
+
+/* Reconnection Alert Banner */
+.reconnect-banner {
+  width: 100%;
+  background: linear-gradient(90deg, rgba(255, 51, 102, 0.18), rgba(255, 183, 3, 0.18));
+  border-bottom: 1px solid rgba(255, 51, 102, 0.35);
+  padding: 6px 16px;
+  animation: bannerFadeDown 0.3s ease-out;
+  z-index: var(--z-header);
+}
+
+.reconnect-banner-content {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reconnect-icon {
+  color: var(--color-primary);
+  flex-shrink: 0;
+  animation: pulseWarning 1.5s infinite ease-in-out;
+}
+
+.reconnect-text {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--text-main);
+  letter-spacing: 0.02em;
+  flex: 1;
+}
+
+.reconnect-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px var(--color-primary-glow);
+}
+
+.reconnect-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px var(--color-primary-glow);
+}
+
+@keyframes bannerFadeDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseWarning {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
+}
+
+/* Staggered Gallery Card Entrance */
+.gallery-grid .photo-card {
+  animation: cardEntrance 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.gallery-grid .photo-card:nth-child(1) { animation-delay: 0.03s; }
+.gallery-grid .photo-card:nth-child(2) { animation-delay: 0.06s; }
+.gallery-grid .photo-card:nth-child(3) { animation-delay: 0.09s; }
+.gallery-grid .photo-card:nth-child(4) { animation-delay: 0.12s; }
+.gallery-grid .photo-card:nth-child(5) { animation-delay: 0.15s; }
+.gallery-grid .photo-card:nth-child(6) { animation-delay: 0.18s; }
+.gallery-grid .photo-card:nth-child(n+7) { animation-delay: 0.21s; }
+
+@keyframes cardEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+

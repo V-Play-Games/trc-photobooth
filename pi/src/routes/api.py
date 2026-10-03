@@ -24,10 +24,15 @@ async def get_status() -> SystemStatus:
     """Return live system telemetry, camera backend, fps, and client metrics."""
     cam = get_camera()
     streamer = get_streamer()
+    store = get_capture_store()
+
+    is_healthy = getattr(cam, "is_healthy", cam.is_running)
+    cam_connected = getattr(cam, "is_connected", True)
+    status_str = "ok" if (cam.is_running and cam_connected) else "degraded"
 
     return SystemStatus(
-        status="ok" if cam.is_running else "degraded",
-        camera_ready=cam.is_running,
+        status=status_str,
+        camera_ready=cam.is_running and cam_connected,
         camera_backend=cam.backend_name,
         is_mock=cam.is_mock,
         actual_fps=cam.actual_fps,
@@ -35,9 +40,13 @@ async def get_status() -> SystemStatus:
         connected_clients=streamer.client_count,
         resolution=f"{settings.preview_width}x{settings.preview_height}",
         frames_sent_total=streamer.frames_sent_total,
+        frames_dropped_total=streamer.frames_dropped_total,
         uptime_seconds=streamer.uptime_seconds,
         swap_rb=settings.swap_rb,
         flip_horizontal=settings.flip_horizontal,
+        is_healthy=is_healthy,
+        memory_usage_mb=store.memory_usage_mb,
+        capture_count=len(store.list_all()),
     )
 
 
@@ -151,7 +160,7 @@ async def list_recent_captures() -> list[CaptureMetadata]:
 async def get_capture_file(capture_id: str) -> Response:
     """Serve a captured photo (JPEG) or animated GIF by capture ID."""
     store = get_capture_store()
-    item = store.get(capture_id)
+    item = store.get(capture_id, include_disk=True)
     if not item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

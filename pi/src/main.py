@@ -10,9 +10,12 @@ from fastapi.staticfiles import StaticFiles
 
 from src.camera import get_camera
 from src.config import settings
+from src.discovery import get_service_advertiser
+from src.gpio_status import LedState, get_gpio_indicator
 from src.routes.api import router as api_router
 from src.routes.ws import router as ws_router
 from src.streamer import get_streamer
+from src.watchdog import get_watchdog
 
 # Configure logging
 logging.basicConfig(
@@ -24,11 +27,19 @@ logger = logging.getLogger("photobooth")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Application lifecycle: starts camera streamer on boot, cleans up on shutdown."""
+    """Application lifecycle: starts camera streamer, mDNS, watchdog, and GPIO on boot."""
     logger.info("Initializing TRC Photo Booth server...")
     cam = get_camera()
     streamer = get_streamer()
+    gpio = get_gpio_indicator()
+    watchdog = get_watchdog()
+    advertiser = get_service_advertiser()
 
+    # 1. Start hardware status LED
+    gpio.start()
+    gpio.set_state(LedState.READY)
+
+    # 2. Start camera and streamer
     logger.info("Selected camera backend: %s (is_mock=%s)", cam.backend_name, cam.is_mock)
     await streamer.start()
     logger.info(
@@ -38,10 +49,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         settings.preview_fps,
     )
 
+    # 3. Start local network mDNS discovery service
+    advertiser.start()
+
+    # 4. Start watchdog monitor
+    watchdog.start()
+
     yield
 
     logger.info("Shutting down photo booth server...")
+    watchdog.stop()
+    advertiser.stop()
     await streamer.stop()
+    gpio.set_state(LedState.OFF)
+    gpio.stop()
     logger.info("Shutdown complete.")
 
 

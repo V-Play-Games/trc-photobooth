@@ -4,9 +4,13 @@ import {
   Grid,
   FlipHorizontal,
   Images,
+  Maximize,
+  Minimize,
+  RefreshCw,
   Settings as SettingsIcon,
+  Volume2,
+  VolumeX,
   Wifi,
-  WifiOff,
 } from 'lucide-react'
 import type { WebSocketConnectionStatus } from '../types'
 
@@ -17,8 +21,13 @@ interface HeaderProps {
   capturesCount: number
   showGuides: boolean
   isFlipped: boolean
+  isSoundActive: boolean
+  isFullscreen: boolean
   onToggleGuides: () => void
   onToggleFlip: () => void
+  onToggleSound: () => void
+  onToggleFullscreen: () => void
+  onManualReconnect?: () => void
   onOpenGallery: () => void
   onOpenSettings: () => void
 }
@@ -30,8 +39,13 @@ export const Header: React.FC<HeaderProps> = ({
   capturesCount,
   showGuides,
   isFlipped,
+  isSoundActive,
+  isFullscreen,
   onToggleGuides,
   onToggleFlip,
+  onToggleSound,
+  onToggleFullscreen,
+  onManualReconnect,
   onOpenGallery,
   onOpenSettings,
 }) => {
@@ -54,17 +68,19 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Live Status Pill */}
-        <div
+        {/* Live Status Pill with Reconnect Click */}
+        <button
+          type="button"
+          onClick={!isConnected ? onManualReconnect : undefined}
           className={`status-pill ${
             isConnected ? 'status-connected' : isConnecting ? 'status-connecting' : 'status-disconnected'
-          }`}
+          } ${!isConnected ? 'clickable' : ''}`}
           title={
             isConnected
               ? `Live stream connected (${fps} FPS, ${latency}ms latency)`
               : isConnecting
                 ? 'Connecting to Raspberry Pi...'
-                : 'Offline - Attempting auto-reconnect'
+                : 'Offline - Click to reconnect now'
           }
         >
           {isConnected ? (
@@ -80,14 +96,36 @@ export const Header: React.FC<HeaderProps> = ({
             </>
           ) : (
             <>
-              <WifiOff className="status-icon" size={14} />
-              <span className="status-label">OFFLINE</span>
+              <RefreshCw className="status-icon" size={14} />
+              <span className="status-label">RETRY</span>
             </>
           )}
-        </div>
+        </button>
       </div>
 
       <div className="header-right">
+        {/* Toggle Sound Effects */}
+        <button
+          type="button"
+          className={`header-tool-btn ${isSoundActive ? 'active' : ''}`}
+          onClick={onToggleSound}
+          title={isSoundActive ? 'Mute shutter & countdown audio' : 'Enable sound effects'}
+          aria-label="Toggle sound effects"
+        >
+          {isSoundActive ? <Volume2 size={18} /> : <VolumeX size={18} />}
+        </button>
+
+        {/* Toggle Fullscreen Mode */}
+        <button
+          type="button"
+          className={`header-tool-btn ${isFullscreen ? 'active' : ''}`}
+          onClick={onToggleFullscreen}
+          title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen photo booth mode'}
+          aria-label="Toggle fullscreen mode"
+        >
+          {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+        </button>
+
         {/* Toggle Framing Guides */}
         <button
           type="button"

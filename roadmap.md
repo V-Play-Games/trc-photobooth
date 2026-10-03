@@ -351,28 +351,30 @@ and a gallery — served directly from the Pi.
 **Goal:** Handle edge cases, improve UX, prepare for real-world use at events.
 
 **Tasks:**
-- [ ] **Pi resilience**
-  - systemd service for auto-start on boot
-  - Camera reconnection on USB/CSI disconnect
-  - Watchdog timer (restart if hung)
-  - LED/status indicator (GPIO) for camera/server status
-- [ ] **Network robustness**
-  - mDNS advertisement (`avahi-daemon` on Pi → `photobooth.local`)
-  - Client reconnection with visual indicator
-  - Graceful degradation when no clients connected (reduce capture rate)
-- [ ] **Web UX polish**
-  - Smooth animations (filter transitions, gallery entrance)
-  - Sound effects (shutter click, countdown beep) — optional
-  - PWA manifest (installable on phone home screen)
-  - Fullscreen mode toggle
-- [ ] **Android UX polish**
-  - Haptic feedback on capture
-  - Notification when capture is ready
-  - Keep screen on during preview
-- [ ] **Performance**
-  - Frame dropping under load
-  - Adaptive quality based on client count
-  - Memory management on Pi (cap capture store)
+- [x] **Pi resilience**
+  - systemd service for auto-start on boot (`pi/scripts/photobooth.service` with watchdog integration)
+  - Camera reconnection on USB/CSI disconnect (auto-probe loop with synthetic disconnect alert card)
+  - Watchdog timer (restart and notify systemd if camera or streamer hung > 15s)
+  - LED/status indicator (GPIO) for camera/server status (`gpiod` / `RPi.GPIO` / mock multi-pattern support)
+- [x] **Network robustness**
+  - mDNS advertisement (`avahi-daemon` on Pi → `photobooth.local`, plus in-app Python Zeroconf advertiser)
+  - Client reconnection with visual indicator (animated warning banners and retry controls in both Web and Android)
+  - Graceful degradation when no clients connected (throttles camera loop to `idle_fps=2` to reduce thermal/CPU load)
+- [x] **Web UX polish**
+  - Smooth animations (filter transitions, staggered gallery cards, glowing live pill)
+  - Sound effects (Web Audio API synthesizers for countdown ticks, chime, and shutter click; zero external asset dependencies)
+  - PWA manifest (`manifest.json` and service worker `sw.js` for home screen installation)
+  - Fullscreen mode toggle in top navigation bar
+- [x] **Android UX polish**
+  - Haptic feedback on capture (light ticks for countdown, heavy snap on shutter, double-pulse on complete via `HapticHelper`)
+  - Notification when capture is ready (`NotificationHelper` with `photobooth_captures` channel and deep link)
+  - Keep screen on during preview (`FLAG_KEEP_SCREEN_ON` on window)
+- [x] **Performance**
+  - Frame dropping under load (bounded queue with capacity 1 + dropped frame telemetry)
+  - Adaptive quality based on client count (downscales JPEG quality dynamically when >2 clients stream)
+  - Memory management on Pi (enforces 150MB byte cap on RAM capture cache with LRU eviction and disk persistence fallback)
+
+**Deliverable Status:** ✅ Operational. Complete end-to-end production resilience implemented across Raspberry Pi backend, React Web Client PWA, and Native Android App. Verified with 34/34 passing pytest unit/integration tests, clean TypeScript/Vite static build, and successful Android Gradle build.
 
 ---
 

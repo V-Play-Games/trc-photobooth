@@ -1,0 +1,19 @@
+{
+  "name": "TRC Photo Booth",
+  "short_name": "PhotoBooth",
+  "description": "Retro live camera stream, vintage studio filters, countdowns, and animated GIF creation.",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#07090e",
+  "theme_color": "#07090e",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

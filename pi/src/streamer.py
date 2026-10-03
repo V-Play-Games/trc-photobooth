@@ -23,6 +23,7 @@ class ClientSession:
         self.frame_queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=1)
         self.is_active = True
         self.frames_sent = 0
+        self.frames_dropped = 0
         self.connected_at = time.time()
 
     def offer_frame(self, frame: bytes) -> None:
@@ -33,12 +34,13 @@ class ClientSession:
             try:
                 # Discard stale unconsumed frame
                 self.frame_queue.get_nowait()
+                self.frames_dropped += 1
             except asyncio.QueueEmpty:
                 pass
         try:
             self.frame_queue.put_nowait(frame)
         except asyncio.QueueFull:
-            pass
+            self.frames_dropped += 1
 
 
 class Streamer:
@@ -50,9 +52,13 @@ class Streamer:
         self._broadcast_task: asyncio.Task | None = None
         self._running = False
         self._frames_sent_total = 0
+        self._frames_dropped_historical = 0
         self._start_time = time.time()
+        self.last_loop_time = time.time()
         self._last_frame_bytes: bytes | None = None
         self._capturing_lock = asyncio.Lock()
+        self._base_quality = settings.preview_quality
+        self._is_degraded = False
 
     async def broadcast_json(self, message: dict) -> None:
         """Broadcast a JSON message to all connected clients."""
@@ -75,42 +81,49 @@ class Streamer:
             logger.warning("Capture request ignored: capture or countdown already active")
             return
 
+        from src.gpio_status import LedState, get_gpio_indicator
+        gpio = get_gpio_indicator()
+
         async with self._capturing_lock:
-            # 1. Countdown ticks
-            if countdown_seconds > 0:
-                for sec in range(countdown_seconds, 0, -1):
+            gpio.set_state(LedState.CAPTURING)
+            try:
+                # 1. Countdown ticks
+                if countdown_seconds > 0:
+                    for sec in range(countdown_seconds, 0, -1):
+                        await self.broadcast_json({
+                            "type": "countdown_tick",
+                            "seconds_left": sec,
+                            "action": action,
+                        })
+                        await asyncio.sleep(1.0)
                     await self.broadcast_json({
                         "type": "countdown_tick",
-                        "seconds_left": sec,
+                        "seconds_left": 0,
                         "action": action,
                     })
-                    await asyncio.sleep(1.0)
-                await self.broadcast_json({
-                    "type": "countdown_tick",
-                    "seconds_left": 0,
-                    "action": action,
-                })
 
-            # 2. Perform capture
-            from src.capture import capture_photo, capture_gif
+                # 2. Perform capture
+                from src.capture import capture_photo, capture_gif
 
-            if action == "photo":
-                item = capture_photo(self.camera)
-                await self.broadcast_json({
-                    "type": "capture_result",
-                    "data": item.to_metadata().model_dump(),
-                })
-            elif action == "gif":
-                await self.broadcast_json({
-                    "type": "gif_recording",
-                    "frames": frames,
-                    "interval_ms": interval_ms,
-                })
-                item = await capture_gif(self.camera, frames=frames, interval_ms=interval_ms)
-                await self.broadcast_json({
-                    "type": "gif_result",
-                    "data": item.to_metadata().model_dump(),
-                })
+                if action == "photo":
+                    item = capture_photo(self.camera)
+                    await self.broadcast_json({
+                        "type": "capture_result",
+                        "data": item.to_metadata().model_dump(),
+                    })
+                elif action == "gif":
+                    await self.broadcast_json({
+                        "type": "gif_recording",
+                        "frames": frames,
+                        "interval_ms": interval_ms,
+                    })
+                    item = await capture_gif(self.camera, frames=frames, interval_ms=interval_ms)
+                    await self.broadcast_json({
+                        "type": "gif_result",
+                        "data": item.to_metadata().model_dump(),
+                    })
+            finally:
+                gpio.set_state(LedState.HEARTBEAT if self._clients else LedState.READY)
 
     @property
     def client_count(self) -> int:
@@ -121,8 +134,18 @@ class Streamer:
         return self._frames_sent_total
 
     @property
+    def frames_dropped_total(self) -> int:
+        current_dropped = sum(c.frames_dropped for c in self._clients)
+        return self._frames_dropped_historical + current_dropped
+
+    @property
     def uptime_seconds(self) -> float:
         return round(time.time() - self._start_time, 1)
+
+    @property
+    def is_degraded(self) -> bool:
+        """True if server is currently in idle low-power degradation mode."""
+        return self._is_degraded
 
     async def start(self) -> None:
         """Start the camera capture and broadcast task."""
@@ -146,6 +169,7 @@ class Streamer:
         # Close all active client sessions
         for client in list(self._clients):
             client.is_active = False
+            self._frames_dropped_historical += client.frames_dropped
             try:
                 await client.websocket.close(code=1001, reason="Server shutting down")
             except Exception:
@@ -163,21 +187,58 @@ class Streamer:
     def unregister(self, session: ClientSession) -> None:
         """Unregister a client session upon disconnect."""
         session.is_active = False
+        self._frames_dropped_historical += session.frames_dropped
         self._clients.discard(session)
         logger.info("Client disconnected. Remaining clients: %d", len(self._clients))
 
     async def _broadcast_loop(self) -> None:
         """Continuous loop polling camera frames and distributing them to clients."""
+        from src.gpio_status import LedState, get_gpio_indicator
+        gpio = get_gpio_indicator()
+
         while self._running:
             loop_start = time.time()
+            self.last_loop_time = loop_start
 
-            # Only fetch frame if there are connected clients
-            if self._clients:
-                frame = self.camera.get_latest_frame()
-                if frame and frame is not self._last_frame_bytes:
-                    self._last_frame_bytes = frame
-                    for client in list(self._clients):
-                        client.offer_frame(frame)
+            # Hardware LED indication
+            if hasattr(self.camera, "is_connected") and not self.camera.is_connected:
+                gpio.set_state(LedState.ERROR)
+            elif self._capturing_lock.locked():
+                gpio.set_state(LedState.CAPTURING)
+            elif self._clients:
+                gpio.set_state(LedState.HEARTBEAT)
+            else:
+                gpio.set_state(LedState.READY)
+
+            # 1. Graceful degradation when no clients are connected
+            if not self._clients:
+                self._is_degraded = True
+                # Throttle loop to idle_fps (e.g. 2 fps / 500ms) to save CPU & thermal load
+                if self.camera.quality != self._base_quality:
+                    self.camera.quality = self._base_quality
+                idle_interval = 1.0 / max(1, settings.idle_fps)
+                await asyncio.sleep(idle_interval)
+                continue
+
+            self._is_degraded = False
+
+            # 2. Adaptive quality when multiple clients are connected
+            num_clients = len(self._clients)
+            if settings.adaptive_quality:
+                if num_clients > 2:
+                    adapted_quality = max(35, self._base_quality - (num_clients - 2) * 12)
+                else:
+                    adapted_quality = self._base_quality
+                if self.camera.quality != adapted_quality:
+                    self.camera.quality = adapted_quality
+                    logger.debug("Adaptive quality adjusted to %d for %d clients", adapted_quality, num_clients)
+
+            # 3. Fetch latest camera frame and fan-out
+            frame = self.camera.get_latest_frame()
+            if frame and frame is not self._last_frame_bytes:
+                self._last_frame_bytes = frame
+                for client in list(self._clients):
+                    client.offer_frame(frame)
 
             interval = 1.0 / max(1, settings.preview_fps)
             elapsed = time.time() - loop_start

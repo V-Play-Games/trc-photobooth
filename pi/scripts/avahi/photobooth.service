@@ -1,0 +1,22 @@
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<!-- Avahi mDNS / DNS-SD service definition for TRC Photo Booth -->
+<!-- Copy this file to /etc/avahi/services/photobooth.service on the Raspberry Pi -->
+<service-group>
+  <name replace-wildcards="yes">TRC Photo Booth on %h</name>
+
+  <!-- Advertises _photobooth._tcp for Android and client discovery -->
+  <service>
+    <type>_photobooth._tcp</type>
+    <port>8000</port>
+    <txt-record>ws_path=/ws/feed</txt-record>
+    <txt-record>version=0.1.0</txt-record>
+  </service>
+
+  <!-- Advertises HTTP web UI on local network (http://photobooth.local:8000) -->
+  <service>
+    <type>_http._tcp</type>
+    <port>8000</port>
+    <txt-record>path=/</txt-record>
+  </service>
+</service-group>

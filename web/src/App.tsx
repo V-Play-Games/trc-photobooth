@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import confetti from 'canvas-confetti'
+import { AlertCircle, RefreshCw } from 'lucide-react'
 import { Header } from './components/Header'
 import { LivePreview } from './components/LivePreview'
 import { FilterBar } from './components/FilterBar'
@@ -11,6 +12,13 @@ import { SettingsModal } from './components/SettingsModal'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useCaptures } from './hooks/useCaptures'
+import {
+  isSoundEnabled,
+  playCountdownTick,
+  playShutterSound,
+  playSmileChime,
+  setSoundEnabled,
+} from './utils/audio'
 import type { CaptureMetadata, CaptureType, FilterId } from './types'
 
 export function App() {
@@ -21,6 +29,38 @@ export function App() {
   const [gifFrames, setGifFrames] = useState<number>(10)
   const [gifIntervalMs, setGifIntervalMs] = useState<number>(150)
   const [isFlashing, setIsFlashing] = useState<boolean>(false)
+
+  // Sound and Fullscreen state (Phase 5)
+  const [isSoundActive, setIsSoundActive] = useState<boolean>(isSoundEnabled)
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false)
+
+  const handleToggleSound = useCallback(() => {
+    setIsSoundActive((prev) => {
+      const next = !prev
+      setSoundEnabled(next)
+      return next
+    })
+  }, [])
+
+  const handleToggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {})
+      setIsFullscreen(true)
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {})
+        setIsFullscreen(false)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement))
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
 
   // Drawer / Modals state
   const [isGalleryOpen, setIsGalleryOpen] = useState<boolean>(false)
@@ -52,6 +92,7 @@ export function App() {
     (cap: CaptureMetadata) => {
       addCapture(cap)
       triggerFlash()
+      playShutterSound()
 
       // Celebrate with confetti
       try {
@@ -74,6 +115,18 @@ export function App() {
     [addCapture, triggerFlash, showToast],
   )
 
+  const handleCountdownTick = useCallback(
+    (secondsLeft: number) => {
+      if (secondsLeft > 0) {
+        playCountdownTick()
+      } else {
+        playSmileChime()
+        playShutterSound()
+      }
+    },
+    [],
+  )
+
   const {
     status,
     fps,
@@ -91,12 +144,17 @@ export function App() {
     toggleFlip,
     toggleSwapRb,
     requestSystemStats,
+    reconnect,
   } = useWebSocket({
     onCaptureResult: handleCaptureResult,
     onFlashTrigger: triggerFlash,
+    onCountdownTick: handleCountdownTick,
   })
 
   const handleTriggerCapture = () => {
+    if (countdownSetting === 0) {
+      playShutterSound()
+    }
     if (captureMode === 'photo') {
       triggerPhoto(countdownSetting)
     } else {
@@ -143,11 +201,34 @@ export function App() {
         capturesCount={captures.length}
         showGuides={showGuides}
         isFlipped={isFlipped}
+        isSoundActive={isSoundActive}
+        isFullscreen={isFullscreen}
         onToggleGuides={() => setShowGuides((prev) => !prev)}
         onToggleFlip={handleToggleFlip}
+        onToggleSound={handleToggleSound}
+        onToggleFullscreen={handleToggleFullscreen}
+        onManualReconnect={reconnect}
         onOpenGallery={() => setIsGalleryOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
+
+      {/* Reconnection Alert Banner when offline */}
+      {status !== 'connected' && (
+        <div className="reconnect-banner" role="alert">
+          <div className="reconnect-banner-content">
+            <AlertCircle size={16} className="reconnect-icon" />
+            <span className="reconnect-text">
+              {status === 'connecting'
+                ? 'Connecting to Raspberry Pi feed...'
+                : 'Connection lost. Auto-reconnecting in background...'}
+            </span>
+            <button type="button" className="reconnect-btn" onClick={reconnect}>
+              <RefreshCw size={13} className={status === 'connecting' ? 'animate-spin' : ''} />
+              <span>Retry Now</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Studio Workspace */}
       <main className="studio-workspace">

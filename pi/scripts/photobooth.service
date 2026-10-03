@@ -1,0 +1,30 @@
+[Unit]
+Description=TRC Photo Booth Raspberry Pi Camera & Streaming Server
+After=network.target sound.target avahi-daemon.service
+Wants=avahi-daemon.service
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/trc-photobooth/pi
+Environment=PYTHONUNBUFFERED=1
+Environment=PHOTOBOOTH_HOST=0.0.0.0
+Environment=PHOTOBOOTH_PORT=8000
+Environment=PHOTOBOOTH_DEBUG=false
+ExecStart=/home/pi/trc-photobooth/pi/.venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8000
+
+# Auto-restart resilience
+Restart=always
+RestartSec=3s
+
+# Watchdog integration (heartbeat notifications via sd_notify / NOTIFY_SOCKET)
+WatchdogSec=20s
+
+# Resource limits & hygiene
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=photobooth
+
+[Install]
+WantedBy=multi-user.target

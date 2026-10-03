@@ -12,11 +12,13 @@ import type {
 export interface WebSocketHookOptions {
   onCaptureResult?: (capture: CaptureMetadata) => void
   onFlashTrigger?: () => void
+  onCountdownTick?: (secondsLeft: number, action: CaptureType) => void
 }
 
 export function useWebSocket({
   onCaptureResult,
   onFlashTrigger,
+  onCountdownTick,
 }: WebSocketHookOptions = {}) {
   const [status, setStatus] = useState<WebSocketConnectionStatus>('connecting')
   const [fps, setFps] = useState<number>(0)
@@ -130,6 +132,7 @@ export function useWebSocket({
             } else if (type === 'countdown_tick') {
               const secondsLeft = Number(msg.seconds_left)
               const action = (msg.action as CaptureType) || 'photo'
+              onCountdownTick?.(secondsLeft, action)
 
               if (secondsLeft > 0) {
                 setCountdown({ secondsLeft, action })

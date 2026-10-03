@@ -16,9 +16,13 @@ class SystemStatus(BaseModel):
     connected_clients: int = 0
     resolution: str = "640x480"
     frames_sent_total: int = 0
+    frames_dropped_total: int = 0
     uptime_seconds: float = 0.0
     swap_rb: bool = False
     flip_horizontal: bool = True
+    is_healthy: bool = True
+    memory_usage_mb: float = 0.0
+    capture_count: int = 0
 
 
 class MemoryStats(BaseModel):

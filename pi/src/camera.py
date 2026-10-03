@@ -34,6 +34,14 @@ class BaseCamera(ABC):
         self.width: int = settings.preview_width
         self.height: int = settings.preview_height
         self.flip_horizontal: bool = settings.flip_horizontal
+        self.is_connected: bool = True
+        self.last_frame_time: float = time.time()
+        self.consecutive_errors: int = 0
+
+    @property
+    def is_healthy(self) -> bool:
+        """True if camera is actively producing frames and healthy."""
+        return self._running and self.is_connected and (time.time() - self.last_frame_time < 8.0)
 
     @property
     @abstractmethod
@@ -348,6 +356,8 @@ class MockCamera(BaseCamera):
             self._active_backend = "mock"
             logger.info("Using synthetic photo booth test pattern generator")
 
+        last_probe_time = 0.0
+
         while self._running:
             loop_start = time.time()
             self._frame_count += 1
@@ -358,6 +368,8 @@ class MockCamera(BaseCamera):
                 try:
                     ret, frame = self._cap.read()
                     if ret and frame is not None:
+                        self.consecutive_errors = 0
+                        self.is_connected = True
                         # Mirror horizontally for natural photo booth reflection
                         if self.flip_horizontal:
                             frame = cv2.flip(frame, 1)
@@ -378,8 +390,64 @@ class MockCamera(BaseCamera):
                         success, encimg = cv2.imencode(".jpg", frame, encode_param)
                         if success:
                             jpeg_bytes = encimg.tobytes()
+                    else:
+                        self.consecutive_errors += 1
+                        if self.consecutive_errors >= 5:
+                            logger.warning(
+                                "Webcam /dev/video%d disconnected or failed to return frames. "
+                                "Falling back to synthetic pattern while probing for reconnection...",
+                                self.device_index,
+                            )
+                            has_webcam = False
+                            self._active_backend = "mock"
+                            self.is_connected = False
+                            try:
+                                self._cap.release()
+                            except Exception:
+                                pass
+                            self._cap = None
                 except Exception as exc:
-                    logger.error("Error reading from webcam: %s", exc)
+                    self.consecutive_errors += 1
+                    logger.error("Error reading from webcam: %s (consecutive errors: %d)", exc, self.consecutive_errors)
+                    if self.consecutive_errors >= 5:
+                        has_webcam = False
+                        self._active_backend = "mock"
+                        self.is_connected = False
+                        try:
+                            if self._cap:
+                                self._cap.release()
+                        except Exception:
+                            pass
+                        self._cap = None
+
+            # Periodic webcam reconnection probe when disconnected
+            if not has_webcam and self.use_webcam and cv2 is not None:
+                now_probe = time.time()
+                if now_probe - last_probe_time > 3.0:
+                    last_probe_time = now_probe
+                    try:
+                        probe_cap = cv2.VideoCapture(self.device_index)
+                        if probe_cap.isOpened():
+                            ret_probe, test_probe = probe_cap.read()
+                            if ret_probe and test_probe is not None:
+                                logger.info(
+                                    "Webcam /dev/video%d reconnected successfully!",
+                                    self.device_index,
+                                )
+                                self._cap = probe_cap
+                                self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                                self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                                self._cap.set(cv2.CAP_PROP_FPS, self.target_fps)
+                                has_webcam = True
+                                self._active_backend = "webcam"
+                                self.is_connected = True
+                                self.consecutive_errors = 0
+                            else:
+                                probe_cap.release()
+                        else:
+                            probe_cap.release()
+                    except Exception:
+                        pass
 
             if jpeg_bytes is None:
                 # Fallback to synthetic frame generator
@@ -387,6 +455,7 @@ class MockCamera(BaseCamera):
 
             with self._lock:
                 self._latest_jpeg = jpeg_bytes
+                self.last_frame_time = time.time()
 
             self._update_fps()
 
@@ -521,13 +590,37 @@ class PiCamera(BaseCamera):
             time.sleep(0.04)
         logger.info("picamera2 sensor warmup complete")
 
+    def _generate_disconnect_frame(self, frame_idx: int) -> bytes:
+        """Render a diagnostic fallback frame when Pi Camera is disconnected."""
+        img = Image.new("RGB", (self.width, self.height), color=(30, 16, 20))
+        draw = ImageDraw.Draw(img)
+
+        cx, cy = self.width // 2, self.height // 2
+        box_w, box_h = min(self.width - 40, 480), 140
+        x1, y1 = cx - box_w // 2, cy - box_h // 2
+        x2, y2 = cx + box_w // 2, cy + box_h // 2
+
+        pulse_color = (255, 60, 60) if (frame_idx // 5) % 2 == 0 else (255, 180, 0)
+        draw.rectangle([(x1, y1), (x2, y2)], outline=pulse_color, width=3, fill=(45, 20, 26))
+
+        draw.text((x1 + 16, y1 + 20), "PI CAMERA HARDWARE DISCONNECTED", fill=(255, 255, 255))
+        draw.text((x1 + 16, y1 + 50), "Check CSI ribbon cable / USB connection.", fill=(220, 220, 220))
+        draw.text((x1 + 16, y1 + 80), f"Auto-reconnecting... (probe #{frame_idx // 15 + 1})", fill=pulse_color)
+
+        if self.flip_horizontal:
+            img = img.transpose(Image.FLIP_LEFT_RIGHT)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=self.quality)
+        return buf.getvalue()
+
     def _capture_loop(self) -> None:
         try:
             self._initialize_hardware()
+            self.is_connected = True
         except Exception as exc:
-            logger.error("Failed to initialize picamera2: %s", exc)
-            self._running = False
-            return
+            logger.error("Failed initial picamera2 startup (%s). Entering auto-reconnect probe loop...", exc)
+            self.is_connected = False
+            self._picam2 = None
 
         cv2 = None
         try:
@@ -536,9 +629,39 @@ class PiCamera(BaseCamera):
         except ImportError:
             pass
 
+        last_reconnect_attempt = 0.0
+
         while self._running:
             loop_start = time.time()
             self._frame_count += 1
+
+            if not self.is_connected or self._picam2 is None:
+                now_recon = time.time()
+                if now_recon - last_reconnect_attempt > 3.0:
+                    last_reconnect_attempt = now_recon
+                    logger.info("Probing picamera2 hardware reconnection...")
+                    try:
+                        if self._picam2 is not None:
+                            try:
+                                self._picam2.stop()
+                                self._picam2.close()
+                            except Exception:
+                                pass
+                        self._initialize_hardware()
+                        self.is_connected = True
+                        self.consecutive_errors = 0
+                        logger.info("picamera2 hardware reconnected successfully!")
+                    except Exception as re_err:
+                        logger.debug("picamera2 reconnection probe failed: %s", re_err)
+
+                if not self.is_connected:
+                    jpeg_bytes = self._generate_disconnect_frame(self._frame_count)
+                    with self._lock:
+                        self._latest_jpeg = jpeg_bytes
+                        self.last_frame_time = time.time()
+                    self._update_fps()
+                    time.sleep(0.1)
+                    continue
 
             if self._pending_reconfigure is not None:
                 try:
@@ -564,6 +687,8 @@ class PiCamera(BaseCamera):
             try:
                 # Capture frame array from picamera2 (returns RGB)
                 frame_arr = self._picam2.capture_array("main")
+                self.consecutive_errors = 0
+                self.is_connected = True
 
                 # Resize if frame dimensions differ from target preview resolution
                 h_cur, w_cur = frame_arr.shape[:2]
@@ -610,10 +735,22 @@ class PiCamera(BaseCamera):
 
                 with self._lock:
                     self._latest_jpeg = jpeg_bytes
+                    self.last_frame_time = time.time()
 
                 self._update_fps()
             except Exception as exc:
-                logger.error("Error capturing frame from picamera2: %s", exc)
+                self.consecutive_errors += 1
+                logger.error("Error capturing frame from picamera2: %s (consecutive errors: %d)", exc, self.consecutive_errors)
+                if self.consecutive_errors >= 5:
+                    logger.warning("picamera2 repeated capture failures. Marking disconnected to trigger recovery.")
+                    self.is_connected = False
+                    if self._picam2 is not None:
+                        try:
+                            self._picam2.stop()
+                            self._picam2.close()
+                        except Exception:
+                            pass
+                        self._picam2 = None
                 time.sleep(0.05)
 
             elapsed = time.time() - loop_start
@@ -630,8 +767,24 @@ class PiCamera(BaseCamera):
                 pass
 
     def capture_high_res(self) -> bytes:
-        if not self._picam2:
-            raise RuntimeError("Camera hardware not active")
+        if not self._picam2 or not self.is_connected:
+            logger.warning("picamera2 not ready or disconnected during high-res capture; using fallback frame")
+            latest = self.get_latest_frame()
+            if latest:
+                return latest
+            w, h = settings.capture_width, settings.capture_height
+            img = Image.new("RGB", (w, h), color=(30, 16, 20))
+            draw = ImageDraw.Draw(img)
+            draw.rectangle([(40, 40), (w - 40, h - 40)], outline=(255, 60, 60), width=8)
+            draw.text(
+                (w // 2 - 240, h // 2 - 20),
+                f"CAMERA DISCONNECTED ({w}x{h})\nTRC PHOTO BOOTH RECONNECTING...",
+                fill=(255, 255, 255),
+            )
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=settings.capture_quality)
+            return buf.getvalue()
+
         capture_config = self._picam2.create_still_configuration(
             main={"size": (settings.capture_width, settings.capture_height), "format": "RGB888"}
         )
