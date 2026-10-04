@@ -190,3 +190,39 @@ class PrinterConfigUpdate(BaseModel):
     color_mode: Literal["monochrome", "color"] | None = Field(None, description="Default print color mode")
     copies: int | None = Field(None, ge=1, le=10, description="Default copies")
 
+
+class PrintedPhotoRecord(BaseModel):
+    """Metadata representing a printed photo stored in the local SQLite database."""
+
+    id: int
+    job_id: str | None = None
+    filename: str
+    file_size: int
+    copies: int = 1
+    color_mode: str = "monochrome"
+    printer_name: str = "TRC_Printer"
+    status: str = "printed"
+    error_message: str | None = None
+    printed_at: str
+    image_url: str
+    download_url: str
+
+
+class AdminStatsResponse(BaseModel):
+    """Admin dashboard summary statistics."""
+
+    total_printed: int
+    today_printed: int
+    total_copies: int
+    total_size_bytes: int
+    total_size_mb: float
+    cpu_temp_c: float | None = None
+    cpu_percent: float = 0.0
+    memory_percent: float = 0.0
+    memory_used_mb: float = 0.0
+    memory_total_mb: float = 0.0
+    printer_name: str = "TRC_Printer"
+    printer_ready: bool = True
+    is_stream_paused: bool = False
+
+

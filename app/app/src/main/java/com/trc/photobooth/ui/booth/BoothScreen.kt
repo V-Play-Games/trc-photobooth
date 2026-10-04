@@ -24,14 +24,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
@@ -128,6 +132,7 @@ fun BoothScreen(
     val printerName by viewModel.printerName.collectAsStateWithLifecycle()
     val printerColorMode by viewModel.printerColorMode.collectAsStateWithLifecycle()
     val printerCopies by viewModel.printerCopies.collectAsStateWithLifecycle()
+    val isStreamPaused by viewModel.isStreamPaused.collectAsStateWithLifecycle()
 
     val isCapturing = boothState == BoothState.CAPTURING
     val isComplete = boothState == BoothState.COMPLETE
@@ -172,125 +177,197 @@ fun BoothScreen(
             )
         }
 
-        // Layer 3: Floating Top App Bar / Header: Only visible when NOT capturing
+        // Stream Paused Overlay for Idle State (Thermal management indicator)
+        if (isStreamPaused && isIdle && connectionStatus == ConnectionStatus.CONNECTED) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(onClick = viewModel::toggleStreamPause),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xD90D121F))
+                        .border(1.dp, AmberGold.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                        .clickable(onClick = viewModel::toggleStreamPause)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = AmberGold,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Column {
+                        Text(
+                            text = "PI STREAM PAUSED",
+                            color = AmberGold,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                        Text(
+                            text = "Camera feed paused to cool Pi • Tap to resume",
+                            color = TextMuted,
+                            fontSize = 10.sp,
+                        )
+                    }
+                }
+            }
+        }
+
+        // Layer 3: Floating Top Island Pill: Only visible when NOT capturing
         AnimatedVisibility(
             visible = !isCapturing,
             enter = fadeIn() + expandVertically(),
             exit = fadeOut() + shrinkVertically(),
-            modifier = Modifier.align(Alignment.TopCenter),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 8.dp),
         ) {
             Row(
                 modifier = Modifier
-                    .statusBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(22.dp))
                     .background(Color(0xD90B0F17))
-                    .border(width = 1.dp, color = BorderSubtle, shape = RoundedCornerShape(16.dp))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .border(width = 1.dp, color = BorderSubtle, shape = RoundedCornerShape(22.dp))
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
+                // Exit / Back button (if idle)
+                if (isIdle) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(28.dp)
                             .clip(CircleShape)
-                            .background(Color(0x33FF3366))
-                            .border(1.dp, NeonPink.copy(alpha = 0.6f), CircleShape),
+                            .background(Color(0x1AFFFFFF))
+                            .clickable(onClick = onBack),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            imageVector = Icons.Default.CameraAlt,
-                            contentDescription = null,
-                            tint = NeonPink,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-
-                    Column {
-                        Text(
-                            text = "TRC PHOTO BOOTH",
-                            color = TextMain,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.4.sp,
-                            fontFamily = FontFamily.Monospace,
-                        )
-                        Text(
-                            text = if (isComplete) "SESSION COMPLETE" else "4-SHOT BOOTH EXPERIENCE",
-                            color = if (isComplete) EmeraldGreen else CyberCyan,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = TextMuted,
+                            modifier = Modifier.size(15.dp),
                         )
                     }
                 }
 
-                // Right Actions: Status Pill & Studio Settings
+                // Brand Pill
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
-                    // Status Pill
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (connectionStatus == ConnectionStatus.CONNECTED) Color(0x1A00E599)
-                                else Color(0x1AFF3366)
-                            )
-                            .border(
-                                1.dp,
-                                if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen.copy(alpha = 0.5f)
-                                else NeonPink.copy(alpha = 0.5f),
-                                RoundedCornerShape(12.dp)
-                            )
-                            .clickable(enabled = connectionStatus != ConnectionStatus.CONNECTED) {
-                                viewModel.reconnect()
-                            }
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen
-                                    else NeonPink
-                                ),
-                        )
-                        Text(
-                            text = if (connectionStatus == ConnectionStatus.CONNECTED) "READY" else "OFFLINE",
-                            color = if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen else NeonPink,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                        )
-                    }
+                    Text(
+                        text = "TRC",
+                        color = TextMain,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                    Text(
+                        text = "BOOTH",
+                        color = NeonPink,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
 
-                    // Settings Button
+                // Status Pill
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            when {
+                                isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> Color(0x26FFB703)
+                                connectionStatus == ConnectionStatus.CONNECTED -> Color(0x1A00E599)
+                                else -> Color(0x1AFF3366)
+                            }
+                        )
+                        .border(
+                            1.dp,
+                            when {
+                                isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> AmberGold.copy(alpha = 0.5f)
+                                connectionStatus == ConnectionStatus.CONNECTED -> EmeraldGreen.copy(alpha = 0.5f)
+                                else -> NeonPink.copy(alpha = 0.5f)
+                            },
+                            RoundedCornerShape(12.dp)
+                        )
+                        .clickable(enabled = connectionStatus != ConnectionStatus.CONNECTED) {
+                            viewModel.reconnect()
+                        }
+                        .padding(horizontal = 7.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(5.dp)
                             .clip(CircleShape)
-                            .background(Color(0x2600F0FF))
-                            .border(1.dp, CyberCyan.copy(alpha = 0.5f), CircleShape)
-                            .clickable { viewModel.openSettings() },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Studio & Printer Settings",
-                            tint = CyberCyan,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
+                            .background(
+                                when {
+                                    isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> AmberGold
+                                    connectionStatus == ConnectionStatus.CONNECTED -> EmeraldGreen
+                                    else -> NeonPink
+                                }
+                            ),
+                    )
+                    Text(
+                        text = when {
+                            isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> "PAUSED"
+                            connectionStatus == ConnectionStatus.CONNECTED -> "READY"
+                            else -> "OFFLINE"
+                        },
+                        color = when {
+                            isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> AmberGold
+                            connectionStatus == ConnectionStatus.CONNECTED -> EmeraldGreen
+                            else -> NeonPink
+                        },
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+
+                // Pause / Play Stream Toggle Button (Thermal management to avoid Pi overheating)
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isStreamPaused) Color(0x33FFB703) else Color(0x1AFFFFFF))
+                        .border(1.dp, if (isStreamPaused) AmberGold else BorderSubtle, RoundedCornerShape(8.dp))
+                        .clickable { viewModel.toggleStreamPause() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (isStreamPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                        contentDescription = if (isStreamPaused) "Resume Stream (Pi Cooled)" else "Pause Stream (Cool Pi)",
+                        tint = if (isStreamPaused) AmberGold else TextMuted,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+
+                // Settings Button
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0x1AFFFFFF))
+                        .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
+                        .clickable { viewModel.openSettings() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Studio Settings",
+                        tint = TextMuted,
+                        modifier = Modifier.size(15.dp),
+                    )
                 }
             }
         }
@@ -413,57 +490,55 @@ fun BoothScreen(
             }
 
             isComplete -> {
-                Column(
+                Box(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(Color(0xF0070B14))
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(22.dp))
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    // Header Bar: Status + Local Share
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
+                    Column(
+                        modifier = Modifier
+                            .widthIn(max = 480.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(Color(0xF2070B14))
+                            .border(1.5.dp, BorderMedium, RoundedCornerShape(22.dp))
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
+                        // Title bar with status and quick share
                         Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = EmeraldGreen,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Text(
-                                text = "4-SHOT PHOTO STRIP READY! 🎉",
-                                color = TextMain,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                            )
-                        }
-
-                        if (collageBitmap != null) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
-                                // Print via App Button (System Print Dialog)
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = EmeraldGreen,
+                                    modifier = Modifier.size(17.dp),
+                                )
+                                Text(
+                                    text = "4-SHOT STRIP READY! 🎉",
+                                    color = TextMain,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                )
+                            }
+
+                            if (collageBitmap != null) {
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(BgCard)
-                                        .border(1.dp, CyberCyan.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                        .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
                                         .clickable {
-                                            BitmapUtils.printBitmap(
+                                            BitmapUtils.shareBitmap(
                                                 context,
                                                 collageBitmap!!,
                                                 "TRC Photo Booth Photo Strip"
@@ -477,95 +552,15 @@ fun BoothScreen(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Print,
-                                            contentDescription = "Print via App",
-                                            tint = CyberCyan,
-                                            modifier = Modifier.size(13.dp),
-                                        )
-                                        Text(
-                                            text = "PRINT (APP)",
-                                            color = CyberCyan,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = FontFamily.Monospace,
-                                        )
-                                    }
-                                }
-
-                                // Print via Pi Button (CUPS)
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(BgCard)
-                                        .border(1.dp, EmeraldGreen.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            viewModel.printCollage()
-                                        }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    ) {
-                                        if (printState is PrintState.Printing) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(11.dp),
-                                                strokeWidth = 1.5.dp,
-                                                color = EmeraldGreen,
-                                            )
-                                        } else {
-                                            Icon(
-                                                imageVector = Icons.Default.Print,
-                                                contentDescription = "Print via Pi",
-                                                tint = EmeraldGreen,
-                                                modifier = Modifier.size(13.dp),
-                                            )
-                                        }
-                                        Text(
-                                            text = when (printState) {
-                                                is PrintState.Printing -> "PRINTING..."
-                                                is PrintState.Success -> "PRINTED"
-                                                is PrintState.Error -> "RETRY"
-                                                PrintState.Idle -> "PRINT (PI)"
-                                            },
-                                            color = EmeraldGreen,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = FontFamily.Monospace,
-                                        )
-                                    }
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(BgCard)
-                                        .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            BitmapUtils.shareBitmap(
-                                                context,
-                                                collageBitmap!!,
-                                                "TRC Photo Booth Collage"
-                                            )
-                                        }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    ) {
-                                        Icon(
                                             imageVector = Icons.Default.Share,
                                             contentDescription = "Share",
                                             tint = CyberCyan,
-                                            modifier = Modifier.size(13.dp),
+                                            modifier = Modifier.size(12.dp),
                                         )
                                         Text(
                                             text = "SHARE",
                                             color = CyberCyan,
-                                            fontSize = 10.sp,
+                                            fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
                                             fontFamily = FontFamily.Monospace,
                                         )
@@ -573,336 +568,338 @@ fun BoothScreen(
                                 }
                             }
                         }
-                    }
 
-                    // Main Content: Uploading Progress OR Cloudinary QR Code OR Error/Retry
-                    when (val state = uploadState) {
-                        is BoothUploadState.Generating, is BoothUploadState.Uploading -> {
-                            val msg = if (state is BoothUploadState.Generating) state.message else (state as BoothUploadState.Uploading).message
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(Color(0x1A00F0FF))
-                                    .border(1.dp, CyberCyan.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(32.dp),
-                                    color = CyberCyan,
-                                    strokeWidth = 3.dp,
-                                )
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = msg,
+                        // Middle Section: Cloudinary QR Code OR Upload Progress OR Error
+                        when (val state = uploadState) {
+                            is BoothUploadState.Generating, is BoothUploadState.Uploading -> {
+                                val msg = if (state is BoothUploadState.Generating) state.message else (state as BoothUploadState.Uploading).message
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0x1A00F0FF))
+                                        .border(1.dp, CyberCyan.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(28.dp),
                                         color = CyberCyan,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = FontFamily.Monospace,
+                                        strokeWidth = 2.5.dp,
                                     )
-                                    Text(
-                                        text = "Uploading 1×4 photo strip to Cloudinary...",
-                                        color = TextMuted,
-                                        fontSize = 10.sp,
-                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = msg,
+                                            color = CyberCyan,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace,
+                                        )
+                                        Text(
+                                            text = "Uploading 1×4 photo strip...",
+                                            color = TextMuted,
+                                            fontSize = 9.5.sp,
+                                        )
+                                    }
                                 }
                             }
-                        }
 
-                        is BoothUploadState.Success -> {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(Color(0x1F00E599))
-                                    .border(1.dp, EmeraldGreen.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            ) {
-                                // White rounded box for QR Code
-                                if (qrCodeBitmap != null) {
+                            is BoothUploadState.Success -> {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(Color(0x1F00E599))
+                                        .border(1.dp, EmeraldGreen.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    // White QR Box
+                                    if (qrCodeBitmap != null) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(105.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color.White)
+                                                .padding(5.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Image(
+                                                bitmap = qrCodeBitmap!!.asImageBitmap(),
+                                                contentDescription = "QR Code to download photo strip",
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Fit,
+                                            )
+                                        }
+                                    }
+
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.CloudDone,
+                                                contentDescription = null,
+                                                tint = EmeraldGreen,
+                                                modifier = Modifier.size(14.dp),
+                                            )
+                                            Text(
+                                                text = "SCAN FOR STRIP",
+                                                color = EmeraldGreen,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Black,
+                                                fontFamily = FontFamily.Monospace,
+                                                letterSpacing = 0.8.sp,
+                                            )
+                                        }
+
+                                        Text(
+                                            text = "Scan with your phone camera to download your photo strip.",
+                                            color = TextMain,
+                                            fontSize = 10.sp,
+                                            lineHeight = 14.sp,
+                                        )
+
+                                        if (cloudinaryUrl != null) {
+                                            Text(
+                                                text = cloudinaryUrl!!,
+                                                color = CyberCyan,
+                                                fontSize = 8.5.sp,
+                                                fontFamily = FontFamily.Monospace,
+                                                maxLines = 1,
+                                            )
+                                        }
+                                    }
+
+                                    // 1x4 Vertical Strip Thumbnail
+                                    if (collageBitmap != null) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(width = 36.dp, height = 105.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .border(1.dp, BorderSubtle, RoundedCornerShape(6.dp)),
+                                        ) {
+                                            Image(
+                                                bitmap = collageBitmap!!.asImageBitmap(),
+                                                contentDescription = "1x4 Photo Strip Preview",
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Fit,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            is BoothUploadState.Error -> {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0x1AFF3366))
+                                        .border(1.dp, NeonPink.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Saved locally to Gallery! 🎉",
+                                            color = EmeraldGreen,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                        Text(
+                                            text = state.error,
+                                            color = TextSubtle,
+                                            fontSize = 9.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            maxLines = 2,
+                                        )
+                                    }
+
                                     Box(
                                         modifier = Modifier
-                                            .size(118.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(Color.White)
-                                            .padding(6.dp),
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(BgCard)
+                                            .border(1.dp, NeonPink, RoundedCornerShape(6.dp))
+                                            .clickable { viewModel.retryUpload() }
+                                            .padding(horizontal = 8.dp, vertical = 5.dp),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        Image(
-                                            bitmap = qrCodeBitmap!!.asImageBitmap(),
-                                            contentDescription = "QR Code to download photo strip",
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Fit,
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Refresh,
+                                                contentDescription = "Retry",
+                                                tint = NeonPink,
+                                                modifier = Modifier.size(12.dp),
+                                            )
+                                            Text(
+                                                text = "RETRY",
+                                                color = NeonPink,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            is BoothUploadState.Idle -> {}
+                        }
+
+                        // Print Buttons: Print (Pi) + Print (App)
+                        if (collageBitmap != null) {
+                            val isPrinting = printState is PrintState.Printing
+                            val isSuccess = printState is PrintState.Success
+                            val isError = printState is PrintState.Error
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                // Print via Pi Button (CUPS)
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(38.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                when {
+                                                    isError -> listOf(NeonPink, Color(0xFFE11D48))
+                                                    isSuccess -> listOf(Color(0xFF00C853), EmeraldGreen)
+                                                    else -> listOf(EmeraldGreen, Color(0xFF00C853))
+                                                }
+                                            )
+                                        )
+                                        .clickable(enabled = !isPrinting) {
+                                            viewModel.printCollage()
+                                        },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    ) {
+                                        if (isPrinting) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(13.dp),
+                                                strokeWidth = 1.6.dp,
+                                                color = Color(0xFF070B14),
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = when {
+                                                    isSuccess -> Icons.Default.CheckCircle
+                                                    isError -> Icons.Default.Refresh
+                                                    else -> Icons.Default.Print
+                                                },
+                                                contentDescription = null,
+                                                tint = Color(0xFF070B14),
+                                                modifier = Modifier.size(14.dp),
+                                            )
+                                        }
+                                        Text(
+                                            text = when {
+                                                isPrinting -> "PRINTING..."
+                                                isSuccess -> "PRINTED (PI)"
+                                                isError -> "RETRY (PI)"
+                                                else -> "PRINT (PI)"
+                                            },
+                                            color = Color(0xFF070B14),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace,
                                         )
                                     }
                                 }
 
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                // Native Android System Print Button (Print via App)
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(38.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(CyberCyan, Color(0xFF0099FF))
+                                            )
+                                        )
+                                        .clickable {
+                                            BitmapUtils.printBitmap(
+                                                context,
+                                                collageBitmap!!,
+                                                "TRC Photo Booth Photo Strip"
+                                            )
+                                        },
+                                    contentAlignment = Alignment.Center,
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.CloudDone,
+                                            imageVector = Icons.Default.Print,
                                             contentDescription = null,
-                                            tint = EmeraldGreen,
-                                            modifier = Modifier.size(15.dp),
+                                            tint = Color(0xFF070B14),
+                                            modifier = Modifier.size(14.dp),
                                         )
                                         Text(
-                                            text = "SCAN FOR PHOTOS",
-                                            color = EmeraldGreen,
-                                            fontSize = 12.sp,
+                                            text = "PRINT (APP)",
+                                            color = Color(0xFF070B14),
+                                            fontSize = 10.sp,
                                             fontWeight = FontWeight.Black,
                                             fontFamily = FontFamily.Monospace,
-                                            letterSpacing = 1.sp,
-                                        )
-                                    }
-
-                                    Text(
-                                        text = "Scan QR code with your phone to view and download your 1×4 photo strip.",
-                                        color = TextMain,
-                                        fontSize = 11.sp,
-                                        lineHeight = 15.sp,
-                                    )
-
-                                    if (cloudinaryUrl != null) {
-                                        Text(
-                                            text = cloudinaryUrl!!,
-                                            color = CyberCyan,
-                                            fontSize = 9.sp,
-                                            fontFamily = FontFamily.Monospace,
-                                            maxLines = 1,
-                                        )
-                                    }
-                                }
-
-                                // 1x4 Photo Strip Thumbnail
-                                if (collageBitmap != null) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(width = 44.dp, height = 124.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
-                                            .clickable {
-                                                viewModel.printCollage()
-                                            },
-                                    ) {
-                                        Image(
-                                            bitmap = collageBitmap!!.asImageBitmap(),
-                                            contentDescription = "1x4 Photo Strip Preview",
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Fit,
                                         )
                                     }
                                 }
                             }
                         }
 
-                        is BoothUploadState.Error -> {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(Color(0x1AFF3366))
-                                    .border(1.dp, NeonPink.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Saved locally to Gallery! 🎉",
-                                        color = EmeraldGreen,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                    Text(
-                                        text = state.error,
-                                        color = TextSubtle,
-                                        fontSize = 10.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        maxLines = 2,
-                                    )
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(BgCard)
-                                        .border(1.dp, NeonPink, RoundedCornerShape(8.dp))
-                                        .clickable { viewModel.retryUpload() }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Refresh,
-                                            contentDescription = "Retry",
-                                            tint = NeonPink,
-                                            modifier = Modifier.size(13.dp),
-                                        )
-                                        Text(
-                                            text = "RETRY",
-                                            color = NeonPink,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = FontFamily.Monospace,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        is BoothUploadState.Idle -> {
-                            // No-op
-                        }
-                    }
-
-                    // Print from Printer Button (displayed as soon as collage is ready)
-                    if (collageBitmap != null) {
-                        val isPrinting = printState is PrintState.Printing
-                        val isSuccess = printState is PrintState.Success
-                        val isError = printState is PrintState.Error
-
-                        val gradientColors = when {
-                            isError -> listOf(NeonPink, Color(0xFFE11D48))
-                            isSuccess -> listOf(Color(0xFF00C853), EmeraldGreen)
-                            else -> listOf(EmeraldGreen, Color(0xFF00C853))
-                        }
-
+                        // Big Start New Session Button
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(46.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Brush.horizontalGradient(gradientColors))
-                                .clickable(enabled = !isPrinting) {
-                                    viewModel.printCollage()
-                                },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                if (isPrinting) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp,
-                                        color = Color(0xFF070B14),
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = when {
-                                            isSuccess -> Icons.Default.CheckCircle
-                                            isError -> Icons.Default.Refresh
-                                            else -> Icons.Default.Print
-                                        },
-                                        contentDescription = null,
-                                        tint = Color(0xFF070B14),
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                }
-                                Text(
-                                    text = when {
-                                        isPrinting -> "SENDING TO TRC_PRINTER..."
-                                        isSuccess -> "PRINTED TO TRC_PRINTER (TAP TO PRINT AGAIN)"
-                                        isError -> "RETRY PRINT VIA PI PRINTER"
-                                        else -> "PRINT FROM PRINTER (PI)"
-                                    },
-                                    color = Color(0xFF070B14),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Black,
-                                    fontFamily = FontFamily.Monospace,
-                                    letterSpacing = 0.8.sp,
-                                )
-                            }
-                        }
-
-                        // Native Android System Print Button (Print via App)
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(46.dp)
-                                .clip(RoundedCornerShape(12.dp))
+                                .height(42.dp)
+                                .clip(RoundedCornerShape(10.dp))
                                 .background(
                                     Brush.horizontalGradient(
-                                        listOf(CyberCyan, Color(0xFF0099FF))
+                                        listOf(NeonPink, Color(0xFFE11D48), PurpleNeon)
                                     )
                                 )
-                                .clickable {
-                                    BitmapUtils.printBitmap(
-                                        context,
-                                        collageBitmap!!,
-                                        "TRC Photo Booth Photo Strip"
-                                    )
-                                },
+                                .clickable(onClick = viewModel::resetSession),
                             contentAlignment = Alignment.Center,
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Print,
+                                    imageVector = Icons.Default.Replay,
                                     contentDescription = null,
-                                    tint = Color(0xFF070B14),
-                                    modifier = Modifier.size(20.dp),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp),
                                 )
                                 Text(
-                                    text = "PRINT VIA APP (SYSTEM DIALOG)",
-                                    color = Color(0xFF070B14),
-                                    fontSize = 12.sp,
+                                    text = "START NEW SESSION",
+                                    color = Color.White,
+                                    fontSize = 11.5.sp,
                                     fontWeight = FontWeight.Black,
+                                    letterSpacing = 1.sp,
                                     fontFamily = FontFamily.Monospace,
-                                    letterSpacing = 0.8.sp,
                                 )
                             }
-                        }
-                    }
-
-                    // Big Full-Width Start New Session Button (NO Return to Admin button)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(NeonPink, Color(0xFFE11D48), PurpleNeon)
-                                )
-                            )
-                            .clickable(onClick = viewModel::resetSession),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Replay,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Text(
-                                text = "START NEW SESSION",
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 1.2.sp,
-                                fontFamily = FontFamily.Monospace,
-                            )
                         }
                     }
                 }

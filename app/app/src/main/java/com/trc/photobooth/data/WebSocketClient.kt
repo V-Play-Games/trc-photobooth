@@ -88,6 +88,9 @@ class WebSocketClient(
     private val _gifRecording = MutableStateFlow<GifRecordingState?>(null)
     val gifRecording: StateFlow<GifRecordingState?> = _gifRecording.asStateFlow()
 
+    private val _isStreamPaused = MutableStateFlow(false)
+    val isStreamPaused: StateFlow<Boolean> = _isStreamPaused.asStateFlow()
+
     // Shared events
     private val _captureResult = MutableSharedFlow<CaptureMetadata>(extraBufferCapacity = 1)
     val captureResult: SharedFlow<CaptureMetadata> = _captureResult.asSharedFlow()
@@ -140,6 +143,7 @@ class WebSocketClient(
                 webSocket.send("ping")
                 webSocket.send("{\"action\":\"get_system_stats\"}")
                 webSocket.send("{\"action\":\"get_devices\"}")
+                webSocket.send("{\"action\":\"get_stream_status\"}")
                 startHeartbeat()
             }
 
@@ -282,6 +286,10 @@ class WebSocketClient(
                         _systemStats.value = stats
                     }
                 }
+                "stream_status" -> {
+                    val paused = element["is_paused"]?.jsonPrimitive?.booleanOrNull ?: false
+                    _isStreamPaused.value = paused
+                }
             }
         } catch (e: Exception) {
             Log.d(tag, "Non-JSON or unhandled message: $text")
@@ -365,5 +373,21 @@ class WebSocketClient(
 
     fun requestDevices() {
         sendCommand("{\"action\":\"get_devices\"}")
+    }
+
+    fun toggleStreamPause() {
+        val next = !_isStreamPaused.value
+        _isStreamPaused.value = next
+        sendCommand("{\"action\":\"toggle_pause\"}")
+    }
+
+    fun setStreamPaused(paused: Boolean) {
+        _isStreamPaused.value = paused
+        val action = if (paused) "pause_stream" else "resume_stream"
+        sendCommand("{\"action\":\"$action\"}")
+    }
+
+    fun requestStreamStatus() {
+        sendCommand("{\"action\":\"get_stream_status\"}")
     }
 }

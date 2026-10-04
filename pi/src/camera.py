@@ -39,6 +39,22 @@ class BaseCamera(ABC):
         self.is_connected: bool = True
         self.last_frame_time: float = time.time()
         self.consecutive_errors: int = 0
+        self._paused: bool = False
+
+    @property
+    def is_paused(self) -> bool:
+        """True if camera capture loop is paused to save CPU/thermal energy."""
+        return self._paused
+
+    def pause(self) -> None:
+        """Pause capture loop to allow Pi to cool down."""
+        self._paused = True
+        logger.info("Camera capture paused (%s)", self.backend_name)
+
+    def resume(self) -> None:
+        """Resume capture loop."""
+        self._paused = False
+        logger.info("Camera capture resumed (%s)", self.backend_name)
 
     @property
     def is_healthy(self) -> bool:
@@ -367,6 +383,10 @@ class MockCamera(BaseCamera):
         last_probe_time = 0.0
 
         while self._running:
+            if self._paused:
+                time.sleep(0.08)
+                continue
+
             loop_start = time.time()
             self._frame_count += 1
 
@@ -699,6 +719,10 @@ class PiCamera(BaseCamera):
         last_reconnect_attempt = 0.0
 
         while self._running:
+            if self._paused:
+                time.sleep(0.08)
+                continue
+
             loop_start = time.time()
             self._frame_count += 1
 

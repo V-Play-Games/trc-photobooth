@@ -60,6 +60,32 @@ class Streamer:
         self._base_quality = settings.preview_quality
         self._is_degraded = False
 
+    @property
+    def is_paused(self) -> bool:
+        return getattr(self.camera, "is_paused", False)
+
+    async def pause_stream(self) -> None:
+        """Pause camera capture and streaming to eliminate CPU load and cooling."""
+        if hasattr(self.camera, "pause"):
+            self.camera.pause()
+        await self.broadcast_json({"type": "stream_status", "is_paused": True})
+        logger.info("Stream paused by user")
+
+    async def resume_stream(self) -> None:
+        """Resume camera capture and streaming."""
+        if hasattr(self.camera, "resume"):
+            self.camera.resume()
+        await self.broadcast_json({"type": "stream_status", "is_paused": False})
+        logger.info("Stream resumed by user")
+
+    async def toggle_stream(self) -> bool:
+        """Toggle stream pause state and broadcast."""
+        if self.is_paused:
+            await self.resume_stream()
+        else:
+            await self.pause_stream()
+        return self.is_paused
+
     async def broadcast_json(self, message: dict) -> None:
         """Broadcast a JSON message to all connected clients."""
         for client in list(self._clients):
@@ -199,6 +225,10 @@ class Streamer:
         while self._running:
             loop_start = time.time()
             self.last_loop_time = loop_start
+
+            if self.is_paused:
+                await asyncio.sleep(0.1)
+                continue
 
             # Hardware LED indication
             if hasattr(self.camera, "is_connected") and not self.camera.is_connected:
@@ -410,6 +440,17 @@ class Streamer:
                                         "webcam_device": settings.webcam_device,
                                         "device_path": f"/dev/video{settings.webcam_device}",
                                         "available_devices": devices,
+                                    })
+                                elif action in ("pause_stream", "pause"):
+                                    await self.pause_stream()
+                                elif action in ("resume_stream", "resume"):
+                                    await self.resume_stream()
+                                elif action in ("toggle_pause", "toggle_stream"):
+                                    await self.toggle_stream()
+                                elif action in ("get_stream_status", "stream_status"):
+                                    await websocket.send_json({
+                                        "type": "stream_status",
+                                        "is_paused": self.is_paused,
                                     })
                             except Exception:
                                 pass

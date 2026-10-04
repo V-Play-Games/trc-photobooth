@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TRC Photo Booth — Admin Console & Print Archive</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #070a10;
+      --bg-card: rgba(14, 20, 32, 0.85);
+      --bg-card-hover: rgba(20, 28, 45, 0.95);
+      --bg-card-border: rgba(255, 255, 255, 0.08);
+      --accent-cyan: #00f0ff;
+      --accent-cyan-glow: rgba(0, 240, 255, 0.25);
+      --accent-pink: #ff3366;
+      --accent-pink-glow: rgba(255, 51, 102, 0.3);
+      --accent-green: #00e599;
+      --accent-green-glow: rgba(0, 229, 153, 0.3);
+      --accent-gold: #ffb703;
+      --accent-gold-glow: rgba(255, 183, 3, 0.3);
+      --accent-purple: #8b5cf6;
+      --text-main: #f3f6fc;
+      --text-muted: #8e9db7;
+      --text-subtle: #56647d;
+      --font-ui: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 15% 15%, rgba(0, 240, 255, 0.06) 0px, transparent 55%),
+        radial-gradient(at 85% 25%, rgba(255, 51, 102, 0.06) 0px, transparent 50%),
+        radial-gradient(at 50% 85%, rgba(139, 92, 246, 0.05) 0px, transparent 60%);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      padding-bottom: 40px;
+    }
+
+    /* Top Nav Bar */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 28px;
+      border-bottom: 1px solid var(--bg-card-border);
+      backdrop-filter: blur(20px);
+      background: rgba(7, 10, 16, 0.9);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, var(--accent-pink), var(--accent-purple));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 16px var(--accent-pink-glow);
+    }
+
+    .brand-title h1 {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      font-family: var(--font-mono);
+      color: #fff;
+    }
+
+    .brand-title h1 span {
+      color: var(--accent-pink);
+    }
+
+    .brand-title p {
+      font-size: 0.72rem;
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+      font-weight: 700;
+      letter-spacing: 1.2px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      border: 1px solid var(--bg-card-border);
+      background: rgba(255, 255, 255, 0.04);
+      transition: all 0.2s ease;
+    }
+
+    .badge-temp {
+      border-color: rgba(0, 229, 153, 0.3);
+      color: var(--accent-green);
+      background: rgba(0, 229, 153, 0.08);
+    }
+    .badge-temp.warm {
+      border-color: rgba(255, 183, 3, 0.4);
+      color: var(--accent-gold);
+      background: rgba(255, 183, 3, 0.1);
+    }
+    .badge-temp.hot {
+      border-color: rgba(255, 51, 102, 0.5);
+      color: var(--accent-pink);
+      background: rgba(255, 51, 102, 0.12);
+      animation: pulseAlert 1.5s infinite;
+    }
+
+    @keyframes pulseAlert {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.75; transform: scale(1.03); }
+    }
+
+    .badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      letter-spacing: 0.4px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-cyan {
+      background: linear-gradient(135deg, var(--accent-cyan), #0099ff);
+      color: #070a10;
+      box-shadow: 0 0 12px var(--accent-cyan-glow);
+    }
+    .btn-cyan:hover {
+      box-shadow: 0 0 20px var(--accent-cyan-glow);
+      transform: translateY(-1px);
+    }
+
+    .btn-pink {
+      background: linear-gradient(135deg, var(--accent-pink), #e11d48);
+      color: #fff;
+      box-shadow: 0 0 12px var(--accent-pink-glow);
+    }
+    .btn-pink:hover {
+      box-shadow: 0 0 20px var(--accent-pink-glow);
+      transform: translateY(-1px);
+    }
+
+    .btn-outline {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--bg-card-border);
+      color: var(--text-main);
+    }
+    .btn-outline:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 0.74rem;
+    }
+
+    /* Main Container */
+    main {
+      max-width: 1360px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px 24px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Live Telemetry & Hardware Cards */
+    .grid-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: var(--radius-md);
+      padding: 16px 18px;
+      backdrop-filter: blur(12px);
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .card:hover {
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    .stat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .stat-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+    }
+    .stat-icon {
+      font-size: 1.1rem;
+    }
+
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      line-height: 1.1;
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+    .stat-unit {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .stat-sub {
+      font-size: 0.72rem;
+      color: var(--text-subtle);
+      margin-top: 6px;
+      font-family: var(--font-mono);
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 4px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.4s ease;
+    }
+
+    /* Live Feed & Monitor Layout */
+    .feed-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: var(--radius-lg);
+      padding: 18px 22px;
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .feed-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .feed-panel-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .feed-panel-title h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+    }
+
+    .feed-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--bg-card-border);
+      padding: 4px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .toggle-label {
+      font-size: 0.76rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--text-main);
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.15);
+      transition: .3s;
+      border-radius: 20px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: var(--accent-cyan);
+    }
+    input:checked + .slider:before {
+      transform: translateX(16px);
+      background-color: #070a10;
+    }
+
+    .feed-viewport-wrapper {
+      position: relative;
+      width: 100%;
+      height: 380px;
+      background: #04060a;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #feedImage {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: none;
+    }
+
+    .feed-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      text-align: center;
+      padding: 20px;
+    }
+    .feed-placeholder-icon {
+      font-size: 2.8rem;
+      color: var(--text-subtle);
+      opacity: 0.8;
+    }
+    .feed-placeholder h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .feed-placeholder p {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      max-width: 420px;
+      line-height: 1.4;
+    }
+
+    .feed-telemetry-overlay {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      display: flex;
+      gap: 8px;
+      z-index: 10;
+    }
+    .feed-badge {
+      background: rgba(7, 10, 16, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+      color: var(--accent-cyan);
+      backdrop-filter: blur(8px);
+    }
+
+    /* Print Archive Section */
+    .archive-section {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .archive-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .archive-title {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .archive-title h2 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+    }
+    .archive-count {
+      font-size: 0.85rem;
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+      font-weight: 700;
+    }
+
+    .archive-search-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .search-input {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      color: var(--text-main);
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      font-family: var(--font-ui);
+      outline: none;
+      width: 220px;
+      transition: border-color 0.2s;
+    }
+    .search-input:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    /* Photo Grid */
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 18px;
+    }
+
+    .photo-card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+    }
+    .photo-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(0, 240, 255, 0.35);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    .photo-preview-box {
+      width: 100%;
+      height: 310px;
+      background: #04060a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .photo-preview-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      transition: transform 0.3s ease;
+    }
+    .photo-preview-box:hover .photo-preview-img {
+      transform: scale(1.03);
+    }
+
+    .photo-card-body {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: rgba(10, 14, 24, 0.95);
+      border-top: 1px solid var(--bg-card-border);
+      flex: 1;
+    }
+
+    .photo-card-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .photo-card-name {
+      font-size: 0.86rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: #fff;
+    }
+
+    .photo-card-meta {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+    }
+
+    .photo-card-badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .mini-badge {
+      font-size: 0.68rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .mini-badge-color {
+      background: rgba(0, 240, 255, 0.12);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+    }
+    .mini-badge-mono {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .mini-badge-copies {
+      background: rgba(139, 92, 246, 0.12);
+      color: #c4b5fd;
+      border: 1px solid rgba(139, 92, 246, 0.3);
+    }
+
+    .photo-card-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: auto;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .btn-download {
+      flex: 1;
+      background: linear-gradient(135deg, var(--accent-cyan), #00a2ff);
+      color: #070a10;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.76rem;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+    .btn-download:hover {
+      box-shadow: 0 0 12px var(--accent-cyan-glow);
+    }
+
+    .btn-icon-action {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--bg-card-border);
+      color: var(--text-muted);
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-icon-action:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+    .btn-icon-action.delete:hover {
+      background: rgba(255, 51, 102, 0.15);
+      border-color: rgba(255, 51, 102, 0.4);
+      color: var(--accent-pink);
+    }
+
+    /* Lightbox Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(4, 6, 12, 0.88);
+      backdrop-filter: blur(16px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 24px;
+    }
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: var(--radius-lg);
+      max-width: 900px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+      position: relative;
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--bg-card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-header h3 {
+      font-size: 1.05rem;
+      font-family: var(--font-mono);
+      font-weight: 700;
+    }
+    .btn-close-modal {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.4rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .modal-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: row;
+      gap: 20px;
+      align-items: center;
+      justify-content: center;
+    }
+    @media (max-width: 768px) {
+      .modal-body {
+        flex-direction: column;
+      }
+    }
+
+    .modal-image-box {
+      max-height: 60vh;
+      max-width: 480px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #04060a;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--bg-card-border);
+    }
+    .modal-image-box img {
+      max-height: 60vh;
+      max-width: 100%;
+      object-fit: contain;
+    }
+
+    .modal-details {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      flex: 1;
+    }
+    .modal-detail-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .modal-detail-label {
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    .modal-detail-val {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: rgba(14, 20, 32, 0.95);
+      border: 1px solid var(--accent-cyan);
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      display: none;
+      align-items: center;
+      gap: 8px;
+      z-index: 2000;
+      animation: slideUp 0.3s ease;
+    }
+    .toast.show {
+      display: flex;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* Empty state */
+    .empty-state {
+      grid-column: 1 / -1;
+      padding: 48px 20px;
+      text-align: center;
+      background: var(--bg-card);
+      border: 1px dashed var(--bg-card-border);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .empty-state-icon {
+      font-size: 3rem;
+      opacity: 0.6;
+    }
+    .empty-state h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+    .empty-state p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      max-width: 460px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Nav Bar -->
+  <header>
+    <a href="/admin" class="brand">
+      <div class="brand-logo">📸</div>
+      <div class="brand-title">
+        <h1>TRC <span>PHOTO BOOTH</span></h1>
+        <p>ADMIN CONSOLE &amp; PRINT ARCHIVE</p>
+      </div>
+    </a>
+
+    <div class="header-actions">
+      <!-- Live Temperature Pill -->
+      <div id="tempBadge" class="badge-pill badge-temp" title="Live CPU / SoC Thermal Sensor">
+        <span class="badge-dot"></span>
+        <span id="tempValue">--.-°C</span>
+      </div>
+
+      <!-- CPU Usage Pill -->
+      <div class="badge-pill" title="Live CPU Core Utilization">
+        <span>⚡</span>
+        <span id="cpuValue">--% CPU</span>
+      </div>
+
+      <!-- Stream Status Pill -->
+      <div id="streamStateBadge" class="badge-pill" style="border-color: rgba(0, 240, 255, 0.3); color: var(--accent-cyan);">
+        <span class="badge-dot" style="background: var(--accent-cyan);"></span>
+        <span id="streamStateText">STREAM: LIVE</span>
+      </div>
+
+      <!-- Pi Stream Pause / Play Thermal Toggle -->
+      <button id="btnTogglePiStream" class="btn btn-outline btn-sm" title="Pause Pi camera stream to yield CPU & drop SoC temperatures">
+        ⏸️ Pause Pi Stream
+      </button>
+
+      <!-- Test Print Button -->
+      <button id="btnTestPrint" class="btn btn-cyan btn-sm">
+        🖨️ Test Print
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Body -->
+  <main>
+
+    <!-- Stats & Live Telemetry Row -->
+    <section class="grid-stats">
+      <!-- CPU Core Temperature -->
+      <div class="card">
+        <div class="stat-header">
+          <span class="stat-title">CPU Thermal Sensor</span>
+          <span class="stat-icon">🔥</span>
+        </div>
+        <div class="stat-value">
+          <span id="statTemp">--.-</span>
+          <span class="stat-unit">°C</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="tempProgressBar" class="progress-bar-fill" style="width: 50%; background: var(--accent-green);"></div>
+        </div>
+        <div class="stat-sub" id="statThermalState">Nominal Thermal State (&lt;60°C)</div>
+      </div>
+
+      <!-- Total Prints Archived in SQL -->
+      <div class="card">
+        <div class="stat-header">
+          <span class="stat-title">Total Prints (SQL)</span>
+          <span class="stat-icon">🖨️</span>
+        </div>
+        <div class="stat-value">
+          <span id="statTotalPrints">0</span>
+          <span class="stat-unit">jobs</span>
+        </div>
+        <div class="stat-sub"><span id="statTotalCopies">0</span> total copies dispatched</div>
+      </div>
+
+      <!-- Today's Prints -->
+      <div class="card">
+        <div class="stat-header">
+          <span class="stat-title">Today's Prints</span>
+          <span class="stat-icon">📅</span>
+        </div>
+        <div class="stat-value">
+          <span id="statTodayPrints">0</span>
+          <span class="stat-unit">today</span>
+        </div>
+        <div class="stat-sub"><span id="statTotalStorage">0.00</span> MB print storage used</div>
+      </div>
+
+      <!-- System RAM & Memory -->
+      <div class="card">
+        <div class="stat-header">
+          <span class="stat-title">Memory (RAM)</span>
+          <span class="stat-icon">💾</span>
+        </div>
+        <div class="stat-value">
+          <span id="statRamPct">--</span>
+          <span class="stat-unit">%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="ramProgressBar" class="progress-bar-fill" style="width: 40%; background: var(--accent-purple);"></div>
+        </div>
+        <div class="stat-sub"><span id="statRamUsed">--</span> / <span id="statRamTotal">--</span> MB used</div>
+      </div>
+    </section>
+
+    <!-- Toggleable Live Feed Preview Section -->
+    <section class="feed-panel">
+      <div class="feed-panel-header">
+        <div class="feed-panel-title">
+          <span style="font-size: 1.25rem;">📷</span>
+          <div>
+            <h2>LIVE CAMERA FEED PREVIEW</h2>
+            <p style="font-size: 0.74rem; color: var(--text-muted); font-family: var(--font-mono);">
+              Toggleable real-time stream from Raspberry Pi camera. Turn OFF when idle to keep Pi SoC cool.
+            </p>
+          </div>
+        </div>
+
+        <div class="feed-controls">
+          <div class="toggle-container" id="feedToggleContainer">
+            <span class="toggle-label" id="toggleFeedLabel">SHOW LIVE FEED</span>
+            <label class="switch">
+              <input type="checkbox" id="feedToggleCheckbox">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Viewport Box -->
+      <div class="feed-viewport-wrapper" id="feedViewport">
+        <!-- Telemetry Pill in feed -->
+        <div class="feed-telemetry-overlay" id="feedTelemetry" style="display: none;">
+          <div class="feed-badge" id="feedFpsBadge">-- FPS</div>
+          <div class="feed-badge" id="feedResBadge">640x480</div>
+        </div>
+
+        <!-- Live Stream IMG -->
+        <img id="feedImage" alt="Live Feed Preview" />
+
+        <!-- Placeholder when hidden -->
+        <div class="feed-placeholder" id="feedPlaceholder">
+          <div class="feed-placeholder-icon">💤</div>
+          <h3>Live Camera Preview Hidden</h3>
+          <p>The camera stream preview is stopped on this page to eliminate network overhead and keep your Raspberry Pi cool. Toggle below whenever you want to inspect framing or test output.</p>
+          <button id="btnEnableFeed" class="btn btn-cyan btn-sm" style="margin-top: 6px;">
+            👁️ Turn On Live Preview
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Printed Photos Archive Section -->
+    <section class="archive-section">
+      <div class="archive-header">
+        <div class="archive-title">
+          <h2>PRINTED PHOTO ARCHIVES</h2>
+          <span class="archive-count" id="archiveCountBadge">0 PHOTOS</span>
+        </div>
+
+        <div class="archive-search-bar">
+          <input type="text" id="searchInput" class="search-input" placeholder="Search filename or job ID..." />
+          <button id="btnRefreshArchive" class="btn btn-outline btn-sm">
+            🔄 Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Photos Grid -->
+      <div class="photo-grid" id="photoGrid">
+        <!-- Populated dynamically via JS -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Full Image Preview Lightbox Modal -->
+  <div class="modal-overlay" id="photoModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalFilename">Photo Strip Details</h3>
+        <button class="btn-close-modal" id="modalCloseBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-image-box">
+          <img id="modalImg" src="" alt="Full Strip" />
+        </div>
+        <div class="modal-details">
+          <div class="modal-detail-row">
+            <span class="modal-detail-label">Filename</span>
+            <span class="modal-detail-val" id="modalDetailName">--</span>
+          </div>
+          <div class="modal-detail-row">
+            <span class="modal-detail-label">Printed Timestamp</span>
+            <span class="modal-detail-val" id="modalDetailTime">--</span>
+          </div>
+          <div class="modal-detail-row">
+            <span class="modal-detail-label">Printer Queue</span>
+            <span class="modal-detail-val" id="modalDetailPrinter">--</span>
+          </div>
+          <div class="modal-detail-row">
+            <span class="modal-detail-label">Print Job ID</span>
+            <span class="modal-detail-val" id="modalDetailJob">--</span>
+          </div>
+          <div class="modal-detail-row">
+            <span class="modal-detail-label">File Size &amp; Copies</span>
+            <span class="modal-detail-val" id="modalDetailSize">--</span>
+          </div>
+          <div style="display: flex; gap: 10px; margin-top: 14px;">
+            <a id="modalDownloadBtn" href="#" class="btn btn-cyan" download>
+              ⬇️ Download Full Image
+            </a>
+            <button id="modalReprintBtn" class="btn btn-outline">
+              🖨️ Re-Print to Pi
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">
+    <span id="toastIcon">✨</span>
+    <span id="toastMsg">Notification message</span>
+  </div>
+
+  <script>
+    // --- State Variables ---
+    let isLiveFeedActive = false;
+    let feedWebSocket = null;
+    let feedFpsCounter = 0;
+    let feedLastFpsTime = performance.now();
+    let autoRefreshInterval = null;
+    let allPrintedPhotos = [];
+    let currentModalPhotoId = null;
+
+    // --- DOM Elements ---
+    const tempBadge = document.getElementById("tempBadge");
+    const tempValue = document.getElementById("tempValue");
+    const cpuValue = document.getElementById("cpuValue");
+    const streamStateBadge = document.getElementById("streamStateBadge");
+    const streamStateText = document.getElementById("streamStateText");
+    const btnTogglePiStream = document.getElementById("btnTogglePiStream");
+    const btnTestPrint = document.getElementById("btnTestPrint");
+
+    const statTemp = document.getElementById("statTemp");
+    const tempProgressBar = document.getElementById("tempProgressBar");
+    const statThermalState = document.getElementById("statThermalState");
+    const statTotalPrints = document.getElementById("statTotalPrints");
+    const statTotalCopies = document.getElementById("statTotalCopies");
+    const statTodayPrints = document.getElementById("statTodayPrints");
+    const statTotalStorage = document.getElementById("statTotalStorage");
+    const statRamPct = document.getElementById("statRamPct");
+    const ramProgressBar = document.getElementById("ramProgressBar");
+    const statRamUsed = document.getElementById("statRamUsed");
+    const statRamTotal = document.getElementById("statRamTotal");
+
+    const feedToggleCheckbox = document.getElementById("feedToggleCheckbox");
+    const feedToggleContainer = document.getElementById("feedToggleContainer");
+    const toggleFeedLabel = document.getElementById("toggleFeedLabel");
+    const feedImage = document.getElementById("feedImage");
+    const feedPlaceholder = document.getElementById("feedPlaceholder");
+    const feedTelemetry = document.getElementById("feedTelemetry");
+    const feedFpsBadge = document.getElementById("feedFpsBadge");
+    const btnEnableFeed = document.getElementById("btnEnableFeed");
+
+    const photoGrid = document.getElementById("photoGrid");
+    const archiveCountBadge = document.getElementById("archiveCountBadge");
+    const searchInput = document.getElementById("searchInput");
+    const btnRefreshArchive = document.getElementById("btnRefreshArchive");
+
+    const photoModal = document.getElementById("photoModal");
+    const modalCloseBtn = document.getElementById("modalCloseBtn");
+    const modalFilename = document.getElementById("modalFilename");
+    const modalImg = document.getElementById("modalImg");
+    const modalDetailName = document.getElementById("modalDetailName");
+    const modalDetailTime = document.getElementById("modalDetailTime");
+    const modalDetailPrinter = document.getElementById("modalDetailPrinter");
+    const modalDetailJob = document.getElementById("modalDetailJob");
+    const modalDetailSize = document.getElementById("modalDetailSize");
+    const modalDownloadBtn = document.getElementById("modalDownloadBtn");
+    const modalReprintBtn = document.getElementById("modalReprintBtn");
+
+    const toast = document.getElementById("toast");
+    const toastIcon = document.getElementById("toastIcon");
+    const toastMsg = document.getElementById("toastMsg");
+
+    function showToast(msg, icon = "✨") {
+      toastMsg.textContent = msg;
+      toastIcon.textContent = icon;
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 3500);
+    }
+
+    // --- Fetch Live Hardware Stats & SQL Totals ---
+    async function fetchAdminStats() {
+      try {
+        const res = await fetch("/api/admin/stats");
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // 1. Live Temperature
+        const temp = data.cpu_temp_c;
+        if (temp !== null && temp !== undefined) {
+          tempValue.textContent = `${temp.toFixed(1)}°C`;
+          statTemp.textContent = temp.toFixed(1);
+
+          // Thermal levels
+          tempBadge.classList.remove("warm", "hot");
+          if (temp >= 75) {
+            tempBadge.classList.add("hot");
+            statThermalState.textContent = "High Thermal Load (>75°C - Throttling Risk)";
+            statThermalState.style.color = "var(--accent-pink)";
+            tempProgressBar.style.background = "var(--accent-pink)";
+          } else if (temp >= 60) {
+            tempBadge.classList.add("warm");
+            statThermalState.textContent = "Elevated Temperature (60-75°C)";
+            statThermalState.style.color = "var(--accent-gold)";
+            tempProgressBar.style.background = "var(--accent-gold)";
+          } else {
+            statThermalState.textContent = "Nominal Thermal State (<60°C)";
+            statThermalState.style.color = "var(--accent-green)";
+            tempProgressBar.style.background = "var(--accent-green)";
+          }
+
+          const pct = Math.min(100, Math.max(10, ((temp - 25) / 60) * 100));
+          tempProgressBar.style.width = `${pct}%`;
+        } else {
+          tempValue.textContent = "N/A";
+          statTemp.textContent = "--.-";
+        }
+
+        // 2. CPU Usage
+        const cpu = data.cpu_percent || 0;
+        cpuValue.textContent = `${Math.round(cpu)}% CPU`;
+
+        // 3. Memory
+        const ramPct = Math.round(data.memory_percent || 0);
+        statRamPct.textContent = ramPct;
+        ramProgressBar.style.width = `${ramPct}%`;
+        statRamUsed.textContent = Math.round(data.memory_used_mb || 0);
+        statRamTotal.textContent = Math.round(data.memory_total_mb || 0);
+
+        // 4. SQL Database Totals
+        statTotalPrints.textContent = data.total_printed;
+        statTotalCopies.textContent = data.total_copies;
+        statTodayPrints.textContent = data.today_printed;
+        statTotalStorage.textContent = data.total_size_mb.toFixed(2);
+
+        // 5. Pi Stream Pause state
+        if (data.is_stream_paused) {
+          streamStateBadge.style.color = "var(--accent-gold)";
+          streamStateBadge.style.borderColor = "rgba(255, 183, 3, 0.4)";
+          streamStateText.textContent = "STREAM: PAUSED (COOLING)";
+          btnTogglePiStream.textContent = "▶️ Resume Pi Stream";
+        } else {
+          streamStateBadge.style.color = "var(--accent-cyan)";
+          streamStateBadge.style.borderColor = "rgba(0, 240, 255, 0.3)";
+          streamStateText.textContent = "STREAM: LIVE";
+          btnTogglePiStream.textContent = "⏸️ Pause Pi Stream";
+        }
+
+      } catch (err) {
+        console.warn("Failed fetching admin stats:", err);
+      }
+    }
+
+    // --- Fetch Printed Photos from SQLite ---
+    async function fetchPrintedPhotos() {
+      try {
+        const res = await fetch("/api/admin/printed?limit=150");
+        if (!res.ok) return;
+        allPrintedPhotos = await res.json();
+        renderPhotoGrid(allPrintedPhotos);
+      } catch (err) {
+        console.error("Failed fetching printed photos:", err);
+      }
+    }
+
+    function renderPhotoGrid(photos) {
+      archiveCountBadge.textContent = `${photos.length} PHOTOS`;
+      if (!photos || photos.length === 0) {
+        photoGrid.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">🖨️</div>
+            <h3>No Printed Photos Archived Yet</h3>
+            <p>Whenever guests complete a session and tap "Print from Printer" in the booth or app, the high-resolution photo strip is automatically recorded into the Raspberry Pi local SQL database and preserved here.</p>
+          </div>
+        `;
+        return;
+      }
+
+      photoGrid.innerHTML = photos.map(photo => {
+        const dateStr = formatTimestamp(photo.printed_at);
+        const sizeKb = Math.round(photo.file_size / 1024);
+        const isColor = photo.color_mode === 'color';
+        const colorClass = isColor ? 'mini-badge-color' : 'mini-badge-mono';
+        const colorLabel = isColor ? 'COLOR' : 'MONO';
+
+        return `
+          <div class="photo-card" data-id="${photo.id}">
+            <div class="photo-preview-box" onclick="openLightbox(${photo.id})">
+              <img class="photo-preview-img" src="${photo.image_url}" alt="${escapeHtml(photo.filename)}" loading="lazy" />
+            </div>
+            <div class="photo-card-body">
+              <div class="photo-card-info">
+                <div class="photo-card-name" title="${escapeHtml(photo.filename)}">${escapeHtml(photo.filename)}</div>
+                <div class="photo-card-meta">
+                  <span>${dateStr}</span>
+                  <span>${sizeKb} KB</span>
+                </div>
+              </div>
+
+              <div class="photo-card-badges">
+                <span class="mini-badge ${colorClass}">${colorLabel}</span>
+                <span class="mini-badge mini-badge-copies">${photo.copies} ${photo.copies > 1 ? 'COPIES' : 'COPY'}</span>
+                <span class="mini-badge" style="background: rgba(0, 229, 153, 0.12); color: var(--accent-green);">PRINTED</span>
+              </div>
+
+              <div class="photo-card-actions">
+                <a href="${photo.download_url}" class="btn-download" title="Download Image file to device" download>
+                  ⬇️ Download
+                </a>
+                <button class="btn-icon-action" title="View Fullscreen" onclick="openLightbox(${photo.id})">
+                  🔍
+                </button>
+                <button class="btn-icon-action" title="Re-Print to Pi" onclick="reprintPhoto(${photo.id})">
+                  🖨️
+                </button>
+                <button class="btn-icon-action delete" title="Delete Archive" onclick="deletePhoto(${photo.id})">
+                  🗑️
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function formatTimestamp(isoStr) {
+      if (!isoStr) return "";
+      try {
+        const d = new Date(isoStr);
+        return d.toLocaleDateString(undefined, {
+          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+      } catch (e) {
+        return isoStr;
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // --- Search & Filter ---
+    searchInput.addEventListener("input", (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      if (!q) {
+        renderPhotoGrid(allPrintedPhotos);
+        return;
+      }
+      const filtered = allPrintedPhotos.filter(p => 
+        (p.filename && p.filename.toLowerCase().includes(q)) ||
+        (p.job_id && p.job_id.toLowerCase().includes(q)) ||
+        (p.printer_name && p.printer_name.toLowerCase().includes(q))
+      );
+      renderPhotoGrid(filtered);
+    });
+
+    // --- Actions: Lightbox Modal ---
+    window.openLightbox = function(photoId) {
+      const photo = allPrintedPhotos.find(p => p.id === photoId);
+      if (!photo) return;
+      currentModalPhotoId = photoId;
+
+      modalFilename.textContent = photo.filename;
+      modalImg.src = photo.image_url;
+      modalDetailName.textContent = photo.filename;
+      modalDetailTime.textContent = new Date(photo.printed_at).toLocaleString();
+      modalDetailPrinter.textContent = `${photo.printer_name} (${photo.color_mode})`;
+      modalDetailJob.textContent = photo.job_id || 'N/A';
+      modalDetailSize.textContent = `${Math.round(photo.file_size / 1024)} KB • ${photo.copies} ${photo.copies > 1 ? 'copies' : 'copy'}`;
+
+      modalDownloadBtn.href = photo.download_url;
+      modalDownloadBtn.setAttribute("download", photo.filename);
+
+      photoModal.classList.add("open");
+    };
+
+    modalCloseBtn.addEventListener("click", () => photoModal.classList.remove("open"));
+    photoModal.addEventListener("click", (e) => {
+      if (e.target === photoModal) photoModal.classList.remove("open");
+    });
+
+    modalReprintBtn.addEventListener("click", () => {
+      if (currentModalPhotoId) reprintPhoto(currentModalPhotoId);
+    });
+
+    // --- Actions: Re-Print ---
+    window.reprintPhoto = async function(photoId) {
+      const confirmed = confirm("Send this photo strip to the Raspberry Pi printer again?");
+      if (!confirmed) return;
+
+      try {
+        showToast("Sending re-print job to CUPS...", "🖨️");
+        const res = await fetch(`/api/admin/printed/${photoId}/reprint`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+          showToast("Print job dispatched! 🖨️", "✅");
+          fetchAdminStats();
+          fetchPrintedPhotos();
+        } else {
+          showToast(`Print failed: ${data.detail || 'Error'}`, "❌");
+        }
+      } catch (err) {
+        showToast(`Print error: ${err.message}`, "❌");
+      }
+    };
+
+    // --- Actions: Delete ---
+    window.deletePhoto = async function(photoId) {
+      const confirmed = confirm("Are you sure you want to permanently delete this printed photo archive?");
+      if (!confirmed) return;
+
+      try {
+        const res = await fetch(`/api/admin/printed/${photoId}`, { method: "DELETE" });
+        if (res.ok) {
+          showToast("Photo archive deleted", "🗑️");
+          allPrintedPhotos = allPrintedPhotos.filter(p => p.id !== photoId);
+          renderPhotoGrid(allPrintedPhotos);
+          fetchAdminStats();
+        } else {
+          showToast("Failed deleting photo", "❌");
+        }
+      } catch (err) {
+        showToast(`Delete error: ${err.message}`, "❌");
+      }
+    };
+
+    // --- Toggleable Live Feed Preview ---
+    function setLiveFeed(active) {
+      isLiveFeedActive = active;
+      feedToggleCheckbox.checked = active;
+
+      if (active) {
+        toggleFeedLabel.textContent = "HIDE LIVE FEED";
+        feedPlaceholder.style.display = "none";
+        feedImage.style.display = "block";
+        feedTelemetry.style.display = "flex";
+        startFeedWebSocket();
+        showToast("Live Camera Stream Connected", "📷");
+      } else {
+        toggleFeedLabel.textContent = "SHOW LIVE FEED";
+        feedImage.style.display = "none";
+        feedTelemetry.style.display = "none";
+        feedPlaceholder.style.display = "flex";
+        stopFeedWebSocket();
+        showToast("Live Stream Stopped (Conserving Pi CPU)", "💤");
+      }
+    }
+
+    feedToggleCheckbox.addEventListener("change", (e) => setLiveFeed(e.target.checked));
+    btnEnableFeed.addEventListener("click", () => setLiveFeed(true));
+
+    function startFeedWebSocket() {
+      if (feedWebSocket) return;
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}/ws/feed`;
+
+      feedWebSocket = new WebSocket(wsUrl);
+      feedWebSocket.binaryType = "blob";
+
+      feedWebSocket.onmessage = (event) => {
+        if (event.data instanceof Blob) {
+          const url = URL.createObjectURL(event.data);
+          const oldUrl = feedImage.src;
+          feedImage.src = url;
+          if (oldUrl && oldUrl.startsWith("blob:")) {
+            URL.revokeObjectURL(oldUrl);
+          }
+
+          // FPS calculation
+          feedFpsCounter++;
+          const now = performance.now();
+          if (now - feedLastFpsTime >= 1000) {
+            feedFpsBadge.textContent = `${feedFpsCounter} FPS`;
+            feedFpsCounter = 0;
+            feedLastFpsTime = now;
+          }
+        }
+      };
+
+      feedWebSocket.onclose = () => {
+        feedWebSocket = null;
+      };
+
+      feedWebSocket.onerror = (err) => {
+        console.warn("Feed WS Error:", err);
+      };
+    }
+
+    function stopFeedWebSocket() {
+      if (feedWebSocket) {
+        feedWebSocket.close();
+        feedWebSocket = null;
+      }
+      if (feedImage.src && feedImage.src.startsWith("blob:")) {
+        URL.revokeObjectURL(feedImage.src);
+        feedImage.src = "";
+      }
+    }
+
+    // --- Pi Stream Thermal Pause / Resume ---
+    btnTogglePiStream.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/stream/toggle", { method: "POST" });
+        const data = await res.json();
+        if (data.is_paused) {
+          showToast("Camera stream paused: Pi CPU load dropped to 0%", "❄️");
+        } else {
+          showToast("Camera stream resumed", "▶️");
+        }
+        fetchAdminStats();
+      } catch (err) {
+        showToast(`Stream toggle error: ${err.message}`, "❌");
+      }
+    });
+
+    // --- Test Print ---
+    btnTestPrint.addEventListener("click", async () => {
+      const confirmed = confirm("Send a hardware test print page (/etc/hostname) to CUPS printer?");
+      if (!confirmed) return;
+      try {
+        showToast("Sending test print...", "🖨️");
+        const res = await fetch("/api/print/test", { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+          showToast("Test print submitted successfully!", "✅");
+          fetchAdminStats();
+          fetchPrintedPhotos();
+        } else {
+          showToast(`Test print failed: ${data.detail || 'Error'}`, "❌");
+        }
+      } catch (err) {
+        showToast(`Print error: ${err.message}`, "❌");
+      }
+    });
+
+    btnRefreshArchive.addEventListener("click", () => {
+      fetchPrintedPhotos();
+      fetchAdminStats();
+      showToast("Archive refreshed", "🔄");
+    });
+
+    // --- Init & Polling ---
+    fetchAdminStats();
+    fetchPrintedPhotos();
+    // Poll hardware metrics every 3 seconds
+    setInterval(fetchAdminStats, 3000);
+  </script>
+</body>
+</html>

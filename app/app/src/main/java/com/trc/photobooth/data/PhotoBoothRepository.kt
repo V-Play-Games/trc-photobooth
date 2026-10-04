@@ -83,6 +83,7 @@ class PhotoBoothRepository(
     val systemStats: StateFlow<SystemStats?> = wsClient.systemStats
     val countdown: StateFlow<CountdownState?> = wsClient.countdown
     val gifRecording: StateFlow<GifRecordingState?> = wsClient.gifRecording
+    val isStreamPaused: StateFlow<Boolean> = wsClient.isStreamPaused
     val flashEvent: SharedFlow<Unit> = wsClient.flashEvent
     val captureResult: SharedFlow<CaptureMetadata> = wsClient.captureResult
 
@@ -191,6 +192,8 @@ class PhotoBoothRepository(
     fun requestSystemStats() = wsClient.requestSystemStats()
     fun setCameraDevice(device: String) = wsClient.setCameraDevice(device)
     fun requestDevices() = wsClient.requestDevices()
+    fun toggleStreamPause() = wsClient.toggleStreamPause()
+    fun setStreamPaused(paused: Boolean) = wsClient.setStreamPaused(paused)
 
     // REST operations
     fun fetchCaptures() {

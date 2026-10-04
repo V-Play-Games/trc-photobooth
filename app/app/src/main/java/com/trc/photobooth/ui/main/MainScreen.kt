@@ -21,8 +21,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Icon
@@ -35,7 +37,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,6 +47,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trc.photobooth.data.models.ConnectionStatus
 import com.trc.photobooth.theme.AmberGold
 import com.trc.photobooth.theme.BgBase
+import com.trc.photobooth.theme.TextMain
+import com.trc.photobooth.theme.TextMuted
 import com.trc.photobooth.ui.components.CaptureControls
 import com.trc.photobooth.ui.components.CountdownOverlay
 import com.trc.photobooth.ui.components.FilterStrip
@@ -84,6 +90,7 @@ fun MainScreen(
     val printerName by viewModel.printerName.collectAsStateWithLifecycle()
     val printerColorMode by viewModel.printerColorMode.collectAsStateWithLifecycle()
     val printerCopies by viewModel.printerCopies.collectAsStateWithLifecycle()
+    val isStreamPaused by viewModel.isStreamPaused.collectAsStateWithLifecycle()
 
     val isGalleryOpen by viewModel.isGalleryOpen.collectAsStateWithLifecycle()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
@@ -106,7 +113,7 @@ fun MainScreen(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            // Top App Bar / Header with status pill, controls, and telemetry
+            // Top App Bar / Island Header with status pill, controls, and telemetry
             Header(
                 connectionStatus = connectionStatus,
                 fps = fps,
@@ -114,6 +121,8 @@ fun MainScreen(
                 capturesCount = captures.size,
                 showGuides = showGuides,
                 isFlipped = cameraConfig.flipHorizontal ?: false,
+                isStreamPaused = isStreamPaused,
+                onToggleStreamPause = viewModel::toggleStreamPause,
                 onToggleGuides = viewModel::toggleGuides,
                 onToggleFlip = viewModel::toggleFlip,
                 onOpenGallery = viewModel::openGallery,
@@ -201,6 +210,57 @@ fun MainScreen(
                     flashEvent = viewModel.flashEvent,
                     modifier = Modifier.fillMaxSize()
                 )
+
+                // Stream Paused Overlay (Saving Pi thermal load)
+                if (isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xB3000000))
+                            .clickable(onClick = viewModel::toggleStreamPause),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(Color(0xE60D121F))
+                                .border(1.dp, AmberGold.copy(alpha = 0.5f), RoundedCornerShape(18.dp))
+                                .padding(horizontal = 22.dp, vertical = 16.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(CircleShape)
+                                    .background(AmberGold.copy(alpha = 0.15f))
+                                    .border(1.dp, AmberGold.copy(alpha = 0.6f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = AmberGold,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
+                            Text(
+                                text = "STREAM PAUSED",
+                                color = TextMain,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                            Text(
+                                text = "Camera feed paused to keep Raspberry Pi cool.\nTap anywhere to resume live stream.",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 15.sp,
+                            )
+                        }
+                    }
+                }
             }
 
             // Studio Presets Carousel

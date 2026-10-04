@@ -24,12 +24,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.GridOn
-import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,12 +39,13 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trc.photobooth.data.models.ConnectionStatus
-import com.trc.photobooth.theme.BorderMedium
+import com.trc.photobooth.theme.AmberGold
 import com.trc.photobooth.theme.BorderSubtle
 import com.trc.photobooth.theme.CyberCyan
 import com.trc.photobooth.theme.EmeraldGreen
@@ -52,6 +53,11 @@ import com.trc.photobooth.theme.NeonPink
 import com.trc.photobooth.theme.TextMain
 import com.trc.photobooth.theme.TextMuted
 
+/**
+ * Compact Dynamic Island Top Bar for the main viewfinder screen.
+ * Keeps camera feed clear while providing fast access to stream pause/play (to prevent Pi overheating),
+ * connection telemetry, mirror flip, framing guides, settings, and booth mode.
+ */
 @Composable
 fun Header(
     connectionStatus: ConnectionStatus,
@@ -60,6 +66,8 @@ fun Header(
     capturesCount: Int,
     showGuides: Boolean,
     isFlipped: Boolean,
+    isStreamPaused: Boolean = false,
+    onToggleStreamPause: () -> Unit = {},
     onToggleGuides: () -> Unit,
     onToggleFlip: () -> Unit,
     onOpenGallery: () -> Unit,
@@ -67,85 +75,65 @@ fun Header(
     onNavigateToBooth: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(64.dp)
-            .background(Color(0xE60B0F17))
-            .border(width = 1.dp, color = BorderSubtle)
-            .padding(horizontal = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        // Left: Brand Lockup & Status Pill
         Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color(0xD90B0F17))
+                .border(width = 1.dp, color = BorderSubtle, shape = RoundedCornerShape(22.dp))
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Camera Brand Icon
-//            Box(
-//                modifier = Modifier
-//                    .size(36.dp)
-//                    .clip(RoundedCornerShape(8.dp))
-//                    .background(
-//                        Brush.linearGradient(
-//                            listOf(NeonPink.copy(alpha = 0.35f), CyberCyan.copy(alpha = 0.35f))
-//                        )
-//                    )
-//                    .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp)),
-//                contentAlignment = Alignment.Center,
-//            ) {
-//                Icon(
-//                    imageVector = Icons.Default.CameraAlt,
-//                    contentDescription = "Photo Booth",
-//                    tint = TextMain,
-//                    modifier = Modifier.size(20.dp),
-//                )
-//            }
-
-            // Brand Titles
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "TRC ",
-                        color = TextMain,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 14.sp,
-                        letterSpacing = 0.5.sp,
-                    )
-                    Text(
-                        text = "BOOTH",
-                        color = NeonPink,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 14.sp,
-                        letterSpacing = 0.5.sp,
-                    )
-                }
+            // Brand Title Pill
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                modifier = Modifier.padding(end = 4.dp),
+            ) {
                 Text(
-                    text = "PI EDITION",
-                    color = CyberCyan,
-                    fontSize = 9.sp,
+                    text = "TRC",
+                    color = TextMain,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 13.sp,
+                    letterSpacing = 0.5.sp,
                     fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
+                )
+                Text(
+                    text = "BOOTH",
+                    color = NeonPink,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 13.sp,
+                    letterSpacing = 0.5.sp,
+                    fontFamily = FontFamily.Monospace,
                 )
             }
 
-            // Status Pill
-//            StatusPill(
-//                status = connectionStatus,
-//                fps = fps,
-//                latencyMs = latencyMs,
-//            )
-        }
+            // Connection & Stream Status Pill
+            IslandStatusPill(
+                status = connectionStatus,
+                fps = fps,
+                isStreamPaused = isStreamPaused,
+            )
 
-        // Right: Tool Buttons
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+            // Pause / Play Stream Button (Thermal management to prevent Pi overheating)
+            IslandToolButton(
+                icon = if (isStreamPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                isActive = isStreamPaused,
+                activeBg = Color(0x33FFB703),
+                activeBorder = AmberGold,
+                activeTint = AmberGold,
+                onClick = onToggleStreamPause,
+                contentDescription = if (isStreamPaused) "Resume Stream (Pi Cooled)" else "Pause Stream (Cool Pi)",
+            )
+
             // Framing Guides Button
-            ToolButton(
+            IslandToolButton(
                 icon = Icons.Default.GridOn,
                 isActive = showGuides,
                 onClick = onToggleGuides,
@@ -153,52 +141,25 @@ fun Header(
             )
 
             // Selfie Mirror Flip Button
-            ToolButton(
+            IslandToolButton(
                 icon = Icons.Default.Flip,
                 isActive = isFlipped,
                 onClick = onToggleFlip,
                 contentDescription = "Toggle Mirror",
             )
 
-            // Gallery Button with Counter
-//            Box {
-//                ToolButton(
-//                    icon = Icons.Default.PhotoLibrary,
-//                    isActive = false,
-//                    onClick = onOpenGallery,
-//                    contentDescription = "Open Gallery",
-//                )
-//                if (capturesCount > 0) {
-//                    Box(
-//                        modifier = Modifier
-//                            .align(Alignment.TopEnd)
-//                            .size(18.dp)
-//                            .clip(CircleShape)
-//                            .background(NeonPink),
-//                        contentAlignment = Alignment.Center,
-//                    ) {
-//                        Text(
-//                            text = capturesCount.coerceAtMost(99).toString(),
-//                            color = Color.White,
-//                            fontSize = 9.sp,
-//                            fontWeight = FontWeight.Bold,
-//                        )
-//                    }
-//                }
-//            }
-
             // Settings Button
-            ToolButton(
+            IslandToolButton(
                 icon = Icons.Default.Settings,
                 isActive = false,
                 onClick = onOpenSettings,
                 contentDescription = "Settings",
             )
 
-            // Launch Booth Button
+            // Launch Booth Pill Button
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(
                         Brush.horizontalGradient(
                             listOf(NeonPink, Color(0xFF8B5CF6))
@@ -210,21 +171,21 @@ fun Header(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Default.CameraAlt,
                         contentDescription = "Booth Mode",
                         tint = Color.White,
-                        modifier = Modifier.size(13.dp),
+                        modifier = Modifier.size(12.dp),
                     )
                     Text(
                         text = "BOOTH",
                         color = Color.White,
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
-                        letterSpacing = 0.8.sp,
+                        letterSpacing = 0.6.sp,
                     )
                 }
             }
@@ -233,10 +194,10 @@ fun Header(
 }
 
 @Composable
-private fun StatusPill(
+private fun IslandStatusPill(
     status: ConnectionStatus,
     fps: Int,
-    latencyMs: Int,
+    isStreamPaused: Boolean,
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
@@ -249,20 +210,26 @@ private fun StatusPill(
         label = "pulseAlpha",
     )
 
-    val (bgColor, borderColor, text, iconColor) = when (status) {
-        ConnectionStatus.CONNECTED -> Quad(
+    val (bgColor, borderColor, text, iconColor) = when {
+        isStreamPaused && status == ConnectionStatus.CONNECTED -> Quad(
+            Color(0x26FFB703),
+            AmberGold.copy(alpha = 0.5f),
+            "PAUSED",
+            AmberGold,
+        )
+        status == ConnectionStatus.CONNECTED -> Quad(
             Color(0x1A00E599),
             EmeraldGreen.copy(alpha = 0.4f),
-            if (fps > 0) "LIVE • ${fps}fps" else "LIVE",
+            if (fps > 0) "${fps}fps" else "LIVE",
             EmeraldGreen,
         )
-        ConnectionStatus.CONNECTING -> Quad(
+        status == ConnectionStatus.CONNECTING -> Quad(
             Color(0x1AFFB703),
             Color(0x66FFB703),
             "CONNECTING",
             Color(0xFFFFB703),
         )
-        ConnectionStatus.DISCONNECTED -> Quad(
+        else -> Quad(
             Color(0x1AFF3366),
             NeonPink.copy(alpha = 0.4f),
             "OFFLINE",
@@ -272,19 +239,26 @@ private fun StatusPill(
 
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(bgColor)
-            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .padding(horizontal = 7.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        if (status == ConnectionStatus.CONNECTED) {
+        if (status == ConnectionStatus.CONNECTED && !isStreamPaused) {
             Box(
                 modifier = Modifier
-                    .size(6.dp)
+                    .size(5.dp)
                     .clip(CircleShape)
                     .background(EmeraldGreen)
+            )
+        } else if (isStreamPaused) {
+            Box(
+                modifier = Modifier
+                    .size(5.dp)
+                    .clip(CircleShape)
+                    .background(AmberGold)
             )
         } else if (status == ConnectionStatus.CONNECTING) {
             Icon(
@@ -292,7 +266,7 @@ private fun StatusPill(
                 contentDescription = null,
                 tint = iconColor,
                 modifier = Modifier
-                    .size(12.dp)
+                    .size(10.dp)
                     .alpha(pulseAlpha),
             )
         } else {
@@ -300,14 +274,14 @@ private fun StatusPill(
                 imageVector = Icons.Default.WifiOff,
                 contentDescription = null,
                 tint = iconColor,
-                modifier = Modifier.size(12.dp),
+                modifier = Modifier.size(10.dp),
             )
         }
 
         Text(
             text = text,
             color = iconColor,
-            fontSize = 10.sp,
+            fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
             fontFamily = FontFamily.Monospace,
         )
@@ -315,22 +289,25 @@ private fun StatusPill(
 }
 
 @Composable
-private fun ToolButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+private fun IslandToolButton(
+    icon: ImageVector,
     isActive: Boolean,
     onClick: () -> Unit,
     contentDescription: String,
+    activeBg: Color = CyberCyan.copy(alpha = 0.18f),
+    activeBorder: Color = CyberCyan,
+    activeTint: Color = CyberCyan,
 ) {
-    val bg = if (isActive) CyberCyan.copy(alpha = 0.15f) else Color(0x1AFFFFFF)
-    val border = if (isActive) CyberCyan else BorderSubtle
-    val tint = if (isActive) CyberCyan else TextMuted
+    val bg = if (isActive) activeBg else Color(0x1AFFFFFF)
+    val border = if (isActive) activeBorder else BorderSubtle
+    val tint = if (isActive) activeTint else TextMuted
 
     Box(
         modifier = Modifier
-            .size(38.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .size(32.dp)
+            .clip(RoundedCornerShape(8.dp))
             .background(bg)
-            .border(1.dp, border, RoundedCornerShape(10.dp))
+            .border(1.dp, border, RoundedCornerShape(8.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -338,7 +315,7 @@ private fun ToolButton(
             imageVector = icon,
             contentDescription = contentDescription,
             tint = tint,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(16.dp),
         )
     }
 }

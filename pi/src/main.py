@@ -117,6 +117,17 @@ async def serve_test_page() -> FileResponse:
     return FileResponse(test_path)
 
 
+@app.api_route("/admin", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/admin/", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/admin.html", methods=["GET", "HEAD"], include_in_schema=False)
+async def serve_admin_page() -> FileResponse:
+    """Serve the Web Admin Console & Printed Photos Archive."""
+    admin_path = settings.static_dir / "admin.html"
+    if not admin_path.exists():
+        admin_path = settings.static_dir / "index.html"
+    return FileResponse(admin_path)
+
+
 if __name__ == "__main__":
     import uvicorn
 

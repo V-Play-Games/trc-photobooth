@@ -1,12 +1,16 @@
 import asyncio
 import base64
+import logging
 import time
+from pathlib import Path
 from typing import Any
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from src.camera import get_camera, list_video_devices, switch_camera_device
 from src.capture import capture_gif, capture_photo, get_capture_store
 from src.config import settings
+from src.database import get_database
 from src.models import (
+    AdminStatsResponse,
     CameraConfigUpdate,
     CaptureMetadata,
     CaptureTriggerRequest,
@@ -14,6 +18,7 @@ from src.models import (
     PrintResponse,
     PrinterConfigUpdate,
     PrinterStatusResponse,
+    PrintedPhotoRecord,
     SystemStatus,
     SystemStatsResponse,
     VideoDeviceInfo,
@@ -22,6 +27,8 @@ from src.models import (
 from src.printer import get_printer_service
 from src.streamer import get_streamer
 from src.system_info import get_system_stats
+
+logger = logging.getLogger("photobooth.api")
 
 router = APIRouter(prefix="/api", tags=["System"])
 
@@ -404,6 +411,23 @@ async def submit_print_job(
             detail=f"Printing failed: {msg}",
         )
 
+    # Record printed photo into local SQLite database
+    try:
+        db = get_database()
+        printed_data = raw_data if req_image_base64 else (item.data if req_capture_id else (body_bytes if (body_bytes and not is_json) else None))
+        if printed_data:
+            db.record_print(
+                data=printed_data,
+                filename=req_filename,
+                printer_name=req_printer_name,
+                color_mode=req_color_mode,
+                copies=req_copies,
+                job_id=job_id,
+                status="printed",
+            )
+    except Exception as e:
+        logger.error("Failed recording print in SQLite database: %s", e)
+
     return PrintResponse(
         success=True,
         message=msg,
@@ -443,6 +467,21 @@ async def print_capture_by_id(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Printing failed: {msg}",
         )
+
+    # Record printed capture into local SQLite database
+    try:
+        db = get_database()
+        db.record_print(
+            data=item.data,
+            filename=item.filename,
+            printer_name=p_name,
+            color_mode=c_mode,
+            copies=copies,
+            job_id=job_id,
+            status="printed",
+        )
+    except Exception as e:
+        logger.error("Failed recording print in SQLite database: %s", e)
 
     streamer = get_streamer()
     await streamer.broadcast_json({
@@ -530,4 +569,184 @@ async def update_printer_config(config_update: PrinterConfigUpdate) -> dict[str,
         "printer_name": settings.printer_name,
         "color_mode": settings.printer_color_mode,
     }
+
+
+@router.get("/stream/status")
+async def get_stream_status() -> dict[str, Any]:
+    """Return stream pause state."""
+    streamer = get_streamer()
+    return {
+        "is_paused": streamer.is_paused,
+    }
+
+
+@router.post("/stream/pause")
+async def pause_stream() -> dict[str, Any]:
+    """Pause camera capture and streaming on the Pi to reduce CPU and cool down."""
+    streamer = get_streamer()
+    await streamer.pause_stream()
+    return {
+        "is_paused": True,
+        "message": "Camera stream paused (CPU and thermal load reduced)",
+    }
+
+
+@router.post("/stream/resume")
+async def resume_stream() -> dict[str, Any]:
+    """Resume camera capture and streaming on the Pi."""
+    streamer = get_streamer()
+    await streamer.resume_stream()
+    return {
+        "is_paused": False,
+        "message": "Camera stream resumed",
+    }
+
+
+@router.post("/stream/toggle")
+async def toggle_stream() -> dict[str, Any]:
+    """Toggle camera capture and streaming state."""
+    streamer = get_streamer()
+    is_paused = await streamer.toggle_stream()
+    state_desc = "paused" if is_paused else "resumed"
+    return {
+        "is_paused": is_paused,
+        "message": f"Camera stream {state_desc}",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Admin Panel Endpoints (Web Admin & Print Archive)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/admin/printed", response_model=list[PrintedPhotoRecord])
+async def list_printed_photos(limit: int = 100, offset: int = 0) -> list[PrintedPhotoRecord]:
+    """List all printed photos stored in the local SQLite database, newest first."""
+    db = get_database()
+    photos = db.list_photos(limit=limit, offset=offset)
+    return [PrintedPhotoRecord(**p) for p in photos]
+
+
+@router.get("/admin/printed/{photo_id}/image")
+async def get_printed_photo_image(photo_id: int) -> Response:
+    """Serve a printed photo JPEG/PNG file for preview/thumbnail in the admin panel."""
+    db = get_database()
+    record = db.get_photo(photo_id)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Printed photo not found")
+    filepath = Path(record["filepath"])
+    if not filepath.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Printed photo file missing on disk")
+    media_type = "image/png" if filepath.suffix.lower() == ".png" else "image/jpeg"
+    return Response(
+        content=filepath.read_bytes(),
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f"inline; filename={record['filename']}",
+            "Cache-Control": "public, max-age=3600",
+        },
+    )
+
+
+@router.get("/admin/printed/{photo_id}/download")
+async def download_printed_photo(photo_id: int) -> Response:
+    """Download the full printed photo as an attachment."""
+    db = get_database()
+    record = db.get_photo(photo_id)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Printed photo not found")
+    filepath = Path(record["filepath"])
+    if not filepath.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Printed photo file missing on disk")
+    media_type = "image/png" if filepath.suffix.lower() == ".png" else "image/jpeg"
+    return Response(
+        content=filepath.read_bytes(),
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f"attachment; filename={record['filename']}",
+        },
+    )
+
+
+@router.post("/admin/printed/{photo_id}/reprint", response_model=PrintResponse)
+async def reprint_photo(photo_id: int, copies: int = 1) -> PrintResponse:
+    """Re-print an archived photo from the local SQLite database."""
+    db = get_database()
+    record = db.get_photo(photo_id)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Printed photo not found")
+    filepath = Path(record["filepath"])
+    if not filepath.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Printed photo file missing on disk")
+
+    printer = get_printer_service()
+    p_name = record.get("printer_name") or settings.printer_name
+    c_mode = record.get("color_mode") or settings.printer_color_mode
+    success, msg, job_id, cmd = await printer.print_file(
+        filepath=filepath,
+        printer_name=p_name,
+        color_mode=c_mode,
+        copies=copies,
+    )
+    if not success:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Reprint failed: {msg}")
+
+    # Record reprint in database
+    try:
+        db.record_print(
+            data=filepath.read_bytes(),
+            filename=f"reprint_{record['filename']}",
+            printer_name=p_name,
+            color_mode=c_mode,
+            copies=copies,
+            job_id=job_id,
+            status="printed",
+        )
+    except Exception as e:
+        logger.error("Failed recording reprint: %s", e)
+
+    return PrintResponse(
+        success=True,
+        message=f"Reprint submitted successfully: {msg}",
+        job_id=job_id,
+        printer=p_name,
+        command=cmd,
+    )
+
+
+@router.delete("/admin/printed/{photo_id}")
+async def delete_printed_photo(photo_id: int) -> dict[str, Any]:
+    """Delete a printed photo record and file from the Pi."""
+    db = get_database()
+    if not db.delete_photo(photo_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Printed photo not found")
+    return {"success": True, "message": f"Printed photo #{photo_id} deleted"}
+
+
+@router.get("/admin/stats", response_model=AdminStatsResponse)
+async def get_admin_stats() -> AdminStatsResponse:
+    """Return aggregated admin dashboard statistics including SQLite print count and live hardware telemetry."""
+    db = get_database()
+    db_stats = db.get_stats()
+    sys_stats = get_system_stats()
+    streamer = get_streamer()
+    printer = get_printer_service()
+    p_status = await printer.get_status()
+
+    return AdminStatsResponse(
+        total_printed=db_stats["total_printed"],
+        today_printed=db_stats["today_printed"],
+        total_copies=db_stats["total_copies"],
+        total_size_bytes=db_stats["total_size_bytes"],
+        total_size_mb=db_stats["total_size_mb"],
+        cpu_temp_c=sys_stats.cpu_temp_c,
+        cpu_percent=sys_stats.cpu_percent,
+        memory_percent=sys_stats.memory.percent,
+        memory_used_mb=sys_stats.memory.used_mb,
+        memory_total_mb=sys_stats.memory.total_mb,
+        printer_name=settings.printer_name,
+        printer_ready=p_status.get("is_ready", True),
+        is_stream_paused=streamer.is_paused,
+    )
+
 

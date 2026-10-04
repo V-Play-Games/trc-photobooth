@@ -96,9 +96,11 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
     val printerName: StateFlow<String> = repository.printerName
     val printerColorMode: StateFlow<String> = repository.printerColorMode
     val printerCopies: StateFlow<Int> = repository.printerCopies
+    val isStreamPaused: StateFlow<Boolean> = repository.isStreamPaused
 
     fun setHost(host: String) = repository.setHost(host)
     fun startNsdSearch() = networkDiscovery.startDiscovery()
+    fun toggleStreamPause() = repository.toggleStreamPause()
     fun toggleFlip() {
         val current = cameraConfig.value.flipHorizontal ?: false
         repository.toggleFlip(!current)

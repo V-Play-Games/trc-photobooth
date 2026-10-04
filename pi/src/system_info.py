@@ -133,6 +133,9 @@ class SystemMonitor:
         except Exception:
             pass
 
+        if settings.mock_camera or settings.mock_printer:
+            return 48.2
+
         return None
 
     def get_memory(self) -> MemoryStats:
