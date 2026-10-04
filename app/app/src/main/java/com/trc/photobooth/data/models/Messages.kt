@@ -6,7 +6,8 @@ import kotlinx.serialization.Serializable
 enum class ConnectionStatus {
     CONNECTED,
     CONNECTING,
-    DISCONNECTED
+    DISCONNECTED,
+    ERROR
 }
 
 enum class CaptureType {

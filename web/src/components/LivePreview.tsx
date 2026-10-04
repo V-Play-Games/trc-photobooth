@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { Camera, Film } from 'lucide-react'
+import { Camera, CameraOff, Film } from 'lucide-react'
 import { FILTER_PRESETS } from '../filters/presets'
 import type { FilterId, GifRecordingState } from '../types'
 
@@ -11,6 +11,8 @@ interface LivePreviewProps {
   fps: number
   resolution: string
   isConnected: boolean
+  isStreamPaused?: boolean
+  onResumeStream?: () => void
   gifRecording: GifRecordingState | null
 }
 
@@ -22,6 +24,8 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
   fps,
   resolution,
   isConnected,
+  isStreamPaused = false,
+  onResumeStream,
   gifRecording,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -72,8 +76,33 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
           </div>
         )}
 
-        {/* Offline / No Stream Placeholder */}
-        {(!isConnected || !lastFrameBitmap) && (
+        {/* Camera Off / Standby Mode Overlay */}
+        {isConnected && isStreamPaused && (
+          <div className="camera-standby-overlay">
+            <div className="camera-standby-card">
+              <div className="camera-standby-icon-wrapper">
+                <CameraOff size={36} />
+              </div>
+              <h3 className="camera-standby-title">Camera is OFF</h3>
+              <p className="camera-standby-hint">
+                The camera is kept off by default to conserve energy and reduce heat. Turn it on when you're ready to use the booth.
+              </p>
+              {onResumeStream && (
+                <button
+                  type="button"
+                  onClick={onResumeStream}
+                  className="camera-standby-btn"
+                >
+                  <Camera size={18} />
+                  <span>TURN CAMERA ON</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Offline / Connecting Placeholder (when not paused) */}
+        {!isStreamPaused && (!isConnected || !lastFrameBitmap) && (
           <div className="preview-offline-backdrop">
             <div className="offline-card">
               <div className="lens-aperture-spinner">

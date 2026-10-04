@@ -267,25 +267,51 @@ object BitmapUtils {
 
     const val STRIP_WIDTH_PX = 877
     const val STRIP_HEIGHT_PX = 2480
-
     const val PHOTO_WIDTH_PX = 749f
     const val PHOTO_HEIGHT_PX = 562f
     const val MARGIN_X_PX = 64f
     const val MARGIN_TOP_PX = 44f
     const val GAP_Y_PX = 48f
 
+    const val TEMPLATE_WIDTH_PX = 721
+    const val TEMPLATE_HEIGHT_PX = 1024
+
+    data class FrameBox(val left: Float, val top: Float, val right: Float, val bottom: Float) {
+        val width: Float get() = right - left
+        val height: Float get() = bottom - top
+    }
+
     /**
-     * Creates a 1x4 vertical photo strip strictly of 210 mm x 74.25 mm (877x2480 px at 300 DPI).
-     * The 4 captured photos are arranged vertically in a single column with clean white padding
-     * between images and around the borders.
+     * Exact coordinates of the 4 photo frames within the 721x1024 template canvas.
      */
-    fun createCollage(
+    val FRAME_BOXES = listOf(
+        FrameBox(30f, 23f, 335f, 248f),
+        FrameBox(30f, 269f, 335f, 494f),
+        FrameBox(30f, 514f, 335f, 739f),
+        FrameBox(30f, 758f, 335f, 983f),
+    )
+
+    /**
+     * Decodes a template overlay bitmap with exact pixel resolution without density scaling.
+     */
+    fun loadTemplateBitmap(context: Context, @androidx.annotation.DrawableRes resId: Int): Bitmap {
+        val options = BitmapFactory.Options().apply {
+            inScaled = false
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        return BitmapFactory.decodeResource(context.resources, resId, options)
+    }
+
+    /**
+     * Creates a composite photo collage fitting photos into the 4 frames on the 721x1024 template canvas.
+     * The background is white, each photo is center-cropped to fit the frame dimensions perfectly,
+     * and the template overlay (borders, stickers, characters) is composited on top.
+     */
+    fun createThemedCollage(
         photos: List<Bitmap>,
-        sessionTimestamp: String = "",
-        title: String = "TRC PHOTO BOOTH"
+        templateOverlay: Bitmap?,
     ): Bitmap {
-        val collage = Bitmap.createBitmap(STRIP_WIDTH_PX, STRIP_HEIGHT_PX, Bitmap.Config.ARGB_8888)
-        collage.density = PRINT_DPI
+        val collage = Bitmap.createBitmap(TEMPLATE_WIDTH_PX, TEMPLATE_HEIGHT_PX, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(collage)
         canvas.drawColor(Color.WHITE)
 
@@ -296,14 +322,14 @@ object BitmapUtils {
         }
 
         for (i in 0 until 4) {
-            val y = MARGIN_TOP_PX + i * (PHOTO_HEIGHT_PX + GAP_Y_PX)
-            val dstRect = RectF(MARGIN_X_PX, y, MARGIN_X_PX + PHOTO_WIDTH_PX, y + PHOTO_HEIGHT_PX)
+            val box = FRAME_BOXES.getOrElse(i) { FRAME_BOXES[0] }
+            val dstRect = RectF(box.left, box.top, box.right, box.bottom)
             val photo = photos.getOrNull(i)
             if (photo != null) {
                 // Center-crop source photo into cell
                 val srcW = photo.width
                 val srcH = photo.height
-                val targetRatio = PHOTO_WIDTH_PX / PHOTO_HEIGHT_PX
+                val targetRatio = box.width / box.height
                 val srcRatio = srcW.toFloat() / srcH.toFloat()
 
                 val srcCrop = if (srcRatio > targetRatio) {
@@ -322,16 +348,39 @@ object BitmapUtils {
             }
         }
 
+        if (templateOverlay != null) {
+            val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            if (templateOverlay.width == TEMPLATE_WIDTH_PX && templateOverlay.height == TEMPLATE_HEIGHT_PX) {
+                canvas.drawBitmap(templateOverlay, 0f, 0f, overlayPaint)
+            } else {
+                val dst = RectF(0f, 0f, TEMPLATE_WIDTH_PX.toFloat(), TEMPLATE_HEIGHT_PX.toFloat())
+                canvas.drawBitmap(templateOverlay, null, dst, overlayPaint)
+            }
+        }
+
         return collage
     }
 
     /**
-     * Saves the 1x4 photo strip bitmap to the session directory in Pictures.
+     * Backward-compatible collage creation.
+     */
+    fun createCollage(
+        photos: List<Bitmap>,
+        sessionTimestamp: String = "",
+        title: String = "TRC PHOTO BOOTH",
+        templateOverlay: Bitmap? = null,
+    ): Bitmap {
+        return createThemedCollage(photos, templateOverlay)
+    }
+
+    /**
+     * Saves the photo strip bitmap to the session directory in Pictures.
      */
     fun saveCollage(
         context: Context,
         collageBitmap: Bitmap,
         sessionTimestamp: String,
+        fileName: String = "photo_collage_grid.jpg",
     ): File? {
         val baseDir = File(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
@@ -341,7 +390,7 @@ object BitmapUtils {
             baseDir.mkdirs()
         }
 
-        val collageFile = File(baseDir, "photo_collage_grid.jpg")
+        val collageFile = File(baseDir, fileName)
         return try {
             FileOutputStream(collageFile).use { out ->
                 collageBitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
@@ -350,7 +399,7 @@ object BitmapUtils {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val values = ContentValues().apply {
-                    put(MediaStore.Images.Media.DISPLAY_NAME, "photo_collage_grid.jpg")
+                    put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
                     put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
                     put(
                         MediaStore.Images.Media.RELATIVE_PATH,

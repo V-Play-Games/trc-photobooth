@@ -27,6 +27,7 @@ import java.util.Date
 import java.util.Locale
 
 import com.trc.photobooth.data.models.CameraConfig
+import com.trc.photobooth.data.models.PhotoBoothTemplate
 import com.trc.photobooth.data.models.SystemStats
 import com.trc.photobooth.util.NetworkDiscovery
 
@@ -38,9 +39,9 @@ enum class BoothState {
 
 sealed interface BoothUploadState {
     data object Idle : BoothUploadState
-    data class Generating(val message: String = "Creating 2x2 collage...") : BoothUploadState
-    data class Uploading(val message: String = "Uploading collage to Cloudinary...") : BoothUploadState
-    data class Success(val url: String) : BoothUploadState
+    data class Generating(val message: String = "Preparing photo strip...") : BoothUploadState
+    data class Uploading(val message: String = "Uploading photo strips to Cloudinary...") : BoothUploadState
+    data class Success(val url: String, val blankUrl: String = url) : BoothUploadState
     data class Error(val error: String) : BoothUploadState
 }
 
@@ -173,19 +174,36 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
     private val _sessionTimestamp = MutableStateFlow<String?>(null)
     val sessionTimestamp: StateFlow<String?> = _sessionTimestamp.asStateFlow()
 
-    // 2x2 Composite Collage
+    // Selected frame template
+    private val _selectedTemplate = MutableStateFlow<PhotoBoothTemplate>(PhotoBoothTemplate.DEFAULT)
+    val selectedTemplate: StateFlow<PhotoBoothTemplate> = _selectedTemplate.asStateFlow()
+
+    // 1x4 Composite Collage (Themed)
     private val _collageBitmap = MutableStateFlow<Bitmap?>(null)
     val collageBitmap: StateFlow<Bitmap?> = _collageBitmap.asStateFlow()
 
     private val _collageFile = MutableStateFlow<File?>(null)
     val collageFile: StateFlow<File?> = _collageFile.asStateFlow()
 
-    // Cloudinary URL and QR Code
+    // 1x4 Composite Collage (Blank / Classic)
+    private val _blankCollageBitmap = MutableStateFlow<Bitmap?>(null)
+    val blankCollageBitmap: StateFlow<Bitmap?> = _blankCollageBitmap.asStateFlow()
+
+    private val _blankCollageFile = MutableStateFlow<File?>(null)
+    val blankCollageFile: StateFlow<File?> = _blankCollageFile.asStateFlow()
+
+    // Cloudinary URLs and QR Codes for both
     private val _cloudinaryUrl = MutableStateFlow<String?>(null)
     val cloudinaryUrl: StateFlow<String?> = _cloudinaryUrl.asStateFlow()
 
+    private val _blankCloudinaryUrl = MutableStateFlow<String?>(null)
+    val blankCloudinaryUrl: StateFlow<String?> = _blankCloudinaryUrl.asStateFlow()
+
     private val _qrCodeBitmap = MutableStateFlow<Bitmap?>(null)
     val qrCodeBitmap: StateFlow<Bitmap?> = _qrCodeBitmap.asStateFlow()
+
+    private val _blankQrCodeBitmap = MutableStateFlow<Bitmap?>(null)
+    val blankQrCodeBitmap: StateFlow<Bitmap?> = _blankQrCodeBitmap.asStateFlow()
 
     private val _uploadState = MutableStateFlow<BoothUploadState>(BoothUploadState.Idle)
     val uploadState: StateFlow<BoothUploadState> = _uploadState.asStateFlow()
@@ -313,7 +331,7 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
 
             // 5. Sequence complete! Auto-save all 4 photos to directory
             hapticHelper.captureComplete()
-            repository.logAction("All 4 photos clicked! Assembling 1x4 photo strip...", com.trc.photobooth.data.LogType.CAPTURE)
+            repository.logAction("All 4 photos clicked! Generating photo strip previews...", com.trc.photobooth.data.LogType.CAPTURE)
             val timestamp = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(Date())
             _sessionTimestamp.value = timestamp
 
@@ -326,20 +344,72 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
             _savedSessionFiles.value = files
             _boothState.value = BoothState.COMPLETE
 
-            // 6. Generate 1x4 photo strip (210 mm x 74.25 mm)
-            _uploadState.value = BoothUploadState.Generating("Creating 1x4 photo strip...")
-            val collage = BitmapUtils.createCollage(captures, timestamp)
-            _collageBitmap.value = collage
-            val cFile = BitmapUtils.saveCollage(getApplication(), collage, timestamp)
+            // 6. Generate Preview Collages (Themed + Blank) — show preview first, do not upload yet!
+            _uploadState.value = BoothUploadState.Idle
+            val defaultTpl = _selectedTemplate.value
+            val themedTplOverlay = BitmapUtils.loadTemplateBitmap(getApplication(), defaultTpl.drawableResId)
+            val themedCollage = BitmapUtils.createThemedCollage(captures, themedTplOverlay)
+            _collageBitmap.value = themedCollage
+            val cFile = BitmapUtils.saveCollage(getApplication(), themedCollage, timestamp, "collage_${defaultTpl.id}_${timestamp}.jpg")
             _collageFile.value = cFile
-            repository.logAction("Photo strip ready & saved: collage_${timestamp}.jpg", com.trc.photobooth.data.LogType.COMPLETE)
 
-            // 7. Upload photo strip to Cloudinary & Generate QR code
-            uploadCollageInternal(collage, timestamp)
+            val blankTplOverlay = BitmapUtils.loadTemplateBitmap(getApplication(), PhotoBoothTemplate.BLANK.drawableResId)
+            val blankCollage = BitmapUtils.createThemedCollage(captures, blankTplOverlay)
+            _blankCollageBitmap.value = blankCollage
+            val bFile = BitmapUtils.saveCollage(getApplication(), blankCollage, timestamp, "collage_blank_${timestamp}.jpg")
+            _blankCollageFile.value = bFile
+
+            repository.logAction("Photo strip preview ready! Select template to preview and upload.", com.trc.photobooth.data.LogType.COMPLETE)
         }
     }
 
-    private fun uploadCollageInternal(collage: Bitmap, timestamp: String) {
+    /**
+     * Updates the selected template and immediately refreshes the collage preview.
+     */
+    fun selectTemplate(template: PhotoBoothTemplate) {
+        if (_selectedTemplate.value == template) return
+        _selectedTemplate.value = template
+        hapticHelper.tick()
+
+        val photos = _capturedPhotos.value.filterNotNull()
+        val ts = _sessionTimestamp.value
+        if (photos.size >= 4 && ts != null) {
+            val tplOverlay = BitmapUtils.loadTemplateBitmap(getApplication(), template.drawableResId)
+            val themedCollage = BitmapUtils.createThemedCollage(photos, tplOverlay)
+            _collageBitmap.value = themedCollage
+            val cFile = BitmapUtils.saveCollage(getApplication(), themedCollage, ts, "collage_${template.id}_${ts}.jpg")
+            _collageFile.value = cFile
+            repository.logAction("Template selected: ${template.title}", com.trc.photobooth.data.LogType.INFO)
+
+            // If user previously uploaded and changes selection, reset upload state so they can re-upload
+            if (_uploadState.value is BoothUploadState.Success) {
+                _uploadState.value = BoothUploadState.Idle
+                _cloudinaryUrl.value = null
+                _blankCloudinaryUrl.value = null
+                _qrCodeBitmap.value = null
+                _blankQrCodeBitmap.value = null
+            }
+        }
+    }
+
+    /**
+     * Uploads both the selected themed photo strip and the blank template strip to Cloudinary,
+     * generating QR codes for both.
+     */
+    fun uploadCollages() {
+        val themedCollage = _collageBitmap.value
+        val blankCollage = _blankCollageBitmap.value
+        val ts = _sessionTimestamp.value
+        val template = _selectedTemplate.value
+
+        if (themedCollage == null || blankCollage == null || ts == null) {
+            viewModelScope.launch {
+                _toastMessage.emit("Preview not ready yet")
+            }
+            return
+        }
+        if (_uploadState.value is BoothUploadState.Uploading) return
+
         viewModelScope.launch {
             val config = CloudinaryConfig.fromBuildConfig()
             if (!config.isConfigured) {
@@ -349,38 +419,58 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
                 return@launch
             }
 
-            _uploadState.value = BoothUploadState.Uploading("Uploading photo strip to Cloudinary...")
-            val result = CloudinaryUploader.uploadBitmap(
-                bitmap = collage,
-                fileName = "collage_${timestamp}.jpg",
-                folder = "trc-photobooth/sessions/$timestamp",
+            _uploadState.value = BoothUploadState.Uploading("Uploading photo strips to Cloudinary...")
+
+            // 1. Upload selected themed collage
+            val themedResult = CloudinaryUploader.uploadBitmap(
+                bitmap = themedCollage,
+                fileName = "collage_${template.id}_${ts}.jpg",
+                folder = "trc-photobooth/sessions/$ts",
                 config = config,
             )
 
-            result.fold(
-                onSuccess = { url ->
-                    _cloudinaryUrl.value = url
-                    val qr = BitmapUtils.generateQrCodeBitmap(url, 512)
-                    _qrCodeBitmap.value = qr
-                    _uploadState.value = BoothUploadState.Success(url)
-                    _toastMessage.emit("Photo strip uploaded! Scan QR Code 📱")
-                },
-                onFailure = { err ->
-                    val msg = err.message ?: "Upload failed"
-                    _uploadState.value = BoothUploadState.Error(msg)
-                    _toastMessage.emit("Cloudinary upload failed: $msg")
-                }
-            )
+            // 2. Upload blank template collage as well
+            val blankResult = if (template == PhotoBoothTemplate.BLANK && themedResult.isSuccess) {
+                themedResult
+            } else {
+                CloudinaryUploader.uploadBitmap(
+                    bitmap = blankCollage,
+                    fileName = "collage_blank_${ts}.jpg",
+                    folder = "trc-photobooth/sessions/$ts",
+                    config = config,
+                )
+            }
+
+            if (themedResult.isSuccess && blankResult.isSuccess) {
+                val themedUrl = themedResult.getOrThrow()
+                val blankUrl = blankResult.getOrThrow()
+
+                _cloudinaryUrl.value = themedUrl
+                _blankCloudinaryUrl.value = blankUrl
+
+                val themedQr = BitmapUtils.generateQrCodeBitmap(themedUrl, 512)
+                val blankQr = BitmapUtils.generateQrCodeBitmap(blankUrl, 512)
+
+                _qrCodeBitmap.value = themedQr
+                _blankQrCodeBitmap.value = blankQr
+
+                _uploadState.value = BoothUploadState.Success(url = themedUrl, blankUrl = blankUrl)
+                hapticHelper.captureComplete()
+                _toastMessage.emit("Photo strips uploaded! Scan QR Codes 📱")
+            } else {
+                val error = themedResult.exceptionOrNull() ?: blankResult.exceptionOrNull()
+                val msg = error?.message ?: "Upload failed"
+                _uploadState.value = BoothUploadState.Error(msg)
+                _toastMessage.emit("Cloudinary upload failed: $msg")
+            }
         }
     }
 
     /**
-     * Retry uploading the collage if it failed or was offline.
+     * Retry uploading the collages if it failed or was offline.
      */
     fun retryUpload() {
-        val collage = _collageBitmap.value ?: return
-        val ts = _sessionTimestamp.value ?: return
-        uploadCollageInternal(collage, ts)
+        uploadCollages()
     }
 
     /**
@@ -430,11 +520,16 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
         _savedSessionFiles.value = emptyList()
         _sessionTimestamp.value = null
         _collageBitmap.value = null
+        _blankCollageBitmap.value = null
         _collageFile.value = null
+        _blankCollageFile.value = null
         _cloudinaryUrl.value = null
+        _blankCloudinaryUrl.value = null
         _qrCodeBitmap.value = null
+        _blankQrCodeBitmap.value = null
         _uploadState.value = BoothUploadState.Idle
         _printState.value = PrintState.Idle
+        _selectedTemplate.value = PhotoBoothTemplate.DEFAULT
         _boothState.value = BoothState.IDLE
         repository.logAction("Booth reset to IDLE, ready for next session", com.trc.photobooth.data.LogType.STATUS)
         if (_selectedFilter.value.id != FilterPresets.RANDOM.id) {

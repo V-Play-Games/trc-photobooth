@@ -42,12 +42,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # 2. Start camera and streamer
     logger.info("Selected camera backend: %s (is_mock=%s)", cam.backend_name, cam.is_mock)
     await streamer.start()
-    logger.info(
-        "Live feed ready at ws://%s:%d/ws/feed (target %dfps)",
-        settings.host,
-        settings.port,
-        settings.preview_fps,
-    )
+    if streamer.is_paused:
+        logger.info("Camera is OFF by default (standby mode). It will turn ON upon client request.")
+    else:
+        logger.info(
+            "Live feed ready at ws://%s:%d/ws/feed (target %dfps)",
+            settings.host,
+            settings.port,
+            settings.preview_fps,
+        )
 
     # 3. Start local network mDNS discovery service
     advertiser.start()

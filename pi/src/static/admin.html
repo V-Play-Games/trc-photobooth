@@ -1378,6 +1378,7 @@
         feedPlaceholder.style.display = "none";
         feedImage.style.display = "block";
         feedTelemetry.style.display = "flex";
+        fetch("/api/stream/resume", { method: "POST" }).catch(() => {});
         startFeedWebSocket();
         showToast("Live Camera Stream Connected", "📷");
       } else {
@@ -1399,9 +1400,28 @@
       const wsUrl = `${protocol}//${window.location.host}/ws/feed`;
 
       feedWebSocket = new WebSocket(wsUrl);
-      feedWebSocket.binaryType = "blob";
 
       feedWebSocket.onmessage = (event) => {
+        if (typeof event.data === "string") {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === "stream_status") {
+              if (msg.is_paused) {
+                streamStateBadge.style.color = "var(--accent-gold)";
+                streamStateBadge.style.borderColor = "rgba(255, 183, 3, 0.4)";
+                streamStateText.textContent = "STREAM: PAUSED (COOLING)";
+                btnTogglePiStream.textContent = "▶️ Resume Pi Stream";
+              } else {
+                streamStateBadge.style.color = "var(--accent-cyan)";
+                streamStateBadge.style.borderColor = "rgba(0, 240, 255, 0.3)";
+                streamStateText.textContent = "STREAM: LIVE";
+                btnTogglePiStream.textContent = "⏸️ Pause Pi Stream";
+              }
+            }
+          } catch {}
+          return;
+        }
+
         if (event.data instanceof Blob) {
           const url = URL.createObjectURL(event.data);
           const oldUrl = feedImage.src;

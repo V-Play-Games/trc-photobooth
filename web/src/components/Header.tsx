@@ -1,6 +1,6 @@
-import React from 'react'
 import {
   Camera,
+  CameraOff,
   Grid,
   FlipHorizontal,
   Images,
@@ -23,6 +23,8 @@ interface HeaderProps {
   isFlipped: boolean
   isSoundActive: boolean
   isFullscreen: boolean
+  isStreamPaused?: boolean
+  onToggleStream?: () => void
   onToggleGuides: () => void
   onToggleFlip: () => void
   onToggleSound: () => void
@@ -42,6 +44,8 @@ export const Header: React.FC<HeaderProps> = ({
   isFlipped,
   isSoundActive,
   isFullscreen,
+  isStreamPaused = false,
+  onToggleStream,
   onToggleGuides,
   onToggleFlip,
   onToggleSound,
@@ -103,6 +107,32 @@ export const Header: React.FC<HeaderProps> = ({
             </>
           )}
         </button>
+
+        {/* Camera On / Off Stream Control */}
+        {isConnected && onToggleStream && (
+          <button
+            type="button"
+            onClick={onToggleStream}
+            className={`camera-stream-toggle-pill ${isStreamPaused ? 'stream-off' : 'stream-on'}`}
+            title={
+              isStreamPaused
+                ? 'Camera is currently OFF. Click to turn ON.'
+                : 'Camera is currently LIVE. Click to turn OFF (conserve heat & power).'
+            }
+          >
+            {isStreamPaused ? (
+              <>
+                <CameraOff size={14} />
+                <span className="stream-label">CAM OFF</span>
+              </>
+            ) : (
+              <>
+                <Camera size={14} />
+                <span className="stream-label">CAM LIVE</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       <div className="header-right">

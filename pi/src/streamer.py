@@ -59,6 +59,8 @@ class Streamer:
         self._capturing_lock = asyncio.Lock()
         self._base_quality = settings.preview_quality
         self._is_degraded = False
+        if settings.camera_default_off:
+            self.camera.pause()
 
     @property
     def is_paused(self) -> bool:
@@ -106,6 +108,9 @@ class Streamer:
         if self._capturing_lock.locked():
             logger.warning("Capture request ignored: capture or countdown already active")
             return
+
+        if self.is_paused:
+            await self.resume_stream()
 
         from src.gpio_status import LedState, get_gpio_indicator
         gpio = get_gpio_indicator()
@@ -441,11 +446,11 @@ class Streamer:
                                         "device_path": f"/dev/video{settings.webcam_device}",
                                         "available_devices": devices,
                                     })
-                                elif action in ("pause_stream", "pause"):
+                                elif action in ("pause_stream", "pause", "turn_off_camera", "camera_off"):
                                     await self.pause_stream()
-                                elif action in ("resume_stream", "resume"):
+                                elif action in ("resume_stream", "resume", "turn_on_camera", "camera_on", "request_camera", "start_stream"):
                                     await self.resume_stream()
-                                elif action in ("toggle_pause", "toggle_stream"):
+                                elif action in ("toggle_pause", "toggle_stream", "toggle_camera"):
                                     await self.toggle_stream()
                                 elif action in ("get_stream_status", "stream_status"):
                                     await websocket.send_json({

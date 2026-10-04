@@ -59,6 +59,7 @@ export interface SystemStatus {
   uptime_seconds: number
   swap_rb: boolean
   flip_horizontal: boolean
+  is_stream_paused?: boolean
   webcam_device?: number
   device_path?: string
   available_devices?: VideoDevice[]

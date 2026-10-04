@@ -170,7 +170,7 @@ class WebSocketClient(
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 Log.w(tag, "WebSocket failure: ${t.message}")
-                _status.value = ConnectionStatus.DISCONNECTED
+                _status.value = ConnectionStatus.ERROR
                 scheduleReconnect()
             }
         })

@@ -142,6 +142,9 @@ export function App() {
     gifRecording,
     cameraConfig,
     systemStats,
+    isStreamPaused,
+    resumeStream,
+    toggleStream,
     triggerPhoto,
     triggerGif,
     setFpsSetting,
@@ -160,6 +163,9 @@ export function App() {
   })
 
   const handleTriggerCapture = () => {
+    if (isStreamPaused) {
+      resumeStream()
+    }
     if (countdownSetting === 0) {
       playShutterSound()
     }
@@ -206,6 +212,8 @@ export function App() {
           lastFrameBitmap={lastFrameBitmap}
           isConnected={status === 'connected'}
           isFlipped={isFlipped}
+          isStreamPaused={isStreamPaused}
+          onResumeStream={resumeStream}
           onBackToAdmin={() => setAppMode('admin')}
           onShowToast={showToast}
         />
@@ -232,6 +240,8 @@ export function App() {
         isFlipped={isFlipped}
         isSoundActive={isSoundActive}
         isFullscreen={isFullscreen}
+        isStreamPaused={isStreamPaused}
+        onToggleStream={toggleStream}
         onToggleGuides={() => setShowGuides((prev) => !prev)}
         onToggleFlip={handleToggleFlip}
         onToggleSound={handleToggleSound}
@@ -274,6 +284,8 @@ export function App() {
               : ''
           }
           isConnected={status === 'connected'}
+          isStreamPaused={isStreamPaused}
+          onResumeStream={resumeStream}
           gifRecording={gifRecording}
         />
       </main>

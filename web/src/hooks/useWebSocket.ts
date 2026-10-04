@@ -28,6 +28,7 @@ export function useWebSocket({
   const [gifRecording, setGifRecording] = useState<GifRecordingState | null>(null)
   const [cameraConfig, setCameraConfig] = useState<Partial<CameraConfig>>({})
   const [systemStats, setSystemStats] = useState<SystemStats | null>(null)
+  const [isStreamPaused, setIsStreamPaused] = useState<boolean>(true)
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -82,6 +83,7 @@ export function useWebSocket({
           ws.send('ping')
           ws.send(JSON.stringify({ action: 'get_system_stats' }))
           ws.send(JSON.stringify({ action: 'get_devices' }))
+          ws.send(JSON.stringify({ action: 'get_stream_status' }))
         } catch {
           // Ignore
         }
@@ -174,6 +176,8 @@ export function useWebSocket({
               if (msg.data) {
                 setSystemStats(msg.data)
               }
+            } else if (type === 'stream_status') {
+              setIsStreamPaused(Boolean(msg.is_paused))
             }
           } catch {
             // Ignore non-json text
@@ -326,6 +330,21 @@ export function useWebSocket({
     return sendCommand({ action: 'get_devices' })
   }, [sendCommand])
 
+  const resumeStream = useCallback(() => {
+    setIsStreamPaused(false)
+    return sendCommand({ action: 'resume_stream' })
+  }, [sendCommand])
+
+  const pauseStream = useCallback(() => {
+    setIsStreamPaused(true)
+    return sendCommand({ action: 'pause_stream' })
+  }, [sendCommand])
+
+  const toggleStream = useCallback(() => {
+    setIsStreamPaused((prev) => !prev)
+    return sendCommand({ action: 'toggle_pause' })
+  }, [sendCommand])
+
   return {
     status,
     fps,
@@ -335,6 +354,10 @@ export function useWebSocket({
     gifRecording,
     cameraConfig,
     systemStats,
+    isStreamPaused,
+    resumeStream,
+    pauseStream,
+    toggleStream,
     triggerPhoto,
     triggerGif,
     setFpsSetting,

@@ -33,6 +33,7 @@ class SystemStatus(BaseModel):
     webcam_device: int = 0
     device_path: str = "/dev/video0"
     available_devices: list[VideoDeviceInfo] = Field(default_factory=list)
+    is_stream_paused: bool = False
 
 
 class MemoryStats(BaseModel):

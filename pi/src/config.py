@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     captures_dir: Path = Path(__file__).resolve().parent.parent / "captures"
 
     # Performance & Power Management (Phase 5)
+    camera_default_off: bool = True  # Keep camera sensor and capture loop off by default on server boot
     idle_fps: int = 2  # Throttled FPS when 0 clients are connected to save Pi CPU/temp
     adaptive_quality: bool = True  # Dynamically adapt quality when client load changes
 

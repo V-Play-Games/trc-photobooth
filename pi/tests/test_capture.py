@@ -178,7 +178,9 @@ def test_websocket_capture_and_countdown(client: TestClient) -> None:
         while time.time() - start < timeout:
             raw = ws.receive()
             if "text" in raw:
-                return json.loads(raw["text"])
+                data = json.loads(raw["text"])
+                if data.get("type") != "stream_status":
+                    return data
         raise TimeoutError("Timed out waiting for JSON text frame")
 
     with client.websocket_connect("/ws/feed") as ws:

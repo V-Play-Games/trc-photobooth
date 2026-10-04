@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
 import {
   Camera,
+  CameraOff,
   CheckCircle,
   Download,
   FolderDown,
@@ -29,6 +30,8 @@ interface BoothViewProps {
   lastFrameBitmap: ImageBitmap | null
   isConnected: boolean
   isFlipped: boolean
+  isStreamPaused?: boolean
+  onResumeStream?: () => void
   onBackToAdmin?: () => void
   onShowToast: (msg: string) => void
 }
@@ -37,6 +40,8 @@ export const BoothView: React.FC<BoothViewProps> = ({
   lastFrameBitmap,
   isConnected,
   isFlipped,
+  isStreamPaused = false,
+  onResumeStream,
   onShowToast,
 }) => {
   const [phase, setPhase] = useState<BoothPhase>('idle')
@@ -101,6 +106,18 @@ export const BoothView: React.FC<BoothViewProps> = ({
   // Start the automated unstoppable 4-photo capture sequence
   const startSession = async () => {
     if (phase !== 'idle') return
+
+    if (isStreamPaused) {
+      if (onResumeStream) {
+        onResumeStream()
+        onShowToast('Waking camera up from standby...')
+      }
+      const startTime = Date.now()
+      while (!lastFrameBitmapRef.current && Date.now() - startTime < 3500) {
+        await new Promise((r) => setTimeout(r, 100))
+      }
+    }
+
     if (!isConnected || !lastFrameBitmapRef.current) {
       onShowToast('Camera feed is not ready. Please wait a moment.')
       return
@@ -415,12 +432,13 @@ export const BoothView: React.FC<BoothViewProps> = ({
             {/* Big Start Button */}
             <button
               type="button"
-              className="booth-start-btn"
+              className={`booth-start-btn ${isStreamPaused ? 'standby-btn' : ''}`}
               disabled={!isConnected}
               onClick={startSession}
+              title={isStreamPaused ? 'Camera is currently off. Click to wake camera and begin photo session.' : 'Start 4-quadrant photo booth session'}
             >
-              <Camera size={18} />
-              <span>START PHOTO BOOTH</span>
+              {isStreamPaused ? <CameraOff size={18} /> : <Camera size={18} />}
+              <span>{isStreamPaused ? 'TURN ON CAM & START' : 'START PHOTO BOOTH'}</span>
             </button>
           </div>
         </footer>

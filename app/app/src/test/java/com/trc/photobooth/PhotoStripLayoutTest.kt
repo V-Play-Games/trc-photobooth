@@ -49,4 +49,37 @@ class PhotoStripLayoutTest {
         val cellRatio = BitmapUtils.PHOTO_WIDTH_PX / BitmapUtils.PHOTO_HEIGHT_PX
         assertTrue(cellRatio in 1.33f..1.34f)
     }
+
+    @Test
+    fun template_dimensionsMatchOriginalSpecifications() {
+        assertEquals(721, BitmapUtils.TEMPLATE_WIDTH_PX)
+        assertEquals(1024, BitmapUtils.TEMPLATE_HEIGHT_PX)
+        assertEquals(4, BitmapUtils.FRAME_BOXES.size)
+
+        for (box in BitmapUtils.FRAME_BOXES) {
+            assertEquals(305f, box.width, 0.01f)
+            assertEquals(225f, box.height, 0.01f)
+            assertTrue("Box must be within the left strip (x < 360)", box.right <= 360f)
+            assertTrue("Box must be within canvas height", box.bottom <= 1024f)
+        }
+    }
+
+    @Test
+    fun photoBoothTemplate_enumContainsAllThemes() {
+        val templates = com.trc.photobooth.data.models.PhotoBoothTemplate.ALL
+        assertEquals(5, templates.size)
+
+        val ids = templates.map { it.id }.toSet()
+        assertTrue(ids.containsAll(listOf("blank", "harry_potter", "retro", "spiderman", "pokemon")))
+
+        assertEquals(
+            com.trc.photobooth.data.models.PhotoBoothTemplate.HARRY_POTTER,
+            com.trc.photobooth.data.models.PhotoBoothTemplate.fromId("harry_potter")
+        )
+        assertEquals(
+            com.trc.photobooth.data.models.PhotoBoothTemplate.DEFAULT,
+            com.trc.photobooth.data.models.PhotoBoothTemplate.fromId("unknown_id")
+        )
+    }
 }
+

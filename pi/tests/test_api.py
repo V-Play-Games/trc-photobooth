@@ -107,6 +107,18 @@ def test_websocket_feed_streaming(client: TestClient) -> None:
                     return json.loads(msg["text"])
             raise TimeoutError("No JSON response received on WebSocket")
 
+        # Query current stream status
+        websocket.send_text('{"action": "get_stream_status"}')
+        init_status = receive_next_json()
+        assert init_status["type"] == "stream_status"
+        assert init_status["is_paused"] is True
+
+        # Request camera to turn on (camera turns on only when requested)
+        websocket.send_text('{"action": "resume_stream"}')
+        resume_status = receive_next_json()
+        assert resume_status["type"] == "stream_status"
+        assert resume_status["is_paused"] is False
+
         # Receive binary frame
         frame_bytes = websocket.receive_bytes()
         assert isinstance(frame_bytes, bytes)
@@ -131,6 +143,36 @@ def test_websocket_feed_streaming(client: TestClient) -> None:
         flip_resp = receive_next_json()
         assert flip_resp["type"] == "config"
         assert flip_resp["flip_horizontal"] is False
+
+
+def test_camera_off_by_default_and_turn_on_on_request(client: TestClient) -> None:
+    """Camera should stay off by default and turn on only when requested."""
+    # Ensure starting in paused state
+    client.post("/api/stream/pause")
+
+    # 1. Initially check stream status
+    stream_status = client.get("/api/stream/status").json()
+    assert stream_status["is_paused"] is True
+
+    # 2. System status reports camera is off/paused
+    sys_status = client.get("/api/status").json()
+    assert sys_status["is_stream_paused"] is True
+    assert sys_status["camera_ready"] is True
+
+    # 3. Turn on stream via REST request (e.g. from web, app, or admin panel)
+    resume_res = client.post("/api/stream/resume")
+    assert resume_res.status_code == 200
+    assert resume_res.json()["is_paused"] is False
+
+    # Verify active
+    assert client.get("/api/stream/status").json()["is_paused"] is False
+    assert client.get("/api/status").json()["camera_ready"] is True
+
+    # 4. Pause stream again
+    pause_res = client.post("/api/stream/pause")
+    assert pause_res.status_code == 200
+    assert pause_res.json()["is_paused"] is True
+    assert client.get("/api/stream/status").json()["is_paused"] is True
 
 
 def test_system_stats_endpoint(client: TestClient) -> None:

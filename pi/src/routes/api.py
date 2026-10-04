@@ -48,6 +48,7 @@ async def get_status() -> SystemStatus:
     return SystemStatus(
         status=status_str,
         camera_ready=cam.is_running and cam_connected,
+        is_stream_paused=streamer.is_paused,
         camera_backend=cam.backend_name,
         is_mock=cam.is_mock,
         actual_fps=cam.actual_fps,
@@ -238,6 +239,8 @@ async def trigger_photo(request: CaptureTriggerRequest | None = None) -> Capture
     """Trigger high-resolution still capture with optional countdown."""
     countdown = request.countdown_seconds if request else 0
     streamer = get_streamer()
+    if streamer.is_paused:
+        await streamer.resume_stream()
 
     if countdown > 0:
         await streamer.execute_countdown_and_capture(action="photo", countdown_seconds=countdown)
@@ -262,6 +265,8 @@ async def trigger_gif(request: CaptureTriggerRequest | None = None) -> CaptureMe
     frames = request.frames if request else 10
     interval_ms = request.interval_ms if request else 150
     streamer = get_streamer()
+    if streamer.is_paused:
+        await streamer.resume_stream()
 
     if countdown > 0:
         await streamer.execute_countdown_and_capture(

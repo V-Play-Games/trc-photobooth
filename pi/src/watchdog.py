@@ -111,7 +111,7 @@ class Watchdog:
             if self.get_camera_fn:
                 try:
                     cam = self.get_camera_fn()
-                    if cam and cam.is_running:
+                    if cam and cam.is_running and not getattr(cam, "is_paused", False):
                         time_since_frame = now - cam.last_frame_time
                         if time_since_frame > self.timeout_seconds:
                             logger.error(
@@ -122,6 +122,8 @@ class Watchdog:
                             cam.stop()
                             time.sleep(0.5)
                             cam.start()
+                    elif cam and getattr(cam, "is_paused", False):
+                        cam.last_frame_time = now
                 except Exception as exc:
                     logger.warning("Watchdog encountered error checking camera: %s", exc)
 

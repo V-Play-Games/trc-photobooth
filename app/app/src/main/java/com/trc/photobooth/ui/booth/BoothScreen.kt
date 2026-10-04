@@ -11,11 +11,13 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,14 +27,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -63,8 +68,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.trc.photobooth.data.models.PhotoBoothTemplate
+import com.trc.photobooth.theme.BgSurfaceElevated
 import com.trc.photobooth.util.BitmapUtils
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -122,9 +130,13 @@ fun BoothScreen(
     val sessionTimestamp by viewModel.sessionTimestamp.collectAsStateWithLifecycle()
 
     val uploadState by viewModel.uploadState.collectAsStateWithLifecycle()
+    val selectedTemplate by viewModel.selectedTemplate.collectAsStateWithLifecycle()
     val collageBitmap by viewModel.collageBitmap.collectAsStateWithLifecycle()
+    val blankCollageBitmap by viewModel.blankCollageBitmap.collectAsStateWithLifecycle()
     val qrCodeBitmap by viewModel.qrCodeBitmap.collectAsStateWithLifecycle()
+    val blankQrCodeBitmap by viewModel.blankQrCodeBitmap.collectAsStateWithLifecycle()
     val cloudinaryUrl by viewModel.cloudinaryUrl.collectAsStateWithLifecycle()
+    val blankCloudinaryUrl by viewModel.blankCloudinaryUrl.collectAsStateWithLifecycle()
     val printState by viewModel.printState.collectAsStateWithLifecycle()
 
     val connectionStatus by viewModel.connectionStatus.collectAsStateWithLifecycle()
@@ -458,6 +470,10 @@ fun BoothScreen(
                                         Brush.linearGradient(
                                             listOf(NeonPink, Color(0xFFE11D48), PurpleNeon)
                                         )
+                                    } else if (connectionStatus == ConnectionStatus.CONNECTED && isStreamPaused) {
+                                        Brush.linearGradient(
+                                            listOf(AmberGold, Color(0xFFD97706), AmberGold)
+                                        )
                                     } else {
                                         Brush.linearGradient(
                                             listOf(Color(0xFF94A3B8), Color(0xFF64748B))
@@ -466,12 +482,18 @@ fun BoothScreen(
                                 )
                                 .border(
                                     width = 3.dp,
-                                    color = if (isReadyToStart) Color.White.copy(alpha = 0.9f) else Color.Transparent,
+                                    color = if (isReadyToStart) Color.White.copy(alpha = 0.9f) else if (isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED) AmberGold else Color.Transparent,
                                     shape = CircleShape
                                 )
                                 .clickable(
-                                    enabled = isReadyToStart,
-                                    onClick = viewModel::startSession
+                                    enabled = isReadyToStart || (connectionStatus == ConnectionStatus.CONNECTED && isStreamPaused),
+                                    onClick = {
+                                        if (isStreamPaused) {
+                                            viewModel.toggleStreamPause()
+                                        } else {
+                                            viewModel.startSession()
+                                        }
+                                    }
                                 ),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -480,16 +502,16 @@ fun BoothScreen(
                                 verticalArrangement = Arrangement.Center,
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.CameraAlt,
+                                    imageVector = if (isStreamPaused) Icons.Default.VideocamOff else Icons.Default.CameraAlt,
                                     contentDescription = "Start",
                                     tint = Color.White,
                                     modifier = Modifier.size(24.dp),
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = if (isStreamPaused) "OFF" else "START",
+                                    text = if (isStreamPaused) "WAKE" else "START",
                                     color = Color.White,
-                                    fontSize = 18.sp,
+                                    fontSize = if (isStreamPaused) 15.sp else 18.sp,
                                     fontWeight = FontWeight.Black,
                                     letterSpacing = 1.5.sp,
                                     fontFamily = FontFamily.Monospace,
@@ -528,10 +550,11 @@ fun BoothScreen(
                 ) {
                     Column(
                         modifier = Modifier
-                            .widthIn(max = 480.dp)
+                            .widthIn(max = 520.dp)
                             .clip(RoundedCornerShape(22.dp))
                             .background(BgSurface.copy(alpha = 0.98f))
                             .border(1.5.dp, BorderMedium, RoundedCornerShape(22.dp))
+                            .verticalScroll(rememberScrollState())
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -599,8 +622,169 @@ fun BoothScreen(
                             }
                         }
 
-                        // Middle Section: Cloudinary QR Code OR Upload Progress OR Error
+                        // Template Selector: Take your pick!
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = CyberCyan,
+                                    modifier = Modifier.size(13.dp),
+                                )
+                                Text(
+                                    text = "CHOOSE YOUR FRAME TEMPLATE",
+                                    color = TextMuted,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 0.8.sp,
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                PhotoBoothTemplate.ALL.forEach { tpl ->
+                                    val isSelected = selectedTemplate == tpl
+                                    val accentColor = Color(tpl.themeColorHex)
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (isSelected) BgSurfaceElevated else BgCard)
+                                            .border(
+                                                width = if (isSelected) 2.dp else 1.dp,
+                                                color = if (isSelected) CyberCyan else BorderSubtle,
+                                                shape = RoundedCornerShape(10.dp)
+                                            )
+                                            .clickable { viewModel.selectTemplate(tpl) }
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(8.dp)
+                                                    .clip(CircleShape)
+                                                    .background(accentColor)
+                                            )
+                                            Column {
+                                                Text(
+                                                    text = tpl.title,
+                                                    color = if (isSelected) Color(0xFF0F172A) else TextMain,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                                                )
+                                                Text(
+                                                    text = tpl.subtitle,
+                                                    color = if (isSelected) CyberCyan else TextSubtle,
+                                                    fontSize = 8.5.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                )
+                                            }
+                                            if (isSelected) {
+                                                Icon(
+                                                    imageVector = Icons.Default.CheckCircle,
+                                                    contentDescription = null,
+                                                    tint = CyberCyan,
+                                                    modifier = Modifier.size(13.dp),
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Live Preview of the Photo Strip
+                        if (collageBitmap != null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(230.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF030509))
+                                    .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
+                                    .padding(6.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Image(
+                                    bitmap = collageBitmap!!.asImageBitmap(),
+                                    contentDescription = "Photo Strip Live Preview",
+                                    modifier = Modifier.fillMaxHeight(),
+                                    contentScale = ContentScale.Fit,
+                                )
+                            }
+                        }
+
+                        // Upload State & Dual QR Codes Section
                         when (val state = uploadState) {
+                            is BoothUploadState.Idle -> {
+                                // Confirmation area before uploading
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0x1400F0FF))
+                                        .border(1.dp, CyberCyan.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                        .padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    Text(
+                                        text = "Preview your strip above. When you're happy with your pick, tap below to upload and generate your QR codes!",
+                                        color = TextMuted,
+                                        fontSize = 10.sp,
+                                        textAlign = TextAlign.Center,
+                                        lineHeight = 14.sp,
+                                    )
+
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(42.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(
+                                                Brush.horizontalGradient(
+                                                    listOf(CyberCyan, PurpleNeon, NeonPink)
+                                                )
+                                            )
+                                            .clickable { viewModel.uploadCollages() },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.CloudUpload,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                            Text(
+                                                text = "CONFIRM & UPLOAD (GET QR CODES)",
+                                                color = Color.White,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Black,
+                                                fontFamily = FontFamily.Monospace,
+                                                letterSpacing = 0.8.sp,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
                             is BoothUploadState.Generating, is BoothUploadState.Uploading -> {
                                 val msg = if (state is BoothUploadState.Generating) state.message else (state as BoothUploadState.Uploading).message
                                 Row(
@@ -627,7 +811,7 @@ fun BoothScreen(
                                             fontFamily = FontFamily.Monospace,
                                         )
                                         Text(
-                                            text = "Uploading 1×4 photo strip...",
+                                            text = "Uploading themed and blank template strips...",
                                             color = TextMuted,
                                             fontSize = 9.5.sp,
                                         )
@@ -636,91 +820,134 @@ fun BoothScreen(
                             }
 
                             is BoothUploadState.Success -> {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .background(Color(0x1F00E599))
-                                        .border(1.dp, EmeraldGreen.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
-                                        .padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
-                                    // White QR Box
-                                    if (qrCodeBitmap != null) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(105.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(Color.White)
-                                                .padding(5.dp),
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            Image(
-                                                bitmap = qrCodeBitmap!!.asImageBitmap(),
-                                                contentDescription = "QR Code to download photo strip",
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentScale = ContentScale.Fit,
-                                            )
-                                        }
-                                    }
-
-                                    Column(
-                                        modifier = Modifier.weight(1f),
-                                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.CloudDone,
-                                                contentDescription = null,
-                                                tint = EmeraldGreen,
-                                                modifier = Modifier.size(14.dp),
-                                            )
-                                            Text(
-                                                text = "SCAN FOR STRIP",
-                                                color = EmeraldGreen,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Black,
-                                                fontFamily = FontFamily.Monospace,
-                                                letterSpacing = 0.8.sp,
-                                            )
-                                        }
-
-                                        Text(
-                                            text = "Scan with your phone camera to download your photo strip.",
-                                            color = TextMain,
-                                            fontSize = 10.sp,
-                                            lineHeight = 14.sp,
+                                        Icon(
+                                            imageVector = Icons.Default.CloudDone,
+                                            contentDescription = null,
+                                            tint = EmeraldGreen,
+                                            modifier = Modifier.size(15.dp),
                                         )
-
-                                        if (cloudinaryUrl != null) {
-                                            Text(
-                                                text = cloudinaryUrl!!,
-                                                color = CyberCyan,
-                                                fontSize = 8.5.sp,
-                                                fontFamily = FontFamily.Monospace,
-                                                maxLines = 1,
-                                            )
-                                        }
+                                        Text(
+                                            text = "SCAN QR CODES TO DOWNLOAD 📱",
+                                            color = EmeraldGreen,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace,
+                                            letterSpacing = 0.8.sp,
+                                        )
                                     }
 
-                                    // 1x4 Vertical Strip Thumbnail
-                                    if (collageBitmap != null) {
+                                    // Dual QR Cards
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    ) {
+                                        // Card 1: Themed Strip QR Code
                                         Box(
                                             modifier = Modifier
-                                                .size(width = 36.dp, height = 105.dp)
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .border(1.dp, BorderSubtle, RoundedCornerShape(6.dp)),
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(Color(0x1F00E599))
+                                                .border(1.dp, EmeraldGreen.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                                                .padding(8.dp),
                                         ) {
-                                            Image(
-                                                bitmap = collageBitmap!!.asImageBitmap(),
-                                                contentDescription = "1x4 Photo Strip Preview",
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentScale = ContentScale.Fit,
-                                            )
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(5.dp),
+                                            ) {
+                                                Text(
+                                                    text = "${selectedTemplate.title.uppercase()} STRIP",
+                                                    color = EmeraldGreen,
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    maxLines = 1,
+                                                )
+
+                                                if (qrCodeBitmap != null) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(112.dp)
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                            .background(Color.White)
+                                                            .padding(4.dp),
+                                                        contentAlignment = Alignment.Center,
+                                                    ) {
+                                                        Image(
+                                                            bitmap = qrCodeBitmap!!.asImageBitmap(),
+                                                            contentDescription = "Themed Strip QR Code",
+                                                            modifier = Modifier.fillMaxSize(),
+                                                            contentScale = ContentScale.Fit,
+                                                        )
+                                                    }
+                                                }
+
+                                                Text(
+                                                    text = "Themed Frame",
+                                                    color = TextMuted,
+                                                    fontSize = 8.5.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                )
+                                            }
+                                        }
+
+                                        // Card 2: Blank Template Strip QR Code
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(Color(0x1A00F0FF))
+                                                .border(1.dp, CyberCyan.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                                                .padding(8.dp),
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(5.dp),
+                                            ) {
+                                                Text(
+                                                    text = "CLASSIC / BLANK",
+                                                    color = CyberCyan,
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    maxLines = 1,
+                                                )
+
+                                                if (blankQrCodeBitmap != null) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(112.dp)
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                            .background(Color.White)
+                                                            .padding(4.dp),
+                                                        contentAlignment = Alignment.Center,
+                                                    ) {
+                                                        Image(
+                                                            bitmap = blankQrCodeBitmap!!.asImageBitmap(),
+                                                            contentDescription = "Blank Template Strip QR Code",
+                                                            modifier = Modifier.fillMaxSize(),
+                                                            contentScale = ContentScale.Fit,
+                                                        )
+                                                    }
+                                                }
+
+                                                Text(
+                                                    text = "Clean Template",
+                                                    color = TextMuted,
+                                                    fontSize = 8.5.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -739,8 +966,8 @@ fun BoothScreen(
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "Saved locally to Gallery! 🎉",
-                                            color = EmeraldGreen,
+                                            text = "Upload failed",
+                                            color = NeonPink,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                         )
@@ -783,8 +1010,6 @@ fun BoothScreen(
                                     }
                                 }
                             }
-
-                            is BoothUploadState.Idle -> {}
                         }
 
                         // Print Buttons: Print (Pi) + Print (App) [Hidden for now as requested]

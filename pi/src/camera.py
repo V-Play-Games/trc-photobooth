@@ -49,16 +49,20 @@ class BaseCamera(ABC):
     def pause(self) -> None:
         """Pause capture loop to allow Pi to cool down."""
         self._paused = True
+        self.last_frame_time = time.time()
         logger.info("Camera capture paused (%s)", self.backend_name)
 
     def resume(self) -> None:
         """Resume capture loop."""
         self._paused = False
+        self.last_frame_time = time.time()
         logger.info("Camera capture resumed (%s)", self.backend_name)
 
     @property
     def is_healthy(self) -> bool:
         """True if camera is actively producing frames and healthy."""
+        if self._paused:
+            return self._running
         return self._running and self.is_connected and (time.time() - self.last_frame_time < 8.0)
 
     @property
@@ -252,7 +256,17 @@ class MockCamera(BaseCamera):
                 self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, float(self.height))
             except Exception:
                 pass
-        logger.info("MockCamera resolution updated to %dx%d", self.width, self.height)
+    def pause(self) -> None:
+        """Pause capture loop and release webcam device to power down camera and LED."""
+        super().pause()
+        with self._device_lock:
+            if self._cap is not None:
+                try:
+                    self._cap.release()
+                except Exception:
+                    pass
+                self._cap = None
+                logger.info("MockCamera released webcam device on pause")
 
     @property
     def backend_name(self) -> str:
@@ -365,7 +379,7 @@ class MockCamera(BaseCamera):
         """Capture loop with OpenCV webcam input and synthetic fallback."""
         cv2 = None
 
-        if self.use_webcam:
+        if self.use_webcam and not self._paused:
             try:
                 import cv2 as cv_module
                 cv2 = cv_module
@@ -376,16 +390,37 @@ class MockCamera(BaseCamera):
                     exc,
                 )
 
-        if self._cap is None:
+        if self._cap is None and not self._paused:
             self._active_backend = "mock"
             logger.info("Using synthetic photo booth test pattern generator")
+        elif self._paused:
+            logger.info("MockCamera initialized in standby/paused state (camera kept off by default)")
 
         last_probe_time = 0.0
 
         while self._running:
             if self._paused:
+                if self._cap is not None:
+                    with self._device_lock:
+                        if self._cap is not None:
+                            try:
+                                self._cap.release()
+                            except Exception:
+                                pass
+                            self._cap = None
+                    logger.info("Webcam device released while camera is paused/off")
                 time.sleep(0.08)
                 continue
+
+            # If unpaused and webcam is requested but cap is not opened yet, acquire it now
+            if self._cap is None and self.use_webcam:
+                try:
+                    if cv2 is None:
+                        import cv2 as cv_module
+                        cv2 = cv_module
+                    self.set_device(self.device_index)
+                except Exception as exc:
+                    logger.warning("Error acquiring webcam upon resume: %s", exc)
 
             loop_start = time.time()
             self._frame_count += 1
@@ -633,6 +668,19 @@ class PiCamera(BaseCamera):
         self._pending_reconfigure = (w, h)
         logger.info("PiCamera preview resolution updated to %dx%d (reconfiguration scheduled)", w, h)
 
+    def pause(self) -> None:
+        """Pause capture loop and release picamera2 hardware to power down CSI sensor and cool SoC."""
+        super().pause()
+        with self._picam2_lock:
+            if self._picam2 is not None:
+                try:
+                    self._picam2.stop()
+                    self._picam2.close()
+                except Exception:
+                    pass
+                self._picam2 = None
+                logger.info("PiCamera released hardware on pause")
+
     @property
     def backend_name(self) -> str:
         return "picamera2"
@@ -701,13 +749,18 @@ class PiCamera(BaseCamera):
         return buf.getvalue()
 
     def _capture_loop(self) -> None:
-        try:
-            self._initialize_hardware()
-            self.is_connected = True
-        except Exception as exc:
-            logger.error("Failed initial picamera2 startup (%s). Entering auto-reconnect probe loop...", exc)
-            self.is_connected = False
+        if not self._paused:
+            try:
+                self._initialize_hardware()
+                self.is_connected = True
+            except Exception as exc:
+                logger.error("Failed initial picamera2 startup (%s). Entering auto-reconnect probe loop...", exc)
+                self.is_connected = False
+                self._picam2 = None
+        else:
             self._picam2 = None
+            self.is_connected = True
+            logger.info("PiCamera initialized in standby/paused state (camera kept off by default)")
 
         cv2 = None
         try:
@@ -720,8 +773,28 @@ class PiCamera(BaseCamera):
 
         while self._running:
             if self._paused:
+                if self._picam2 is not None:
+                    with self._picam2_lock:
+                        if self._picam2 is not None:
+                            try:
+                                self._picam2.stop()
+                                self._picam2.close()
+                            except Exception:
+                                pass
+                            self._picam2 = None
+                    logger.info("PiCamera hardware released on pause")
                 time.sleep(0.08)
                 continue
+
+            # If unpaused and picam2 is not initialized, initialize it now
+            if self._picam2 is None and self.is_connected:
+                try:
+                    self._initialize_hardware()
+                    self.is_connected = True
+                except Exception as exc:
+                    logger.error("Failed picamera2 startup on resume (%s)", exc)
+                    self.is_connected = False
+                    self._picam2 = None
 
             loop_start = time.time()
             self._frame_count += 1
