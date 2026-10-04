@@ -76,6 +76,9 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
     val captures: StateFlow<List<CaptureMetadata>> = repository.captures
     val isLoadingCaptures: StateFlow<Boolean> = repository.isLoadingCaptures
     val hostAddress: StateFlow<String> = repository.hostAddress
+    val printerName: StateFlow<String> = repository.printerName
+    val printerColorMode: StateFlow<String> = repository.printerColorMode
+    val printerCopies: StateFlow<Int> = repository.printerCopies
 
     init {
         // Start connection with saved host
@@ -205,6 +208,9 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
     fun setCameraDevice(device: String) = repository.setCameraDevice(device)
     fun refreshDevices() = repository.requestDevices()
     fun startNsdSearch() = networkDiscovery.startDiscovery()
+    fun setPrinterSettings(name: String, colorMode: String, copies: Int) {
+        repository.setPrinterSettings(name, colorMode, copies)
+    }
     fun deleteCapture(id: String) {
         viewModelScope.launch {
             if (repository.deleteCapture(id)) {

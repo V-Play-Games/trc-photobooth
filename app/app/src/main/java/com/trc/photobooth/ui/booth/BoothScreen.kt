@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Button
@@ -79,6 +80,7 @@ import com.trc.photobooth.theme.TextSubtle
 import com.trc.photobooth.ui.components.BoothCountdownOverlay
 import com.trc.photobooth.ui.components.BoothFilterStrip
 import com.trc.photobooth.ui.components.QuadrantGrid
+import com.trc.photobooth.ui.components.SettingsDialog
 import kotlinx.coroutines.flow.collectLatest
 
 /**
@@ -119,6 +121,13 @@ fun BoothScreen(
 
     val connectionStatus by viewModel.connectionStatus.collectAsStateWithLifecycle()
     val lastFrame by viewModel.lastFrame.collectAsStateWithLifecycle()
+    val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
+    val cameraConfig by viewModel.cameraConfig.collectAsStateWithLifecycle()
+    val systemStats by viewModel.systemStats.collectAsStateWithLifecycle()
+    val hostAddress by viewModel.hostAddress.collectAsStateWithLifecycle()
+    val printerName by viewModel.printerName.collectAsStateWithLifecycle()
+    val printerColorMode by viewModel.printerColorMode.collectAsStateWithLifecycle()
+    val printerCopies by viewModel.printerCopies.collectAsStateWithLifecycle()
 
     val isCapturing = boothState == BoothState.CAPTURING
     val isComplete = boothState == BoothState.COMPLETE
@@ -221,43 +230,67 @@ fun BoothScreen(
                     }
                 }
 
-                // Status Pill
+                // Right Actions: Status Pill & Studio Settings
                 Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            if (connectionStatus == ConnectionStatus.CONNECTED) Color(0x1A00E599)
-                            else Color(0x1AFF3366)
-                        )
-                        .border(
-                            1.dp,
-                            if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen.copy(alpha = 0.5f)
-                            else NeonPink.copy(alpha = 0.5f),
-                            RoundedCornerShape(12.dp)
-                        )
-                        .clickable(enabled = connectionStatus != ConnectionStatus.CONNECTED) {
-                            viewModel.reconnect()
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    // Status Pill
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (connectionStatus == ConnectionStatus.CONNECTED) Color(0x1A00E599)
+                                else Color(0x1AFF3366)
+                            )
+                            .border(
+                                1.dp,
+                                if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen.copy(alpha = 0.5f)
+                                else NeonPink.copy(alpha = 0.5f),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .clickable(enabled = connectionStatus != ConnectionStatus.CONNECTED) {
+                                viewModel.reconnect()
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen
+                                    else NeonPink
+                                ),
+                        )
+                        Text(
+                            text = if (connectionStatus == ConnectionStatus.CONNECTED) "READY" else "OFFLINE",
+                            color = if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen else NeonPink,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
+
+                    // Settings Button
                     Box(
                         modifier = Modifier
-                            .size(6.dp)
+                            .size(32.dp)
                             .clip(CircleShape)
-                            .background(
-                                if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen
-                                else NeonPink
-                            ),
-                    )
-                    Text(
-                        text = if (connectionStatus == ConnectionStatus.CONNECTED) "READY" else "OFFLINE",
-                        color = if (connectionStatus == ConnectionStatus.CONNECTED) EmeraldGreen else NeonPink,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                    )
+                            .background(Color(0x2600F0FF))
+                            .border(1.dp, CyberCyan.copy(alpha = 0.5f), CircleShape)
+                            .clickable { viewModel.openSettings() },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Studio & Printer Settings",
+                            tint = CyberCyan,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
                 }
             }
         }
@@ -423,6 +456,43 @@ fun BoothScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
+                                // Print via App Button (System Print Dialog)
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(BgCard)
+                                        .border(1.dp, CyberCyan.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            BitmapUtils.printBitmap(
+                                                context,
+                                                collageBitmap!!,
+                                                "TRC Photo Booth Photo Strip"
+                                            )
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Print,
+                                            contentDescription = "Print via App",
+                                            tint = CyberCyan,
+                                            modifier = Modifier.size(13.dp),
+                                        )
+                                        Text(
+                                            text = "PRINT (APP)",
+                                            color = CyberCyan,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace,
+                                        )
+                                    }
+                                }
+
+                                // Print via Pi Button (CUPS)
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
@@ -758,6 +828,47 @@ fun BoothScreen(
                                 )
                             }
                         }
+
+                        // Native Android System Print Button (Print via App)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(CyberCyan, Color(0xFF0099FF))
+                                    )
+                                )
+                                .clickable {
+                                    BitmapUtils.printBitmap(
+                                        context,
+                                        collageBitmap!!,
+                                        "TRC Photo Booth Photo Strip"
+                                    )
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Print,
+                                    contentDescription = null,
+                                    tint = Color(0xFF070B14),
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Text(
+                                    text = "PRINT VIA APP (SYSTEM DIALOG)",
+                                    color = Color(0xFF070B14),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 0.8.sp,
+                                )
+                            }
+                        }
                     }
 
                     // Big Full-Width Start New Session Button (NO Return to Admin button)
@@ -832,5 +943,29 @@ fun BoothScreen(
                 }
             }
         }
+
+        // Layer 5: Studio & Printer Settings Dialog
+        SettingsDialog(
+            isOpen = isSettingsOpen,
+            currentHost = hostAddress,
+            connectionStatus = connectionStatus,
+            cameraConfig = cameraConfig,
+            systemStats = systemStats,
+            onSaveHost = viewModel::setHost,
+            onStartNsdSearch = viewModel::startNsdSearch,
+            onToggleFlip = viewModel::toggleFlip,
+            onToggleSwapRb = viewModel::toggleSwapRb,
+            onSetFps = viewModel::setFps,
+            onSetQuality = viewModel::setQuality,
+            onSetResolution = viewModel::setResolution,
+            onRefreshStats = viewModel::refreshStats,
+            onSetCameraDevice = viewModel::setCameraDevice,
+            onRefreshDevices = viewModel::refreshDevices,
+            currentPrinterName = printerName,
+            currentColorMode = printerColorMode,
+            currentCopies = printerCopies,
+            onSavePrinterSettings = viewModel::updatePrinterSettings,
+            onClose = viewModel::closeSettings,
+        )
     }
 }

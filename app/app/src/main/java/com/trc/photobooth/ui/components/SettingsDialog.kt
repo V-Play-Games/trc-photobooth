@@ -81,6 +81,9 @@ import com.trc.photobooth.theme.NeonPink
 import com.trc.photobooth.theme.TextMain
 import com.trc.photobooth.theme.TextMuted
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.text.style.TextOverflow
+
 @Composable
 fun SettingsDialog(
     isOpen: Boolean,
@@ -98,16 +101,41 @@ fun SettingsDialog(
     onRefreshStats: () -> Unit,
     onSetCameraDevice: (String) -> Unit = {},
     onRefreshDevices: () -> Unit = {},
+    currentPrinterName: String = "TRC_Printer",
+    currentColorMode: String = "monochrome",
+    currentCopies: Int = 1,
+    onSavePrinterSettings: (name: String, colorMode: String, copies: Int) -> Unit = { _, _, _ -> },
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (!isOpen) return
 
+    val context = LocalContext.current
     var hostInput by remember(currentHost) { mutableStateOf(currentHost) }
     var fpsSlider by remember(cameraConfig.fps) { mutableFloatStateOf((cameraConfig.fps ?: 20).toFloat()) }
     var qualitySlider by remember(cameraConfig.quality) { mutableFloatStateOf((cameraConfig.quality ?: 80).toFloat()) }
     var customDeviceInput by remember(cameraConfig.devicePath) {
         mutableStateOf(cameraConfig.devicePath ?: "/dev/video${cameraConfig.webcamDevice ?: 0}")
+    }
+
+    var printerNameInput by remember(currentPrinterName) { mutableStateOf(currentPrinterName) }
+    var colorModeInput by remember(currentColorMode) { mutableStateOf(currentColorMode) }
+    var copiesInput by remember(currentCopies) { mutableStateOf(currentCopies) }
+    var isTestingPrint by remember { mutableStateOf(false) }
+    var detectedPrinters by remember { mutableStateOf<List<String>>(emptyList()) }
+    var printerStatusMsg by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(isOpen) {
+        if (isOpen) {
+            try {
+                val repo = PhotoBoothRepository.getInstance(context)
+                val statusResult = repo.getPrinterStatus()
+                statusResult.onSuccess { status ->
+                    detectedPrinters = status.availablePrinters
+                    printerStatusMsg = status.statusMessage
+                }
+            } catch (ignored: Exception) {}
+        }
     }
 
     Dialog(
@@ -562,69 +590,247 @@ fun SettingsDialog(
                         .padding(14.dp)
                 ) {
                     val scope = rememberCoroutineScope()
-                    val context = LocalContext.current
-                    var isTestingPrint by remember { mutableStateOf(false) }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TelemetryRow("Printer Queue", "TRC_Printer", EmeraldGreen)
-                        TelemetryRow("Print Color Mode", "monochrome", TextMain)
-                        TelemetryRow("Command", "lp -d TRC_Printer -o print-color-mode=monochrome", CyberCyan)
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        // Status indicator
+                        if (printerStatusMsg != null) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(EmeraldGreen)
+                                )
+                                Text(
+                                    text = printerStatusMsg!!,
+                                    color = EmeraldGreen,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                )
+                            }
+                        }
 
-                        Button(
-                            onClick = {
-                                if (isTestingPrint) return@Button
-                                scope.launch {
-                                    isTestingPrint = true
-                                    Toast.makeText(context, "Executing test print on Pi (/etc/hostname)...", Toast.LENGTH_SHORT).show()
-                                    val repo = PhotoBoothRepository.getInstance(context)
-                                    val result = repo.testPrint()
-                                    isTestingPrint = false
-                                    result.fold(
-                                        onSuccess = { res ->
-                                            val jobText = if (res.jobId != null) " (Job: ${res.jobId})" else ""
-                                            Toast.makeText(context, "🖨️ Test Print Succeeded!$jobText", Toast.LENGTH_SHORT).show()
-                                        },
-                                        onFailure = { err ->
-                                            Toast.makeText(context, "❌ Test Print Error: ${err.message}", Toast.LENGTH_LONG).show()
-                                        }
+                        // Printer Queue Name Field
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "CUPS Printer Queue Name",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            OutlinedTextField(
+                                value = printerNameInput,
+                                onValueChange = { printerNameInput = it },
+                                singleLine = true,
+                                placeholder = { Text("e.g. TRC_Printer", color = TextMuted) },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = CyberCyan,
+                                    unfocusedBorderColor = BorderSubtle,
+                                    focusedTextColor = TextMain,
+                                    unfocusedTextColor = TextMain,
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+
+                            // Quick Suggestions Chips (Defaults + Detected Printers)
+                            val suggestions = remember(detectedPrinters) {
+                                (listOf("TRC_Printer") + detectedPrinters).distinct()
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                suggestions.forEach { suggestion ->
+                                    val isSelected = printerNameInput == suggestion
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isSelected) CyberCyan.copy(alpha = 0.25f) else Color(0x401E293B))
+                                            .border(1.dp, if (isSelected) CyberCyan else BorderSubtle, RoundedCornerShape(6.dp))
+                                            .clickable { printerNameInput = suggestion }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    ) {
+                                        Text(
+                                            text = suggestion,
+                                            color = if (isSelected) CyberCyan else TextMuted,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Color Mode
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "Print Color Mode",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                listOf("monochrome" to "Monochrome (B&W)", "color" to "Full Color").forEach { (mode, label) ->
+                                    val isSel = colorModeInput == mode
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isSel) CyberCyan.copy(alpha = 0.25f) else Color(0x401E293B))
+                                            .border(1.dp, if (isSel) CyberCyan else BorderSubtle, RoundedCornerShape(8.dp))
+                                            .clickable { colorModeInput = mode }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = if (isSel) CyberCyan else TextMuted,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Copies
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "Default Copies",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                listOf(1, 2, 3, 4).forEach { count ->
+                                    val isSel = copiesInput == count
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isSel) EmeraldGreen.copy(alpha = 0.25f) else Color(0x401E293B))
+                                            .border(1.dp, if (isSel) EmeraldGreen else BorderSubtle, RoundedCornerShape(8.dp))
+                                            .clickable { copiesInput = count }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = "$count ${if (count == 1) "Copy" else "Copies"}",
+                                            color = if (isSel) EmeraldGreen else TextMuted,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Command Preview
+                        val queueName = printerNameInput.ifBlank { "TRC_Printer" }
+                        TelemetryRow(
+                            label = "Command Preview",
+                            value = "lp -d $queueName -o print-color-mode=$colorModeInput${if (copiesInput > 1) " -n $copiesInput" else ""}",
+                            valueColor = CyberCyan,
+                        )
+
+                        // Action Buttons Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            // Save Settings Button
+                            Button(
+                                onClick = {
+                                    val targetQueue = printerNameInput.ifBlank { "TRC_Printer" }
+                                    onSavePrinterSettings(targetQueue, colorModeInput, copiesInput)
+                                    Toast.makeText(context, "💾 Printer settings saved & synced to Pi!", Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = CyberCyan,
+                                    contentColor = Color(0xFF070B14),
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp),
+                            ) {
+                                Text(
+                                    text = "SAVE SETTINGS",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                )
+                            }
+
+                            // Test Print Button
+                            Button(
+                                onClick = {
+                                    if (isTestingPrint) return@Button
+                                    scope.launch {
+                                        isTestingPrint = true
+                                        val targetQueue = printerNameInput.ifBlank { "TRC_Printer" }
+                                        Toast.makeText(context, "Executing test print on Pi to '$targetQueue'...", Toast.LENGTH_SHORT).show()
+                                        val repo = PhotoBoothRepository.getInstance(context)
+                                        val result = repo.testPrint(targetQueue, colorModeInput)
+                                        isTestingPrint = false
+                                        result.fold(
+                                            onSuccess = { res ->
+                                                val jobText = if (res.jobId != null) " (Job: ${res.jobId})" else ""
+                                                Toast.makeText(context, "🖨️ Test Print Succeeded!$jobText", Toast.LENGTH_SHORT).show()
+                                            },
+                                            onFailure = { err ->
+                                                Toast.makeText(context, "❌ Test Print Error: ${err.message}", Toast.LENGTH_LONG).show()
+                                            }
+                                        )
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = EmeraldGreen,
+                                    contentColor = Color(0xFF070B14),
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp),
+                            ) {
+                                if (isTestingPrint) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Color(0xFF070B14),
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "TESTING...",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Print,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "TEST PRINT",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace,
                                     )
                                 }
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = EmeraldGreen,
-                                contentColor = Color(0xFF070B14)
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(40.dp)
-                        ) {
-                            if (isTestingPrint) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = Color(0xFF070B14),
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "SENDING TEST PRINT...",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Print,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "TEST PRINT (/etc/hostname)",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                )
                             }
                         }
                     }

@@ -182,3 +182,11 @@ class PrinterStatusResponse(BaseModel):
     is_ready: bool = True
     status_message: str = "ok"
 
+
+class PrinterConfigUpdate(BaseModel):
+    """Parameters to update default CUPS printer settings on the Pi."""
+
+    printer_name: str | None = Field(None, description="Default CUPS printer queue name")
+    color_mode: Literal["monochrome", "color"] | None = Field(None, description="Default print color mode")
+    copies: int | None = Field(None, ge=1, le=10, description="Default copies")
+

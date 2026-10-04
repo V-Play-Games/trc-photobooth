@@ -51,6 +51,22 @@ class PhotoBoothRepository(
     )
     val hostAddress: StateFlow<String> = _hostAddress.asStateFlow()
 
+    // Printer settings
+    private val _printerName = MutableStateFlow(
+        prefs.getString("printer_name", "TRC_Printer") ?: "TRC_Printer"
+    )
+    val printerName: StateFlow<String> = _printerName.asStateFlow()
+
+    private val _printerColorMode = MutableStateFlow(
+        prefs.getString("printer_color_mode", "monochrome") ?: "monochrome"
+    )
+    val printerColorMode: StateFlow<String> = _printerColorMode.asStateFlow()
+
+    private val _printerCopies = MutableStateFlow(
+        prefs.getInt("printer_copies", 1)
+    )
+    val printerCopies: StateFlow<Int> = _printerCopies.asStateFlow()
+
     // Captures list
     private val _captures = MutableStateFlow<List<CaptureMetadata>>(emptyList())
     val captures: StateFlow<List<CaptureMetadata>> = _captures.asStateFlow()
@@ -84,6 +100,52 @@ class PhotoBoothRepository(
         _hostAddress.value = cleanHost
         prefs.edit().putString("server_host", cleanHost).apply()
         reconnect()
+    }
+
+    fun setPrinterSettings(name: String, colorMode: String, copies: Int) {
+        val safeName = name.trim().ifEmpty { "TRC_Printer" }
+        val safeMode = if (colorMode.lowercase() == "color") "color" else "monochrome"
+        val safeCopies = copies.coerceIn(1, 10)
+
+        _printerName.value = safeName
+        _printerColorMode.value = safeMode
+        _printerCopies.value = safeCopies
+
+        prefs.edit()
+            .putString("printer_name", safeName)
+            .putString("printer_color_mode", safeMode)
+            .putInt("printer_copies", safeCopies)
+            .apply()
+
+        // Sync with Pi in background if connected
+        scope.launch(Dispatchers.IO) {
+            try {
+                syncPrinterSettingsToPi(safeName, safeMode)
+            } catch (e: Exception) {
+                Log.w(tag, "Could not sync printer settings to Pi: ${e.message}")
+            }
+        }
+    }
+
+    suspend fun syncPrinterSettingsToPi(name: String, colorMode: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${getBaseHttpUrl()}/api/print/config"
+            val payload = json.encodeToString(
+                com.trc.photobooth.data.models.PrinterConfigUpdate.serializer(),
+                com.trc.photobooth.data.models.PrinterConfigUpdate(printerName = name, colorMode = colorMode)
+            )
+            val body = payload.toRequestBody("application/json".toMediaType())
+            val request = Request.Builder().url(url).post(body).build()
+            httpClient.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    Result.success(true)
+                } else {
+                    Result.failure(Exception("Failed to update printer config on Pi (${response.code})"))
+                }
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     fun reconnect() {
@@ -181,16 +243,20 @@ class PhotoBoothRepository(
         filename: String = "collage.jpg",
         printerName: String? = null,
         colorMode: String? = null,
-        copies: Int = 1,
+        copies: Int? = null,
     ): Result<PrintResponse> = withContext(Dispatchers.IO) {
         try {
+            val resolvedPrinter = printerName ?: _printerName.value.ifBlank { null }
+            val resolvedColorMode = colorMode ?: _printerColorMode.value.ifBlank { null }
+            val resolvedCopies = copies ?: _printerCopies.value
+
             val baos = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.JPEG, 92, baos)
             val bytes = baos.toByteArray()
 
-            var url = "${getBaseHttpUrl()}/api/print?copies=$copies"
-            if (printerName != null) url += "&printer_name=$printerName"
-            if (colorMode != null) url += "&color_mode=$colorMode"
+            var url = "${getBaseHttpUrl()}/api/print?copies=$resolvedCopies"
+            if (resolvedPrinter != null) url += "&printer_name=$resolvedPrinter"
+            if (resolvedColorMode != null) url += "&color_mode=$resolvedColorMode"
 
             val body = bytes.toRequestBody("image/jpeg".toMediaType())
             val request = Request.Builder()
@@ -223,12 +289,16 @@ class PhotoBoothRepository(
         captureId: String,
         printerName: String? = null,
         colorMode: String? = null,
-        copies: Int = 1,
+        copies: Int? = null,
     ): Result<PrintResponse> = withContext(Dispatchers.IO) {
         try {
-            var url = "${getBaseHttpUrl()}/api/print/capture/$captureId?copies=$copies"
-            if (printerName != null) url += "&printer_name=$printerName"
-            if (colorMode != null) url += "&color_mode=$colorMode"
+            val resolvedPrinter = printerName ?: _printerName.value.ifBlank { null }
+            val resolvedColorMode = colorMode ?: _printerColorMode.value.ifBlank { null }
+            val resolvedCopies = copies ?: _printerCopies.value
+
+            var url = "${getBaseHttpUrl()}/api/print/capture/$captureId?copies=$resolvedCopies"
+            if (resolvedPrinter != null) url += "&printer_name=$resolvedPrinter"
+            if (resolvedColorMode != null) url += "&color_mode=$resolvedColorMode"
 
             val request = Request.Builder()
                 .url(url)
@@ -261,10 +331,13 @@ class PhotoBoothRepository(
         colorMode: String? = null,
     ): Result<PrintResponse> = withContext(Dispatchers.IO) {
         try {
+            val resolvedPrinter = printerName ?: _printerName.value.ifBlank { null }
+            val resolvedColorMode = colorMode ?: _printerColorMode.value.ifBlank { null }
+
             var url = "${getBaseHttpUrl()}/api/print/test"
             val queryParams = mutableListOf<String>()
-            if (printerName != null) queryParams.add("printer_name=$printerName")
-            if (colorMode != null) queryParams.add("color_mode=$colorMode")
+            if (resolvedPrinter != null) queryParams.add("printer_name=$resolvedPrinter")
+            if (resolvedColorMode != null) queryParams.add("color_mode=$resolvedColorMode")
             if (queryParams.isNotEmpty()) {
                 url += "?" + queryParams.joinToString("&")
             }

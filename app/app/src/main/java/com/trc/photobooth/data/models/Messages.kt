@@ -123,3 +123,21 @@ data class PrinterStatus(
     val statusMessage: String = "ok",
 )
 
+@Serializable
+data class PrinterConfigUpdate(
+    @SerialName("printer_name")
+    val printerName: String? = null,
+    @SerialName("color_mode")
+    val colorMode: String? = null,
+)
+
+@Serializable
+data class PrinterConfigResponse(
+    @SerialName("printer_name")
+    val printerName: String = "TRC_Printer",
+    @SerialName("color_mode")
+    val colorMode: String = "monochrome",
+    @SerialName("mock_printer")
+    val mockPrinter: Boolean = false,
+)
+

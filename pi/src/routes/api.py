@@ -12,6 +12,7 @@ from src.models import (
     CaptureTriggerRequest,
     PrintJobRequest,
     PrintResponse,
+    PrinterConfigUpdate,
     PrinterStatusResponse,
     SystemStatus,
     SystemStatsResponse,
@@ -504,4 +505,29 @@ async def get_print_status() -> PrinterStatusResponse:
     printer = get_printer_service()
     status_dict = await printer.get_status()
     return PrinterStatusResponse(**status_dict)
+
+
+@router.get("/print/config")
+async def get_printer_config() -> dict[str, Any]:
+    """Get active printer configuration on the Pi."""
+    return {
+        "printer_name": settings.printer_name,
+        "color_mode": settings.printer_color_mode,
+        "mock_printer": settings.mock_printer,
+    }
+
+
+@router.post("/print/config")
+async def update_printer_config(config_update: PrinterConfigUpdate) -> dict[str, Any]:
+    """Dynamically adjust default printer queue name or color mode on the Pi."""
+    if config_update.printer_name is not None and config_update.printer_name.strip():
+        settings.printer_name = config_update.printer_name.strip()
+    if config_update.color_mode is not None:
+        settings.printer_color_mode = config_update.color_mode
+
+    return {
+        "message": "Printer configuration updated successfully",
+        "printer_name": settings.printer_name,
+        "color_mode": settings.printer_color_mode,
+    }
 

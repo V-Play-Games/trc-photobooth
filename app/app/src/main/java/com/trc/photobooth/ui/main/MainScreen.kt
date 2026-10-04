@@ -81,6 +81,9 @@ fun MainScreen(
     val captures by viewModel.captures.collectAsStateWithLifecycle()
     val isLoadingCaptures by viewModel.isLoadingCaptures.collectAsStateWithLifecycle()
     val hostAddress by viewModel.hostAddress.collectAsStateWithLifecycle()
+    val printerName by viewModel.printerName.collectAsStateWithLifecycle()
+    val printerColorMode by viewModel.printerColorMode.collectAsStateWithLifecycle()
+    val printerCopies by viewModel.printerCopies.collectAsStateWithLifecycle()
 
     val isGalleryOpen by viewModel.isGalleryOpen.collectAsStateWithLifecycle()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
@@ -262,6 +265,10 @@ fun MainScreen(
             onRefreshStats = viewModel::refreshStats,
             onSetCameraDevice = viewModel::setCameraDevice,
             onRefreshDevices = viewModel::refreshDevices,
+            currentPrinterName = printerName,
+            currentColorMode = printerColorMode,
+            currentCopies = printerCopies,
+            onSavePrinterSettings = viewModel::setPrinterSettings,
             onClose = viewModel::closeSettings
         )
     }

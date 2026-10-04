@@ -111,3 +111,29 @@ def test_print_nonexistent_capture_error():
     """POST /api/print with non-existent capture_id should return 404."""
     response = client.post("/api/print", json={"capture_id": "non_existent_123"})
     assert response.status_code == 404
+
+
+def test_printer_config_endpoints():
+    """GET and POST /api/print/config should view and adjust printer settings."""
+    # 1. Get current config
+    res1 = client.get("/api/print/config")
+    assert res1.status_code == 200
+    assert "printer_name" in res1.json()
+    assert "color_mode" in res1.json()
+
+    # 2. Update config
+    res2 = client.post(
+        "/api/print/config",
+        json={"printer_name": "Custom_Photo_Printer", "color_mode": "color"},
+    )
+    assert res2.status_code == 200
+    data2 = res2.json()
+    assert data2["printer_name"] == "Custom_Photo_Printer"
+    assert data2["color_mode"] == "color"
+
+    # Reset back to default
+    client.post(
+        "/api/print/config",
+        json={"printer_name": "TRC_Printer", "color_mode": "monochrome"},
+    )
+

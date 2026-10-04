@@ -94,9 +94,19 @@ def test_serve_vite_assets(client: TestClient) -> None:
         assert len(res_asset.content) > 100
 
 
+import json
+from typing import Any
+
 def test_websocket_feed_streaming(client: TestClient) -> None:
     """WebSocket /ws/feed should stream binary JPEG frames and respond to ping."""
     with client.websocket_connect("/ws/feed") as websocket:
+        def receive_next_json() -> dict[str, Any]:
+            for _ in range(30):
+                msg = websocket.receive()
+                if "text" in msg:
+                    return json.loads(msg["text"])
+            raise TimeoutError("No JSON response received on WebSocket")
+
         # Receive binary frame
         frame_bytes = websocket.receive_bytes()
         assert isinstance(frame_bytes, bytes)
@@ -106,19 +116,19 @@ def test_websocket_feed_streaming(client: TestClient) -> None:
 
         # Send text ping message
         websocket.send_text("ping")
-        response = websocket.receive_json()
+        response = receive_next_json()
         assert response["type"] == "pong"
 
         # Request system stats on-demand via WebSocket
         websocket.send_text('{"action": "get_system_stats"}')
-        stats_resp = websocket.receive_json()
+        stats_resp = receive_next_json()
         assert stats_resp["type"] == "system_stats"
         assert "cpu_percent" in stats_resp["data"]
         assert "memory" in stats_resp["data"]
 
         # Toggle flip_horizontal via WebSocket
         websocket.send_text('{"action": "flip_horizontal", "value": false}')
-        flip_resp = websocket.receive_json()
+        flip_resp = receive_next_json()
         assert flip_resp["type"] == "config"
         assert flip_resp["flip_horizontal"] is False
 

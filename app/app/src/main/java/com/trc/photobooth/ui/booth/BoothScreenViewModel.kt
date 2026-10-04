@@ -26,6 +26,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import com.trc.photobooth.data.models.CameraConfig
+import com.trc.photobooth.data.models.SystemStats
+import com.trc.photobooth.util.NetworkDiscovery
+
 enum class BoothState {
     IDLE,
     CAPTURING,
@@ -50,14 +54,72 @@ sealed interface PrintState {
 class BoothScreenViewModel(application: Application) : AndroidViewModel(application) {
 
     val repository = PhotoBoothRepository.getInstance(application)
+    val networkDiscovery = NetworkDiscovery(application)
     val hapticHelper = HapticHelper(application)
 
     init {
         repository.connectIfNeeded()
+
+        // Listen for NSD discovered Pi
+        viewModelScope.launch {
+            networkDiscovery.discoveredHost.collect { resolved ->
+                if (resolved != null && resolved != repository.hostAddress.value) {
+                    _toastMessage.tryEmit("✨ Found Photo Booth Pi at $resolved")
+                    repository.setHost(resolved)
+                }
+            }
+        }
     }
 
     fun reconnect() {
         repository.reconnect()
+    }
+
+    // Settings state
+    private val _isSettingsOpen = MutableStateFlow(false)
+    val isSettingsOpen: StateFlow<Boolean> = _isSettingsOpen.asStateFlow()
+
+    fun openSettings() {
+        if (_boothState.value == BoothState.CAPTURING) return
+        repository.requestSystemStats()
+        repository.requestDevices()
+        _isSettingsOpen.value = true
+    }
+
+    fun closeSettings() {
+        _isSettingsOpen.value = false
+    }
+
+    val cameraConfig: StateFlow<CameraConfig> = repository.cameraConfig
+    val systemStats: StateFlow<SystemStats?> = repository.systemStats
+    val hostAddress: StateFlow<String> = repository.hostAddress
+    val printerName: StateFlow<String> = repository.printerName
+    val printerColorMode: StateFlow<String> = repository.printerColorMode
+    val printerCopies: StateFlow<Int> = repository.printerCopies
+
+    fun setHost(host: String) = repository.setHost(host)
+    fun startNsdSearch() = networkDiscovery.startDiscovery()
+    fun toggleFlip() {
+        val current = cameraConfig.value.flipHorizontal ?: false
+        repository.toggleFlip(!current)
+    }
+    fun toggleSwapRb() {
+        val current = cameraConfig.value.swapRb ?: false
+        repository.toggleSwapRb(!current)
+    }
+    fun setFps(fps: Int) = repository.setFps(fps)
+    fun setQuality(q: Int) = repository.setQuality(q)
+    fun setResolution(res: String) = repository.setResolution(res)
+    fun refreshStats() = repository.requestSystemStats()
+    fun setCameraDevice(device: String) = repository.setCameraDevice(device)
+    fun refreshDevices() = repository.requestDevices()
+    fun updatePrinterSettings(name: String, colorMode: String, copies: Int) {
+        repository.setPrinterSettings(name, colorMode, copies)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        networkDiscovery.stopDiscovery()
     }
 
     // State machine status
