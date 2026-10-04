@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,17 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trc.photobooth.filters.FilterPreset
-import com.trc.photobooth.theme.BgCard
-import com.trc.photobooth.theme.BgSurface
-import com.trc.photobooth.theme.BgSurfaceElevated
-import com.trc.photobooth.theme.BorderMedium
-import com.trc.photobooth.theme.BorderSubtle
-import com.trc.photobooth.theme.CyberCyan
-import com.trc.photobooth.theme.EmeraldGreen
-import com.trc.photobooth.theme.NeonPink
-import com.trc.photobooth.theme.TextMain
-import com.trc.photobooth.theme.TextMuted
-import com.trc.photobooth.theme.TextSubtle
+import com.trc.photobooth.theme.current
 
 /**
  * 2x2 Photo Booth Quadrant Grid.
@@ -65,7 +56,7 @@ import com.trc.photobooth.theme.TextSubtle
  * Each quadrant displays:
  * - Captured bitmap if available
  * - Live camera stream with active filter if active
- * - Dark cyber placeholder if awaiting capture
+ * - Themed placeholder if awaiting capture
  */
 @Composable
 fun QuadrantGrid(
@@ -156,6 +147,7 @@ private fun QuadrantCell(
     presetUsed: FilterPreset?,
     modifier: Modifier = Modifier,
 ) {
+    val theme = MaterialTheme.current
     val cornerRadius = 14.dp
     val shape = RoundedCornerShape(cornerRadius)
 
@@ -174,17 +166,17 @@ private fun QuadrantCell(
     val borderModifier = when {
         isActive -> Modifier.border(
             width = 2.5.dp,
-            color = NeonPink.copy(alpha = pulseAlpha),
+            color = theme.primary.copy(alpha = pulseAlpha),
             shape = shape,
         )
         capturedBitmap != null -> Modifier.border(
             width = 1.dp,
-            color = EmeraldGreen.copy(alpha = 0.6f),
+            color = theme.secondary.copy(alpha = 0.6f),
             shape = shape,
         )
         else -> Modifier.border(
             width = 1.dp,
-            color = BorderSubtle,
+            color = theme.outlineVariant,
             shape = shape,
         )
     }
@@ -192,7 +184,7 @@ private fun QuadrantCell(
     Box(
         modifier = modifier
             .clip(shape)
-            .background(BgCard)
+            .background(theme.surfaceVariant)
             .then(borderModifier),
         contentAlignment = Alignment.Center,
     ) {
@@ -212,8 +204,8 @@ private fun QuadrantCell(
                         .align(Alignment.TopStart)
                         .padding(8.dp)
                         .clip(RoundedCornerShape(6.dp))
-                        .background(BgSurface.copy(alpha = 0.92f))
-                        .border(1.dp, EmeraldGreen.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                        .background(theme.surface.copy(alpha = 0.92f))
+                        .border(1.dp, theme.secondary.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
                         .padding(horizontal = 6.dp, vertical = 3.dp),
                 ) {
                     Row(
@@ -223,12 +215,12 @@ private fun QuadrantCell(
                         Icon(
                             imageVector = Icons.Default.Check,
                             contentDescription = null,
-                            tint = EmeraldGreen,
+                            tint = theme.secondary,
                             modifier = Modifier.size(12.dp),
                         )
                         Text(
                             text = "#${index + 1} ${presetUsed?.name ?: ""}",
-                            color = TextMain,
+                            color = theme.onSurface,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
@@ -271,13 +263,13 @@ private fun QuadrantCell(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         CircularProgressIndicator(
-                            color = NeonPink,
+                            color = theme.primary,
                             modifier = Modifier.size(24.dp),
                             strokeWidth = 2.dp,
                         )
                         Text(
                             text = "Awaiting Camera...",
-                            color = TextMuted,
+                            color = theme.onSurfaceVariant,
                             fontSize = 11.sp,
                         )
                     }
@@ -289,8 +281,8 @@ private fun QuadrantCell(
                         .align(Alignment.TopStart)
                         .padding(8.dp)
                         .clip(RoundedCornerShape(6.dp))
-                        .background(BgSurface.copy(alpha = 0.95f))
-                        .border(1.dp, NeonPink.copy(alpha = pulseAlpha), RoundedCornerShape(6.dp))
+                        .background(theme.surface.copy(alpha = 0.95f))
+                        .border(1.dp, theme.primary.copy(alpha = pulseAlpha), RoundedCornerShape(6.dp))
                         .padding(horizontal = 7.dp, vertical = 3.dp),
                 ) {
                     Row(
@@ -301,11 +293,11 @@ private fun QuadrantCell(
                             modifier = Modifier
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(NeonPink),
+                                .background(theme.primary),
                         )
                         Text(
                             text = "LIVE • #${index + 1}",
-                            color = NeonPink,
+                            color = theme.primary,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
@@ -319,8 +311,8 @@ private fun QuadrantCell(
                         .align(Alignment.BottomEnd)
                         .padding(8.dp)
                         .clip(RoundedCornerShape(6.dp))
-                        .background(BgSurface.copy(alpha = 0.9f))
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(6.dp))
+                        .background(theme.surface.copy(alpha = 0.9f))
+                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(6.dp))
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                 ) {
                     Text(
@@ -342,13 +334,13 @@ private fun QuadrantCell(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(BgSurfaceElevated)
-                            .border(1.dp, BorderSubtle, CircleShape),
+                            .background(theme.surface)
+                            .border(1.dp, theme.outlineVariant, CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
                             text = "${index + 1}",
-                            color = TextSubtle,
+                            color = theme.onSurfaceVariant,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
@@ -356,7 +348,7 @@ private fun QuadrantCell(
                     }
                     Text(
                         text = "Photo ${index + 1}",
-                        color = TextSubtle,
+                        color = theme.onSurfaceVariant,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                     )

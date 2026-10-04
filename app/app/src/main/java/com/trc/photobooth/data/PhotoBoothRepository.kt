@@ -11,14 +11,25 @@ import com.trc.photobooth.data.models.GifRecordingState
 import com.trc.photobooth.data.models.PrintResponse
 import com.trc.photobooth.data.models.PrinterStatus
 import com.trc.photobooth.data.models.SystemStats
+import androidx.lifecycle.LifecycleOwner
+import com.trc.photobooth.camera.AndroidLens
+import com.trc.photobooth.camera.CameraSource
+import com.trc.photobooth.camera.LocalCameraManager
+import com.trc.photobooth.util.BitmapUtils
 import java.io.ByteArrayOutputStream
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -74,18 +85,65 @@ class PhotoBoothRepository(
     private val _isLoadingCaptures = MutableStateFlow(false)
     val isLoadingCaptures: StateFlow<Boolean> = _isLoadingCaptures.asStateFlow()
 
-    // Pass-through WebSocket flows
-    val status: StateFlow<ConnectionStatus> = wsClient.status
-    val lastFrame: StateFlow<Bitmap?> = wsClient.lastFrame
-    val fps: StateFlow<Int> = wsClient.fps
-    val latencyMs: StateFlow<Int> = wsClient.latencyMs
-    val cameraConfig: StateFlow<CameraConfig> = wsClient.cameraConfig
+    val localCameraManager = LocalCameraManager(context)
+
+    private val initialCameraSource = try {
+        CameraSource.valueOf(
+            prefs.getString("camera_source", CameraSource.RASPI.name) ?: CameraSource.RASPI.name
+        )
+    } catch (e: Exception) {
+        CameraSource.RASPI
+    }
+    private val _cameraSource = MutableStateFlow(initialCameraSource)
+    val cameraSource: StateFlow<CameraSource> = _cameraSource.asStateFlow()
+
+    val androidLens: StateFlow<AndroidLens> = localCameraManager.lens
+
+    // Unified connection status (CONNECTED if device camera is in use)
+    private val _status = MutableStateFlow(
+        if (initialCameraSource == CameraSource.ANDROID) ConnectionStatus.CONNECTED else wsClient.status.value
+    )
+    val status: StateFlow<ConnectionStatus> = _status.asStateFlow()
+
+    // Unified live frame
+    private val _lastFrame = MutableStateFlow<Bitmap?>(null)
+    val lastFrame: StateFlow<Bitmap?> = _lastFrame.asStateFlow()
+
+    // Unified FPS
+    private val _fps = MutableStateFlow(0)
+    val fps: StateFlow<Int> = _fps.asStateFlow()
+
+    // Unified Latency
+    private val _latencyMs = MutableStateFlow(0)
+    val latencyMs: StateFlow<Int> = _latencyMs.asStateFlow()
+
+    // Unified CameraConfig
+    private val _cameraConfig = MutableStateFlow(
+        if (initialCameraSource == CameraSource.ANDROID)
+            CameraConfig(width = 1280, height = 960, fps = 30, flipHorizontal = localCameraManager.isFlipped.value)
+        else wsClient.cameraConfig.value
+    )
+    val cameraConfig: StateFlow<CameraConfig> = _cameraConfig.asStateFlow()
+
     val systemStats: StateFlow<SystemStats?> = wsClient.systemStats
-    val countdown: StateFlow<CountdownState?> = wsClient.countdown
-    val gifRecording: StateFlow<GifRecordingState?> = wsClient.gifRecording
-    val isStreamPaused: StateFlow<Boolean> = wsClient.isStreamPaused
-    val flashEvent: SharedFlow<Unit> = wsClient.flashEvent
-    val captureResult: SharedFlow<CaptureMetadata> = wsClient.captureResult
+
+    private val _countdown = MutableStateFlow<CountdownState?>(null)
+    val countdown: StateFlow<CountdownState?> = _countdown.asStateFlow()
+
+    private val _gifRecording = MutableStateFlow<GifRecordingState?>(null)
+    val gifRecording: StateFlow<GifRecordingState?> = _gifRecording.asStateFlow()
+
+    private val _isStreamPaused = MutableStateFlow(false)
+    val isStreamPaused: StateFlow<Boolean> = _isStreamPaused.asStateFlow()
+
+    private val _flashEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 2)
+    val flashEvent: SharedFlow<Unit> = _flashEvent.asSharedFlow()
+
+    private val _captureResult = MutableSharedFlow<CaptureMetadata>(extraBufferCapacity = 5)
+    val captureResult: SharedFlow<CaptureMetadata> = _captureResult.asSharedFlow()
+
+    private val _localCountdown = MutableStateFlow<CountdownState?>(null)
+    private val _localGifRecording = MutableStateFlow<GifRecordingState?>(null)
 
     // Action Logs (observable by Admin Panel)
     private val _actionLogs = MutableStateFlow<List<ActionLog>>(listOf(
@@ -109,22 +167,153 @@ class PhotoBoothRepository(
     }
 
     init {
-        // Collect new captures pushed over WebSocket
+        // Load initial local device captures from disk
+        _captures.value = loadLocalCaptures()
+
+        // Sync Pi captures pushed over WebSocket
         scope.launch {
             wsClient.captureResult.collect { newCapture ->
                 _captures.value = listOf(newCapture) + _captures.value.filter { it.id != newCapture.id }
+                if (_cameraSource.value == CameraSource.RASPI) {
+                    _captureResult.emit(newCapture)
+                }
                 logAction("High-res capture saved: ${newCapture.filename}", LogType.COMPLETE)
+            }
+        }
+
+        // Bridge status: always CONNECTED when using local camera, otherwise wsClient status
+        scope.launch {
+            combine(_cameraSource, wsClient.status) { src, wsSt ->
+                if (src == CameraSource.ANDROID) ConnectionStatus.CONNECTED else wsSt
+            }.collect { st ->
+                _status.value = st
+            }
+        }
+
+        // Bridge lastFrame
+        scope.launch {
+            _cameraSource.collectLatest { src ->
+                if (src == CameraSource.ANDROID) {
+                    localCameraManager.lastFrame.collect { frame ->
+                        _lastFrame.value = frame
+                    }
+                } else {
+                    wsClient.lastFrame.collect { frame ->
+                        _lastFrame.value = frame
+                    }
+                }
+            }
+        }
+
+        // Bridge FPS
+        scope.launch {
+            _cameraSource.collectLatest { src ->
+                if (src == CameraSource.ANDROID) {
+                    localCameraManager.fps.collect { f ->
+                        _fps.value = f
+                    }
+                } else {
+                    wsClient.fps.collect { f ->
+                        _fps.value = f
+                    }
+                }
+            }
+        }
+
+        // Bridge Latency
+        scope.launch {
+            _cameraSource.collectLatest { src ->
+                if (src == CameraSource.ANDROID) {
+                    _latencyMs.value = 0
+                } else {
+                    wsClient.latencyMs.collect { lat ->
+                        _latencyMs.value = lat
+                    }
+                }
+            }
+        }
+
+        // Bridge CameraConfig
+        scope.launch {
+            _cameraSource.collectLatest { src ->
+                if (src == CameraSource.ANDROID) {
+                    combine(localCameraManager.fps, localCameraManager.isFlipped) { fpsVal, flip ->
+                        CameraConfig(width = 1280, height = 960, fps = fpsVal, flipHorizontal = flip)
+                    }.collect { cfg ->
+                        _cameraConfig.value = cfg
+                    }
+                } else {
+                    wsClient.cameraConfig.collect { cfg ->
+                        _cameraConfig.value = cfg
+                    }
+                }
+            }
+        }
+
+        // Bridge isStreamPaused
+        scope.launch {
+            _cameraSource.collectLatest { src ->
+                if (src == CameraSource.ANDROID) {
+                    localCameraManager.isStreamPaused.collect { p ->
+                        _isStreamPaused.value = p
+                    }
+                } else {
+                    wsClient.isStreamPaused.collect { p ->
+                        _isStreamPaused.value = p
+                    }
+                }
+            }
+        }
+
+        // Bridge countdown
+        scope.launch {
+            _cameraSource.collectLatest { src ->
+                if (src == CameraSource.ANDROID) {
+                    _localCountdown.collect { c ->
+                        _countdown.value = c
+                    }
+                } else {
+                    wsClient.countdown.collect { c ->
+                        _countdown.value = c
+                    }
+                }
+            }
+        }
+
+        // Bridge gifRecording
+        scope.launch {
+            _cameraSource.collectLatest { src ->
+                if (src == CameraSource.ANDROID) {
+                    _localGifRecording.collect { g ->
+                        _gifRecording.value = g
+                    }
+                } else {
+                    wsClient.gifRecording.collect { g ->
+                        _gifRecording.value = g
+                    }
+                }
+            }
+        }
+
+        // Bridge flashEvent from Pi WebSocket
+        scope.launch {
+            wsClient.flashEvent.collect {
+                if (_cameraSource.value == CameraSource.RASPI) {
+                    _flashEvent.emit(Unit)
+                }
             }
         }
 
         // Monitor connection status changes for logging
         scope.launch {
             wsClient.status.collect { st ->
-                when (st) {
-                    ConnectionStatus.CONNECTED -> logAction("Connected to Pi at ${_hostAddress.value}", LogType.STATUS)
-                    ConnectionStatus.DISCONNECTED -> logAction("Disconnected from Pi (${_hostAddress.value})", LogType.STATUS)
-                    ConnectionStatus.CONNECTING -> logAction("Connecting to Pi at ${_hostAddress.value}...", LogType.STATUS)
-                    ConnectionStatus.ERROR -> logAction("Connection error with Pi at ${_hostAddress.value}", LogType.ERROR)
+                if (_cameraSource.value == CameraSource.RASPI) {
+                    when (st) {
+                        ConnectionStatus.CONNECTED -> logAction("Connected to Pi at ${_hostAddress.value}", LogType.STATUS)
+                        ConnectionStatus.DISCONNECTED -> logAction("Disconnected from Pi (${_hostAddress.value})", LogType.STATUS)
+                        ConnectionStatus.CONNECTING -> logAction("Connecting to Pi at ${_hostAddress.value}...", LogType.STATUS)
+                        ConnectionStatus.ERROR -> logAction("Connection error with Pi at ${_hostAddress.value}", LogType.ERROR)
+                    }
                 }
             }
         }
@@ -132,7 +321,7 @@ class PhotoBoothRepository(
         // Monitor camera on/off (pause state)
         scope.launch {
             var isFirst = true
-            wsClient.isStreamPaused.collect { isPaused ->
+            _isStreamPaused.collect { isPaused ->
                 if (isFirst) {
                     isFirst = false
                     return@collect
@@ -221,7 +410,7 @@ class PhotoBoothRepository(
     }
 
     fun getFullMediaUrl(pathOrUrl: String): String {
-        return if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
+        return if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://") || pathOrUrl.startsWith("file://")) {
             pathOrUrl
         } else {
             val prefix = if (pathOrUrl.startsWith("/")) "" else "/"
@@ -229,21 +418,179 @@ class PhotoBoothRepository(
         }
     }
 
+    // Camera source management
+    fun setCameraSource(source: CameraSource) {
+        if (_cameraSource.value == source) return
+        _cameraSource.value = source
+        prefs.edit().putString("camera_source", source.name).apply()
+        if (source == CameraSource.ANDROID) {
+            logAction("Switched to Device Camera (Android)", LogType.CAMERA)
+        } else {
+            logAction("Switched to Raspberry Pi Camera", LogType.CAMERA)
+            reconnect()
+        }
+    }
+
+    fun toggleCameraSource() {
+        val next = if (_cameraSource.value == CameraSource.RASPI) CameraSource.ANDROID else CameraSource.RASPI
+        setCameraSource(next)
+    }
+
+    fun setAndroidLens(lens: AndroidLens) {
+        localCameraManager.setLens(lens)
+        logAction("Device camera lens switched to ${lens.name}", LogType.CAMERA)
+    }
+
+    fun toggleAndroidLens() {
+        localCameraManager.toggleLens()
+        logAction("Device camera lens toggled (${localCameraManager.lens.value.name})", LogType.CAMERA)
+    }
+
+    fun startLocalCamera(lifecycleOwner: LifecycleOwner) {
+        localCameraManager.startCamera(lifecycleOwner)
+    }
+
+    fun stopLocalCamera() {
+        localCameraManager.stopCamera()
+    }
+
     // Capture controls
-    fun triggerPhoto(countdownSec: Int = 0) = wsClient.triggerPhoto(countdownSec)
-    fun triggerGif(countdownSec: Int = 0, frames: Int = 10, intervalMs: Int = 150) =
-        wsClient.triggerGif(countdownSec, frames, intervalMs)
+    fun triggerPhoto(countdownSec: Int = 0) {
+        if (_cameraSource.value == CameraSource.RASPI) {
+            wsClient.triggerPhoto(countdownSec)
+            return
+        }
+        scope.launch {
+            if (countdownSec > 0) {
+                for (s in countdownSec downTo 1) {
+                    _localCountdown.value = CountdownState(secondsLeft = s, action = "photo")
+                    delay(1000)
+                }
+            }
+            _localCountdown.value = CountdownState(secondsLeft = 0, action = "photo")
+            _flashEvent.emit(Unit)
+            delay(80)
+
+            val bitmap = localCameraManager.capturePhoto() ?: localCameraManager.lastFrame.value
+            _localCountdown.value = null
+
+            if (bitmap != null) {
+                saveDeviceCapture(bitmap, isGif = false)
+            } else {
+                logAction("Failed to capture frame from device camera", LogType.ERROR)
+            }
+        }
+    }
+
+    fun triggerGif(countdownSec: Int = 0, frames: Int = 10, intervalMs: Int = 150) {
+        if (_cameraSource.value == CameraSource.RASPI) {
+            wsClient.triggerGif(countdownSec, frames, intervalMs)
+            return
+        }
+        scope.launch {
+            if (countdownSec > 0) {
+                for (s in countdownSec downTo 1) {
+                    _localCountdown.value = CountdownState(secondsLeft = s, action = "gif")
+                    delay(1000)
+                }
+            }
+            _localCountdown.value = CountdownState(secondsLeft = 0, action = "gif")
+            _flashEvent.emit(Unit)
+            _localGifRecording.value = GifRecordingState(frames = frames, intervalMs = intervalMs)
+
+            val capturedList = mutableListOf<Bitmap>()
+            for (i in 0 until frames) {
+                localCameraManager.lastFrame.value?.let { capturedList.add(it) }
+                delay(intervalMs.toLong())
+            }
+            _localGifRecording.value = null
+            _localCountdown.value = null
+
+            if (capturedList.isNotEmpty()) {
+                saveDeviceCapture(capturedList.first(), isGif = true)
+            }
+        }
+    }
+
+    private fun saveDeviceCapture(bitmap: Bitmap, isGif: Boolean) {
+        val file = BitmapUtils.saveSinglePhoto(context, bitmap, prefix = if (isGif) "device_burst" else "device_photo")
+        if (file != null) {
+            val metadata = CaptureMetadata(
+                id = "local_${System.currentTimeMillis()}",
+                type = if (isGif) "gif" else "photo",
+                filename = file.name,
+                url = "file://${file.absolutePath}",
+                thumbnailUrl = "file://${file.absolutePath}",
+                createdAt = System.currentTimeMillis() / 1000.0,
+                sizeBytes = file.length(),
+                width = bitmap.width,
+                height = bitmap.height
+            )
+            _captures.value = listOf(metadata) + _captures.value.filter { it.id != metadata.id }
+            scope.launch {
+                _captureResult.emit(metadata)
+            }
+            logAction("Device photo saved: ${file.name}", LogType.COMPLETE)
+        }
+    }
+
+    fun loadLocalCaptures(): List<CaptureMetadata> {
+        val dir = File(
+            android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES),
+            "TRCPhotoBooth/captures"
+        )
+        if (!dir.exists()) return emptyList()
+        val files = dir.listFiles { f -> f.extension.lowercase() in listOf("jpg", "jpeg", "png", "gif") } ?: return emptyList()
+        return files.sortedByDescending { it.lastModified() }.map { f ->
+            CaptureMetadata(
+                id = "local_${f.nameWithoutExtension}",
+                type = if (f.name.contains("burst") || f.extension.lowercase() == "gif") "gif" else "photo",
+                filename = f.name,
+                url = "file://${f.absolutePath}",
+                thumbnailUrl = "file://${f.absolutePath}",
+                createdAt = f.lastModified() / 1000.0,
+                sizeBytes = f.length(),
+                width = 1280,
+                height = 960
+            )
+        }
+    }
 
     fun setFps(fps: Int) = wsClient.setFps(fps)
     fun setQuality(quality: Int) = wsClient.setQuality(quality)
     fun setResolution(res: String, aspectRatio: String = "16:9") = wsClient.setResolution(res, aspectRatio)
-    fun toggleFlip(value: Boolean? = null) = wsClient.toggleFlip(value)
+
+    fun toggleFlip(value: Boolean? = null) {
+        if (_cameraSource.value == CameraSource.RASPI) {
+            wsClient.toggleFlip(value)
+        } else {
+            localCameraManager.toggleFlip(value)
+            _cameraConfig.value = _cameraConfig.value.copy(flipHorizontal = localCameraManager.isFlipped.value)
+        }
+    }
+
     fun toggleSwapRb(value: Boolean? = null) = wsClient.toggleSwapRb(value)
     fun requestSystemStats() = wsClient.requestSystemStats()
     fun setCameraDevice(device: String) = wsClient.setCameraDevice(device)
     fun requestDevices() = wsClient.requestDevices()
-    fun toggleStreamPause() = wsClient.toggleStreamPause()
-    fun setStreamPaused(paused: Boolean) = wsClient.setStreamPaused(paused)
+
+    fun toggleStreamPause() {
+        if (_cameraSource.value == CameraSource.RASPI) {
+            wsClient.toggleStreamPause()
+        } else {
+            localCameraManager.toggleStreamPause()
+            _isStreamPaused.value = localCameraManager.isStreamPaused.value
+        }
+    }
+
+    fun setStreamPaused(paused: Boolean) {
+        if (_cameraSource.value == CameraSource.RASPI) {
+            wsClient.setStreamPaused(paused)
+        } else {
+            localCameraManager.setStreamPaused(paused)
+            _isStreamPaused.value = paused
+        }
+    }
 
     // REST operations
     fun fetchCaptures() {
@@ -260,7 +607,8 @@ class PhotoBoothRepository(
                             val itemsJson = root["captures"]
                             if (itemsJson != null) {
                                 val list = json.decodeFromJsonElement<List<CaptureMetadata>>(itemsJson)
-                                _captures.value = list
+                                val local = loadLocalCaptures()
+                                _captures.value = (list + local).distinctBy { it.id }
                             }
                         }
                     }
@@ -274,6 +622,16 @@ class PhotoBoothRepository(
     }
 
     suspend fun deleteCapture(id: String): Boolean = withContext(Dispatchers.IO) {
+        if (id.startsWith("local_")) {
+            val item = _captures.value.find { it.id == id }
+            if (item != null) {
+                val filePath = item.url.removePrefix("file://")
+                val f = File(filePath)
+                if (f.exists()) f.delete()
+            }
+            _captures.value = _captures.value.filter { it.id != id }
+            return@withContext true
+        }
         try {
             val url = "${getBaseHttpUrl()}/api/captures/$id"
             val request = Request.Builder().url(url).delete().build()

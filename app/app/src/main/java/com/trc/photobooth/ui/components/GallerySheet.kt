@@ -1,10 +1,5 @@
 package com.trc.photobooth.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,11 +15,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -35,6 +28,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -56,16 +50,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.trc.photobooth.data.models.CaptureMetadata
-import com.trc.photobooth.theme.BgCard
-import com.trc.photobooth.theme.BgElevated
-import com.trc.photobooth.theme.BgSurface
-import com.trc.photobooth.theme.BgSurfaceElevated
-import com.trc.photobooth.theme.BorderMedium
-import com.trc.photobooth.theme.BorderSubtle
-import com.trc.photobooth.theme.CyberCyan
-import com.trc.photobooth.theme.NeonPink
-import com.trc.photobooth.theme.TextMain
-import com.trc.photobooth.theme.TextMuted
+import com.trc.photobooth.theme.current
 
 @Composable
 fun GallerySheet(
@@ -80,6 +65,7 @@ fun GallerySheet(
 ) {
     if (!isOpen) return
 
+    val theme = MaterialTheme.current
     var selectedTab by remember { mutableStateOf("ALL") }
 
     val filteredCaptures = remember(captures, selectedTab) {
@@ -97,7 +83,7 @@ fun GallerySheet(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0x66000000))
+                .background(theme.scrim.copy(alpha = 0.6f))
                 .clickable(onClick = onClose),
             contentAlignment = Alignment.BottomCenter
         ) {
@@ -107,8 +93,8 @@ fun GallerySheet(
                     .fillMaxWidth()
                     .height(680.dp)
                     .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                    .background(BgSurface)
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                    .background(theme.surface)
+                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                     .clickable(enabled = false) {} // Prevent click-through
                     .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 24.dp)
             ) {
@@ -117,7 +103,7 @@ fun GallerySheet(
                     modifier = Modifier
                         .size(width = 40.dp, height = 4.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(BorderMedium)
+                        .background(theme.outlineVariant)
                         .align(Alignment.CenterHorizontally)
                 )
 
@@ -137,12 +123,12 @@ fun GallerySheet(
                             Icon(
                                 imageVector = Icons.Default.PhotoLibrary,
                                 contentDescription = null,
-                                tint = CyberCyan,
+                                tint = theme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                             Text(
                                 text = "STUDIO GALLERY",
-                                color = TextMain,
+                                color = theme.onSurface,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
@@ -150,7 +136,7 @@ fun GallerySheet(
                         }
                         Text(
                             text = "${captures.size} captures saved on Booth Pi",
-                            color = TextMuted,
+                            color = theme.onSurfaceVariant,
                             fontSize = 12.sp
                         )
                     }
@@ -163,14 +149,14 @@ fun GallerySheet(
                             Icon(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = "Refresh",
-                                tint = TextMuted
+                                tint = theme.onSurfaceVariant
                             )
                         }
                         IconButton(onClick = onClose) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Close",
-                                tint = TextMuted
+                                tint = theme.onSurfaceVariant
                             )
                         }
                     }
@@ -183,7 +169,7 @@ fun GallerySheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(BgSurfaceElevated)
+                        .background(theme.surfaceVariant)
                         .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -199,14 +185,14 @@ fun GallerySheet(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) Color(0x3300F0FF) else Color.Transparent)
+                                .background(if (isSelected) theme.primary.copy(alpha = 0.2f) else Color.Transparent)
                                 .clickable { selectedTab = tab }
                                 .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = "$tab ($count)",
-                                color = if (isSelected) CyberCyan else TextMuted,
+                                color = if (isSelected) theme.primary else theme.onSurfaceVariant,
                                 fontSize = 12.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 fontFamily = FontFamily.Monospace
@@ -225,7 +211,7 @@ fun GallerySheet(
                             .weight(1f),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = CyberCyan)
+                        CircularProgressIndicator(color = theme.primary)
                     }
                 } else if (filteredCaptures.isEmpty()) {
                     Box(
@@ -242,20 +228,20 @@ fun GallerySheet(
                             Icon(
                                 imageVector = Icons.Default.PhotoCamera,
                                 contentDescription = null,
-                                tint = BorderMedium,
+                                tint = theme.outlineVariant,
                                 modifier = Modifier.size(48.dp)
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = "No captures found",
-                                color = TextMuted,
+                                color = theme.onSurfaceVariant,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "Tap the shutter button in the studio to take a photo or record a burst GIF!",
-                                color = TextMuted.copy(alpha = 0.7f),
+                                color = theme.onSurfaceVariant.copy(alpha = 0.7f),
                                 fontSize = 12.sp,
                                 textAlign = TextAlign.Center
                             )
@@ -291,8 +277,9 @@ private fun GalleryItemCard(
     hostAddress: String,
     onClick: () -> Unit,
 ) {
+    val theme = MaterialTheme.current
     val isGif = capture.type == "gif"
-    val accentColor = if (isGif) CyberCyan else NeonPink
+    val accentColor = if (isGif) theme.secondary else theme.primary
     val thumbUrl = "http://$hostAddress:8000${capture.thumbnailUrl}"
 
     Box(
@@ -300,8 +287,8 @@ private fun GalleryItemCard(
             .fillMaxWidth()
             .aspectRatio(1f)
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0x800F172A))
-            .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+            .background(theme.surfaceVariant)
+            .border(1.dp, theme.outlineVariant, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
     ) {
         AsyncImage(
@@ -317,7 +304,7 @@ private fun GalleryItemCard(
                 .align(Alignment.TopStart)
                 .padding(8.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color(0xCC000000))
+                .background(Color.Black.copy(alpha = 0.75f))
                 .border(0.5.dp, accentColor.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
                 .padding(horizontal = 6.dp, vertical = 2.dp)
         ) {
@@ -346,12 +333,12 @@ private fun GalleryItemCard(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .background(Color(0xB3000000))
+                .background(Color.Black.copy(alpha = 0.7f))
                 .padding(horizontal = 8.dp, vertical = 4.dp)
         ) {
             Text(
                 text = capture.filename,
-                color = TextMain,
+                color = Color.White,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,

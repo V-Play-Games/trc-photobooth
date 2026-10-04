@@ -3,6 +3,9 @@ package com.trc.photobooth.ui.main
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.LifecycleOwner
+import com.trc.photobooth.camera.AndroidLens
+import com.trc.photobooth.camera.CameraSource
 import com.trc.photobooth.data.PhotoBoothRepository
 import com.trc.photobooth.data.models.CameraConfig
 import com.trc.photobooth.data.models.CaptureMetadata
@@ -99,6 +102,8 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
                     message = "Your $typeName is saved and ready in the gallery.",
                     isGif = capture.type == "gif"
                 )
+                // Turn timer back to 3s after capture
+                _countdownSetting.value = 3
             }
         }
 
@@ -186,6 +191,9 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
 
     fun triggerShutter() {
         if (status.value != ConnectionStatus.CONNECTED) return
+        if (repository.isStreamPaused.value) {
+            repository.setStreamPaused(false)
+        }
         val sec = _countdownSetting.value
         if (_captureMode.value == CaptureType.PHOTO) {
             repository.logAction("Admin triggered photo capture (Timer: ${sec}s)", com.trc.photobooth.data.LogType.CAPTURE)
@@ -228,6 +236,16 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
             }
         }
     }
+
+    val cameraSource: StateFlow<CameraSource> = repository.cameraSource
+    val androidLens: StateFlow<AndroidLens> = repository.androidLens
+
+    fun setCameraSource(source: CameraSource) = repository.setCameraSource(source)
+    fun toggleCameraSource() = repository.toggleCameraSource()
+    fun setAndroidLens(lens: AndroidLens) = repository.setAndroidLens(lens)
+    fun toggleAndroidLens() = repository.toggleAndroidLens()
+    fun startLocalCamera(owner: LifecycleOwner) = repository.startLocalCamera(owner)
+    fun stopLocalCamera() = repository.stopLocalCamera()
 
     override fun onCleared() {
         super.onCleared()

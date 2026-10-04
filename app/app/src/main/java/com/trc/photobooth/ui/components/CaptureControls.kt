@@ -25,23 +25,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Gif
-import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,16 +52,7 @@ import coil.compose.AsyncImage
 import com.trc.photobooth.data.models.CaptureMetadata
 import com.trc.photobooth.data.models.CaptureType
 import com.trc.photobooth.data.models.ConnectionStatus
-import com.trc.photobooth.theme.BgCard
-import com.trc.photobooth.theme.BgElevated
-import com.trc.photobooth.theme.BgSurface
-import com.trc.photobooth.theme.BgSurfaceElevated
-import com.trc.photobooth.theme.BorderMedium
-import com.trc.photobooth.theme.BorderSubtle
-import com.trc.photobooth.theme.CyberCyan
-import com.trc.photobooth.theme.NeonPink
-import com.trc.photobooth.theme.TextMain
-import com.trc.photobooth.theme.TextMuted
+import com.trc.photobooth.theme.current
 
 @Composable
 fun CaptureControls(
@@ -88,15 +74,15 @@ fun CaptureControls(
     onOpenGallery: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var showGifOptions by remember { mutableStateOf(false) }
+    val theme = MaterialTheme.current
     val isConnected = connectionStatus == ConnectionStatus.CONNECTED
     val isBusy = isCountingDown || isRecordingGif
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(BgSurface.copy(alpha = 0.95f))
-            .border(width = 1.dp, color = BorderSubtle)
+            .background(theme.surface.copy(alpha = 0.95f))
+            .border(width = 1.dp, color = theme.outlineVariant)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -110,21 +96,21 @@ fun CaptureControls(
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(BgSurfaceElevated)
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
+                    .background(theme.surfaceVariant)
+                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(20.dp))
                     .padding(3.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 ModePill(
                     label = "PHOTO",
                     isSelected = captureMode == CaptureType.PHOTO,
-                    accentColor = NeonPink,
+                    accentColor = theme.primary,
                     onClick = { onSelectMode(CaptureType.PHOTO) }
                 )
                 ModePill(
                     label = "GIF BURST",
                     isSelected = captureMode == CaptureType.GIF,
-                    accentColor = CyberCyan,
+                    accentColor = theme.secondary,
                     onClick = { onSelectMode(CaptureType.GIF) }
                 )
             }
@@ -133,8 +119,8 @@ fun CaptureControls(
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(BgSurfaceElevated)
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
+                    .background(theme.surfaceVariant)
+                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(20.dp))
                     .padding(3.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
@@ -143,14 +129,14 @@ fun CaptureControls(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(16.dp))
-                            .background(if (isSelected) Color(0x3300F0FF) else Color.Transparent)
+                            .background(if (isSelected) theme.primary.copy(alpha = 0.2f) else Color.Transparent)
                             .clickable { onSelectCountdown(sec) }
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = label,
-                            color = if (isSelected) CyberCyan else TextMuted,
+                            color = if (isSelected) theme.primary else theme.onSurfaceVariant,
                             fontSize = 11.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             fontFamily = FontFamily.Monospace
@@ -171,8 +157,8 @@ fun CaptureControls(
                     .fillMaxWidth()
                     .padding(top = 10.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(BgSurfaceElevated)
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(10.dp))
+                    .background(theme.surfaceVariant)
+                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(10.dp))
                     .padding(horizontal = 10.dp, vertical = 6.dp)
             ) {
                 Row(
@@ -182,7 +168,7 @@ fun CaptureControls(
                 ) {
                     Text(
                         text = "BURST FRAMES",
-                        color = TextMuted,
+                        color = theme.onSurfaceVariant,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
@@ -194,14 +180,14 @@ fun CaptureControls(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(if (sel) CyberCyan.copy(alpha = 0.25f) else Color.Transparent)
-                                    .border(0.5.dp, if (sel) CyberCyan else BorderSubtle, RoundedCornerShape(6.dp))
+                                    .background(if (sel) theme.primary.copy(alpha = 0.25f) else Color.Transparent)
+                                    .border(0.5.dp, if (sel) theme.primary else theme.outlineVariant, RoundedCornerShape(6.dp))
                                     .clickable { onChangeGifFrames(f) }
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = "${f}f",
-                                    color = if (sel) CyberCyan else TextMuted,
+                                    color = if (sel) theme.primary else theme.onSurfaceVariant,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -219,7 +205,7 @@ fun CaptureControls(
                 ) {
                     Text(
                         text = "SPEED (INTERVAL)",
-                        color = TextMuted,
+                        color = theme.onSurfaceVariant,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
@@ -231,14 +217,14 @@ fun CaptureControls(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(if (sel) CyberCyan.copy(alpha = 0.25f) else Color.Transparent)
-                                    .border(0.5.dp, if (sel) CyberCyan else BorderSubtle, RoundedCornerShape(6.dp))
+                                    .background(if (sel) theme.primary.copy(alpha = 0.25f) else Color.Transparent)
+                                    .border(0.5.dp, if (sel) theme.primary else theme.outlineVariant, RoundedCornerShape(6.dp))
                                     .clickable { onChangeGifInterval(ms) }
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = name,
-                                    color = if (sel) CyberCyan else TextMuted,
+                                    color = if (sel) theme.primary else theme.onSurfaceVariant,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -262,8 +248,8 @@ fun CaptureControls(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0x800F172A))
-                    .border(1.dp, BorderMedium, RoundedCornerShape(14.dp))
+                    .background(theme.surfaceVariant)
+                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(14.dp))
                     .clickable { onOpenGallery() },
                 contentAlignment = Alignment.Center
             ) {
@@ -281,7 +267,7 @@ fun CaptureControls(
                             .align(Alignment.BottomEnd)
                             .padding(3.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xD9000000))
+                            .background(theme.primary)
                             .padding(horizontal = 4.dp, vertical = 1.dp)
                     ) {
                         Text(
@@ -299,12 +285,12 @@ fun CaptureControls(
                         Icon(
                             imageVector = Icons.Default.PhotoLibrary,
                             contentDescription = "Gallery",
-                            tint = TextMuted,
+                            tint = theme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
                             text = "$capturesCount",
-                            color = TextMuted,
+                            color = theme.onSurfaceVariant,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -326,8 +312,8 @@ fun CaptureControls(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0x400F172A))
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp)),
+                    .background(theme.surfaceVariant)
+                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(14.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -337,12 +323,12 @@ fun CaptureControls(
                     Icon(
                         imageVector = if (captureMode == CaptureType.PHOTO) Icons.Default.CameraAlt else Icons.Default.Movie,
                         contentDescription = null,
-                        tint = if (captureMode == CaptureType.PHOTO) NeonPink else CyberCyan,
+                        tint = if (captureMode == CaptureType.PHOTO) theme.primary else theme.secondary,
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
                         text = if (countdownSec > 0) "${countdownSec}s" else "NOW",
-                        color = TextMuted,
+                        color = theme.onSurfaceVariant,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
@@ -360,12 +346,13 @@ private fun ModePill(
     accentColor: Color,
     onClick: () -> Unit,
 ) {
+    val theme = MaterialTheme.current
     val bgColor by animateColorAsState(
         targetValue = if (isSelected) accentColor.copy(alpha = 0.22f) else Color.Transparent,
         label = "modePillBg"
     )
     val textColor by animateColorAsState(
-        targetValue = if (isSelected) Color.White else TextMuted,
+        targetValue = if (isSelected) accentColor else theme.onSurfaceVariant,
         label = "modePillText"
     )
 
@@ -395,11 +382,12 @@ private fun ShutterButton(
     isEnabled: Boolean,
     onClick: () -> Unit,
 ) {
+    val theme = MaterialTheme.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    val primaryColor = if (captureMode == CaptureType.PHOTO) NeonPink else CyberCyan
-    val secondaryColor = if (captureMode == CaptureType.PHOTO) Color(0xFFFF6584) else Color(0xFF00B0FF)
+    val primaryColor = if (captureMode == CaptureType.PHOTO) theme.primary else theme.secondary
+    val secondaryColor = if (captureMode == CaptureType.PHOTO) theme.secondary else theme.tertiary
 
     // Pulse animation while busy
     val infiniteTransition = rememberInfiniteTransition(label = "shutterPulse")
@@ -441,7 +429,7 @@ private fun ShutterButton(
                 brush = if (isEnabled && !isBusy) {
                     Brush.linearGradient(listOf(primaryColor, secondaryColor))
                 } else {
-                    Brush.linearGradient(listOf(Color(0xFF334155), Color(0xFF1E293B)))
+                    Brush.linearGradient(listOf(theme.surfaceVariant, theme.outlineVariant))
                 }
             )
             .clickable(

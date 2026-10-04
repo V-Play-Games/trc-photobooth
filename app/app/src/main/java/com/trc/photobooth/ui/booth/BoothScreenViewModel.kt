@@ -4,6 +4,9 @@ import android.app.Application
 import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.LifecycleOwner
+import com.trc.photobooth.camera.AndroidLens
+import com.trc.photobooth.camera.CameraSource
 import com.trc.photobooth.data.CloudinaryConfig
 import com.trc.photobooth.data.CloudinaryUploader
 import com.trc.photobooth.data.PhotoBoothRepository
@@ -98,6 +101,15 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
     val printerColorMode: StateFlow<String> = repository.printerColorMode
     val printerCopies: StateFlow<Int> = repository.printerCopies
     val isStreamPaused: StateFlow<Boolean> = repository.isStreamPaused
+    val cameraSource: StateFlow<CameraSource> = repository.cameraSource
+    val androidLens: StateFlow<AndroidLens> = repository.androidLens
+
+    fun setCameraSource(source: CameraSource) = repository.setCameraSource(source)
+    fun toggleCameraSource() = repository.toggleCameraSource()
+    fun setAndroidLens(lens: AndroidLens) = repository.setAndroidLens(lens)
+    fun toggleAndroidLens() = repository.toggleAndroidLens()
+    fun startLocalCamera(owner: LifecycleOwner) = repository.startLocalCamera(owner)
+    fun stopLocalCamera() = repository.stopLocalCamera()
 
     fun setHost(host: String) = repository.setHost(host)
     fun startNsdSearch() = networkDiscovery.startDiscovery()
@@ -245,6 +257,12 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
         if (_boothState.value != BoothState.IDLE) return
         if (captureJob?.isActive == true) return
 
+        // Turn camera back on automatically once new session starts
+        if (repository.isStreamPaused.value) {
+            repository.setStreamPaused(false)
+            repository.logAction("Camera turned back on automatically for new session", com.trc.photobooth.data.LogType.STATUS)
+        }
+
         captureJob = viewModelScope.launch {
             _boothState.value = BoothState.CAPTURING
             _capturedPhotos.value = listOf(null, null, null, null)
@@ -343,6 +361,13 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
             )
             _savedSessionFiles.value = files
             _boothState.value = BoothState.COMPLETE
+
+            // Send camera off after every session
+            repository.setStreamPaused(true)
+            repository.logAction("Camera turned off after session completion", com.trc.photobooth.data.LogType.STATUS)
+
+            // Reset timer back to 3s after every session
+            _timerSeconds.value = 3
 
             // 6. Generate Preview Collages (Themed + Blank) — show preview first, do not upload yet!
             _uploadState.value = BoothUploadState.Idle
@@ -530,8 +555,13 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
         _uploadState.value = BoothUploadState.Idle
         _printState.value = PrintState.Idle
         _selectedTemplate.value = PhotoBoothTemplate.DEFAULT
+        _timerSeconds.value = 3
         _boothState.value = BoothState.IDLE
-        repository.logAction("Booth reset to IDLE, ready for next session", com.trc.photobooth.data.LogType.STATUS)
+
+        // Turn camera back on automatically once new session starts
+        repository.setStreamPaused(false)
+        repository.logAction("Booth reset to IDLE; camera turned back on for next session", com.trc.photobooth.data.LogType.STATUS)
+
         if (_selectedFilter.value.id != FilterPresets.RANDOM.id) {
             _currentFeedFilter.value = _selectedFilter.value
         } else {

@@ -1,6 +1,5 @@
 package com.trc.photobooth.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -9,10 +8,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -27,10 +22,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,13 +40,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.trc.photobooth.theme.BorderMedium
-import com.trc.photobooth.theme.BorderSubtle
-import com.trc.photobooth.theme.CyberCyan
-import com.trc.photobooth.theme.EmeraldGreen
-import com.trc.photobooth.theme.NeonPink
-import com.trc.photobooth.theme.TextMain
-import com.trc.photobooth.theme.TextMuted
+import com.trc.photobooth.theme.current
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.collectLatest
 
@@ -72,6 +60,7 @@ fun BoothCountdownOverlay(
     activeFilterName: String?,
     modifier: Modifier = Modifier,
 ) {
+    val theme = MaterialTheme.current
     val flashAlpha = remember { Animatable(0f) }
 
     LaunchedEffect(Unit) {
@@ -105,7 +94,7 @@ fun BoothCountdownOverlay(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0x99000000)),
+                    .background(theme.scrim.copy(alpha = 0.6f)),
             )
 
             Column(
@@ -119,8 +108,8 @@ fun BoothCountdownOverlay(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xCC0E121A))
-                        .border(1.5.dp, CyberCyan.copy(alpha = 0.7f), RoundedCornerShape(20.dp))
+                        .background(theme.surface.copy(alpha = 0.9f))
+                        .border(1.5.dp, theme.primary.copy(alpha = 0.7f), RoundedCornerShape(20.dp))
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     Row(
@@ -130,12 +119,12 @@ fun BoothCountdownOverlay(
                         Icon(
                             imageVector = Icons.Default.CameraAlt,
                             contentDescription = null,
-                            tint = CyberCyan,
+                            tint = theme.primary,
                             modifier = Modifier.size(16.dp),
                         )
                         Text(
                             text = "PHOTO ${photoIndex + 1} OF 4",
-                            color = TextMain,
+                            color = theme.onSurface,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
@@ -155,13 +144,13 @@ fun BoothCountdownOverlay(
                         .background(
                             Brush.radialGradient(
                                 listOf(
-                                    Color(0x40FF3366),
-                                    Color(0x2000F0FF),
-                                    Color(0x00000000),
+                                    theme.primary.copy(alpha = 0.35f),
+                                    theme.secondary.copy(alpha = 0.2f),
+                                    Color.Transparent,
                                 )
                             )
                         )
-                        .border(2.dp, NeonPink.copy(alpha = 0.8f), CircleShape),
+                        .border(2.dp, theme.primary.copy(alpha = 0.8f), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -185,7 +174,7 @@ fun BoothCountdownOverlay(
 
                 Text(
                     text = promptText,
-                    color = NeonPink,
+                    color = theme.primary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 2.sp,
@@ -195,7 +184,7 @@ fun BoothCountdownOverlay(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Filter: $activeFilterName",
-                        color = CyberCyan,
+                        color = theme.secondary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                     )

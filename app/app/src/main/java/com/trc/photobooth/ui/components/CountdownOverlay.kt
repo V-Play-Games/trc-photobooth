@@ -1,6 +1,5 @@
 package com.trc.photobooth.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -9,10 +8,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -23,13 +18,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -41,8 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trc.photobooth.data.models.CountdownState
-import com.trc.photobooth.theme.CyberCyan
-import com.trc.photobooth.theme.NeonPink
+import com.trc.photobooth.theme.current
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.collectLatest
 
@@ -52,6 +45,8 @@ fun CountdownOverlay(
     flashEvent: SharedFlow<Unit>,
     modifier: Modifier = Modifier,
 ) {
+    val theme = MaterialTheme.current
+
     // Strobe flash animatable alpha
     val flashAlpha = remember { Animatable(0f) }
 
@@ -78,7 +73,7 @@ fun CountdownOverlay(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0x99000000))
+                    .background(theme.scrim.copy(alpha = 0.6f))
             )
 
             if (!isZero) {
@@ -104,14 +99,14 @@ fun CountdownOverlay(
                             .scale(scale)
                             .background(
                                 Brush.radialGradient(
-                                    listOf(NeonPink.copy(alpha = 0.35f), Color.Transparent)
+                                    listOf(theme.primary.copy(alpha = 0.35f), Color.Transparent)
                                 ),
                                 CircleShape
                             )
                             .border(
                                 width = 3.dp,
                                 brush = Brush.sweepGradient(
-                                    listOf(NeonPink, CyberCyan, NeonPink)
+                                    listOf(theme.primary, theme.secondary, theme.primary)
                                 ),
                                 shape = CircleShape
                             ),
@@ -130,7 +125,7 @@ fun CountdownOverlay(
 
                     Text(
                         text = "GET READY!",
-                        color = CyberCyan,
+                        color = theme.secondary,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 2.sp,
@@ -152,7 +147,7 @@ fun CountdownOverlay(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "HOLD STILL FOR THE SHUTTER",
-                        color = CyberCyan,
+                        color = theme.secondary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 1.2.sp,

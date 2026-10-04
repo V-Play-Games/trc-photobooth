@@ -12,10 +12,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -35,11 +38,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
@@ -50,11 +51,7 @@ import androidx.compose.ui.unit.sp
 import com.trc.photobooth.data.models.ConnectionStatus
 import com.trc.photobooth.data.models.GifRecordingState
 import com.trc.photobooth.filters.FilterPreset
-import com.trc.photobooth.theme.BorderSubtle
-import com.trc.photobooth.theme.CyberCyan
-import com.trc.photobooth.theme.NeonPink
-import com.trc.photobooth.theme.TextMain
-import com.trc.photobooth.theme.TextMuted
+import com.trc.photobooth.theme.current
 
 @Composable
 fun LivePreview(
@@ -67,17 +64,33 @@ fun LivePreview(
     gifRecording: GifRecordingState?,
     modifier: Modifier = Modifier,
 ) {
+    val theme = MaterialTheme.current
     val isConnected = connectionStatus == ConnectionStatus.CONNECTED
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(4f / 3f)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF030407))
-            .border(1.dp, BorderSubtle, RoundedCornerShape(16.dp)),
+    BoxWithConstraints(
+        modifier = modifier,
         contentAlignment = Alignment.Center,
     ) {
+        val targetRatio = 4f / 3f
+        val isHeightConstrained = maxHeight > 0.dp && maxWidth > 0.dp && (maxWidth / maxHeight) > targetRatio
+
+        val boxModifier = if (isHeightConstrained) {
+            Modifier
+                .fillMaxHeight()
+                .aspectRatio(targetRatio, matchHeightConstraintsFirst = true)
+        } else {
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(targetRatio, matchHeightConstraintsFirst = false)
+        }
+
+        Box(
+            modifier = boxModifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.Black)
+                .border(1.dp, theme.outlineVariant, RoundedCornerShape(16.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
         if (isConnected && lastFrameBitmap != null) {
             // Live Stream Frame with Filter ColorMatrix
             val colorFilter = activeFilter.colorMatrix?.let { ColorFilter.colorMatrix(it) }
@@ -174,7 +187,7 @@ fun LivePreview(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xF006090E))
+                    .background(theme.surface)
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
@@ -183,14 +196,14 @@ fun LivePreview(
                     modifier = Modifier
                         .size(72.dp)
                         .clip(CircleShape)
-                        .background(Color(0x1A00F0FF))
-                        .border(1.dp, CyberCyan.copy(alpha = 0.5f), CircleShape),
+                        .background(theme.primary.copy(alpha = 0.15f))
+                        .border(1.dp, theme.primary.copy(alpha = 0.5f), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = Icons.Default.CameraAlt,
                         contentDescription = null,
-                        tint = CyberCyan,
+                        tint = theme.primary,
                         modifier = Modifier.size(36.dp),
                     )
                 }
@@ -199,7 +212,7 @@ fun LivePreview(
 
                 Text(
                     text = if (isConnected) "Acquiring Camera Feed..." else "Connecting to Raspberry Pi",
-                    color = TextMain,
+                    color = theme.onSurface,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -208,7 +221,7 @@ fun LivePreview(
 
                 Text(
                     text = if (isConnected) "Initializing camera sensor and streamer..." else "Ensure phone and Pi are on the same local Wi-Fi",
-                    color = TextMuted,
+                    color = theme.onSurfaceVariant,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,
                 )
@@ -222,8 +235,8 @@ fun LivePreview(
                     .align(Alignment.TopCenter)
                     .padding(top = 12.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xE60A0E16))
-                    .border(1.dp, CyberCyan, RoundedCornerShape(20.dp))
+                    .background(theme.surface.copy(alpha = 0.95f))
+                    .border(1.dp, theme.primary, RoundedCornerShape(20.dp))
                     .padding(horizontal = 14.dp, vertical = 8.dp),
             ) {
                 Row(
@@ -233,31 +246,32 @@ fun LivePreview(
                     Icon(
                         imageVector = Icons.Default.Movie,
                         contentDescription = null,
-                        tint = CyberCyan,
+                        tint = theme.primary,
                         modifier = Modifier.size(18.dp),
                     )
                     Column {
                         Text(
                             text = "RECORDING GIF BURST",
-                            color = CyberCyan,
+                            color = theme.primary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 1.sp,
                         )
                         Text(
                             text = "Capturing ${gifRecording.frames} frames @ ${gifRecording.intervalMs}ms",
-                            color = TextMuted,
+                            color = theme.onSurfaceVariant,
                             fontSize = 9.sp,
                             fontFamily = FontFamily.Monospace,
                         )
                     }
                     CircularProgressIndicator(
                         modifier = Modifier.size(14.dp),
-                        color = CyberCyan,
+                        color = theme.primary,
                         strokeWidth = 2.dp,
                     )
                 }
             }
+        }
         }
     }
 }
@@ -265,13 +279,13 @@ fun LivePreview(
 @Composable
 private fun HudBadge(
     text: String,
-    textColor: Color = TextMuted,
-    borderColor: Color = BorderSubtle,
+    textColor: Color = Color.White,
+    borderColor: Color = MaterialTheme.current.outlineVariant,
 ) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
-            .background(Color(0xCC000000))
+            .background(Color.Black.copy(alpha = 0.75f))
             .border(1.dp, borderColor, RoundedCornerShape(6.dp))
             .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {

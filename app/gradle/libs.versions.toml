@@ -20,8 +20,12 @@ kotlinxSerializationJson = "1.7.3"
 zxing = "3.5.3"
 
 androidxPrint = "1.0.0"
+camerax = "1.4.1"
 
 [libraries]
+androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
 androidx-print = { module = "androidx.print:print", version.ref = "androidxPrint" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivity" }

@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -34,6 +33,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -66,16 +66,7 @@ import com.trc.photobooth.data.PhotoBoothRepository
 import com.trc.photobooth.data.models.CaptureMetadata
 import com.trc.photobooth.filters.FilterPreset
 import com.trc.photobooth.filters.FilterPresets
-import com.trc.photobooth.theme.BgBase
-import com.trc.photobooth.theme.BgElevated
-import com.trc.photobooth.theme.BgSurface
-import com.trc.photobooth.theme.BorderMedium
-import com.trc.photobooth.theme.BorderSubtle
-import com.trc.photobooth.theme.CyberCyan
-import com.trc.photobooth.theme.EmeraldGreen
-import com.trc.photobooth.theme.NeonPink
-import com.trc.photobooth.theme.TextMain
-import com.trc.photobooth.theme.TextMuted
+import com.trc.photobooth.theme.current
 import com.trc.photobooth.util.BitmapUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -91,6 +82,7 @@ fun LightboxDialog(
 ) {
     if (capture == null) return
 
+    val theme = MaterialTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isGif = capture.type == "gif"
@@ -141,7 +133,7 @@ fun LightboxDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(BgBase.copy(alpha = 0.98f))
+                .background(theme.background.copy(alpha = 0.98f))
                 .padding(16.dp),
         ) {
             Column(
@@ -160,14 +152,14 @@ fun LightboxDialog(
                     Column {
                         Text(
                             text = capture.filename,
-                            color = TextMain,
+                            color = theme.onSurface,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace
                         )
                         Text(
                             text = if (isGif) "Animated Burst GIF" else "High-Res Studio Capture",
-                            color = if (isGif) CyberCyan else NeonPink,
+                            color = if (isGif) theme.secondary else theme.primary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -178,14 +170,14 @@ fun LightboxDialog(
                             Icon(
                                 imageVector = Icons.Default.Delete,
                                 contentDescription = "Delete",
-                                tint = Color(0xFFEF4444)
+                                tint = theme.error
                             )
                         }
                         IconButton(onClick = onClose) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Close",
-                                tint = TextMain
+                                tint = theme.onSurface
                             )
                         }
                     }
@@ -198,8 +190,8 @@ fun LightboxDialog(
                         .fillMaxWidth()
                         .padding(vertical = 12.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF000000))
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(16.dp)),
+                        .background(Color.Black)
+                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     if (isGif) {
@@ -232,7 +224,7 @@ fun LightboxDialog(
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else if (isDownloading) {
-                            CircularProgressIndicator(color = CyberCyan)
+                            CircularProgressIndicator(color = theme.primary)
                         } else {
                             AsyncImage(
                                 model = fullUrl,
@@ -253,7 +245,7 @@ fun LightboxDialog(
                     ) {
                         Text(
                             text = "APPLY FILTER BEFORE SAVING",
-                            color = TextMuted,
+                            color = theme.onSurfaceVariant,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp,
@@ -268,10 +260,10 @@ fun LightboxDialog(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) preset.accentColor.copy(alpha = 0.2f) else BgElevated)
+                                        .background(if (isSelected) preset.accentColor.copy(alpha = 0.2f) else theme.surfaceVariant)
                                         .border(
                                             width = if (isSelected) 1.5.dp else 1.dp,
-                                            color = if (isSelected) preset.accentColor else BorderSubtle,
+                                            color = if (isSelected) preset.accentColor else theme.outlineVariant,
                                             shape = RoundedCornerShape(8.dp)
                                         )
                                         .clickable { selectedFilter = preset }
@@ -279,7 +271,7 @@ fun LightboxDialog(
                                 ) {
                                     Text(
                                         text = preset.name,
-                                        color = if (isSelected) preset.accentColor else TextMuted,
+                                        color = if (isSelected) preset.accentColor else theme.onSurfaceVariant,
                                         fontSize = 11.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                     )
@@ -289,7 +281,7 @@ fun LightboxDialog(
                     }
                 }
 
-                // Print Button for still photos (Hidden for now as requested)
+                // Print Button for still photos (optional)
                 val showPrintButtons = false
                 if (showPrintButtons && !isGif) {
                     var isPrinting by remember { mutableStateOf(false) }
@@ -319,8 +311,8 @@ fun LightboxDialog(
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = EmeraldGreen,
-                            contentColor = Color(0xFF070B14)
+                            containerColor = theme.secondary,
+                            contentColor = Color.White
                         ),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
@@ -332,7 +324,7 @@ fun LightboxDialog(
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
                                 strokeWidth = 2.dp,
-                                color = Color(0xFF070B14),
+                                color = Color.White,
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
@@ -387,8 +379,8 @@ fun LightboxDialog(
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = CyberCyan,
-                            contentColor = Color.Black
+                            containerColor = theme.primaryContainer,
+                            contentColor = theme.onPrimaryContainer
                         ),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
@@ -423,7 +415,7 @@ fun LightboxDialog(
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = NeonPink,
+                            containerColor = theme.primary,
                             contentColor = Color.White
                         ),
                         shape = RoundedCornerShape(12.dp),
@@ -452,18 +444,18 @@ fun LightboxDialog(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            containerColor = BgElevated,
+            containerColor = theme.surface,
             title = {
                 Text(
                     text = "Delete Capture?",
-                    color = TextMain,
+                    color = theme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
                     text = "This will permanently remove '${capture.filename}' from the booth storage.",
-                    color = TextMuted
+                    color = theme.onSurfaceVariant
                 )
             },
             confirmButton = {
@@ -473,7 +465,7 @@ fun LightboxDialog(
                         onDelete(capture.id)
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFEF4444),
+                        containerColor = theme.error,
                         contentColor = Color.White
                     )
                 ) {
@@ -482,7 +474,7 @@ fun LightboxDialog(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Cancel", color = TextMuted)
+                    Text("Cancel", color = theme.onSurfaceVariant)
                 }
             }
         )

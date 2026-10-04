@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,16 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trc.photobooth.filters.FilterPreset
 import com.trc.photobooth.filters.FilterPresets
-import com.trc.photobooth.theme.BgCard
-import com.trc.photobooth.theme.BgSurfaceElevated
-import com.trc.photobooth.theme.BorderMedium
-import com.trc.photobooth.theme.BorderSubtle
-import com.trc.photobooth.theme.CyberCyan
-import com.trc.photobooth.theme.NeonPink
-import com.trc.photobooth.theme.PurpleNeon
-import com.trc.photobooth.theme.TextMain
-import com.trc.photobooth.theme.TextMuted
-import com.trc.photobooth.theme.TextSubtle
+import com.trc.photobooth.theme.current
 
 /**
  * Filter selector strip for the photo booth screen.
@@ -65,6 +57,7 @@ fun BoothFilterStrip(
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
+    val theme = MaterialTheme.current
     val listState = rememberLazyListState()
 
     // Scroll selected filter into view
@@ -96,12 +89,12 @@ fun BoothFilterStrip(
                 Icon(
                     imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
-                    tint = CyberCyan,
+                    tint = theme.primary,
                     modifier = Modifier.size(13.dp),
                 )
                 Text(
                     text = "SELECT FILTER STYLE",
-                    color = TextMuted,
+                    color = theme.onSurfaceVariant,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.1.sp,
@@ -111,7 +104,7 @@ fun BoothFilterStrip(
             if (selectedFilter.id == FilterPresets.RANDOM.id) {
                 Text(
                     text = "🎲 New Filter Each Shot",
-                    color = PurpleNeon,
+                    color = theme.tertiary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -149,13 +142,14 @@ private fun BoothFilterCard(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
+    val theme = MaterialTheme.current
     val isRandom = preset.id == FilterPresets.RANDOM.id
 
     val borderColor by animateColorAsState(
         targetValue = when {
-            isSelected && isRandom -> PurpleNeon
+            isSelected && isRandom -> theme.tertiary
             isSelected -> preset.accentColor
-            else -> BorderSubtle
+            else -> theme.outlineVariant
         },
         animationSpec = tween(200),
         label = "borderColor",
@@ -163,13 +157,13 @@ private fun BoothFilterCard(
 
     val backgroundBrush = when {
         isSelected && isRandom -> Brush.linearGradient(
-            listOf(PurpleNeon.copy(alpha = 0.35f), NeonPink.copy(alpha = 0.25f))
+            listOf(theme.tertiary.copy(alpha = 0.35f), theme.primary.copy(alpha = 0.25f))
         )
         isSelected -> Brush.linearGradient(
-            listOf(preset.accentColor.copy(alpha = 0.28f), BgCard)
+            listOf(preset.accentColor.copy(alpha = 0.28f), theme.surfaceVariant)
         )
         else -> Brush.linearGradient(
-            listOf(BgCard, BgSurfaceElevated)
+            listOf(theme.surfaceVariant, theme.surface)
         )
     }
 
@@ -202,7 +196,7 @@ private fun BoothFilterCard(
                     Icon(
                         imageVector = Icons.Default.Casino,
                         contentDescription = "Random",
-                        tint = PurpleNeon,
+                        tint = theme.tertiary,
                         modifier = Modifier.size(16.dp),
                     )
                 } else {
@@ -219,13 +213,13 @@ private fun BoothFilterCard(
                         modifier = Modifier
                             .size(16.dp)
                             .clip(CircleShape)
-                            .background(if (isRandom) PurpleNeon else preset.accentColor),
+                            .background(if (isRandom) theme.tertiary else preset.accentColor),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             imageVector = Icons.Default.Check,
                             contentDescription = "Selected",
-                            tint = Color.Black,
+                            tint = Color.White,
                             modifier = Modifier.size(11.dp),
                         )
                     }
@@ -235,7 +229,7 @@ private fun BoothFilterCard(
             Column {
                 Text(
                     text = preset.name,
-                    color = if (isSelected) TextMain else TextMuted,
+                    color = if (isSelected) theme.onSurface else theme.onSurfaceVariant,
                     fontSize = 12.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     maxLines = 1,
@@ -243,7 +237,7 @@ private fun BoothFilterCard(
                 )
                 Text(
                     text = preset.tagline,
-                    color = TextSubtle,
+                    color = theme.onSurfaceVariant,
                     fontSize = 10.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

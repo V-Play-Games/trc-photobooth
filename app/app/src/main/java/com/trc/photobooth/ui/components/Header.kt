@@ -10,28 +10,23 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.GridOn
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -46,16 +41,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Cameraswitch
+import com.trc.photobooth.camera.AndroidLens
+import com.trc.photobooth.camera.CameraSource
 import com.trc.photobooth.data.models.ConnectionStatus
-import com.trc.photobooth.theme.AmberGold
-import com.trc.photobooth.theme.BgSurface
-import com.trc.photobooth.theme.BgSurfaceElevated
-import com.trc.photobooth.theme.BorderSubtle
-import com.trc.photobooth.theme.CyberCyan
-import com.trc.photobooth.theme.EmeraldGreen
-import com.trc.photobooth.theme.NeonPink
-import com.trc.photobooth.theme.TextMain
-import com.trc.photobooth.theme.TextMuted
+import com.trc.photobooth.theme.current
 
 /**
  * Compact Dynamic Island Top Bar for the main viewfinder screen.
@@ -71,6 +61,10 @@ fun Header(
     showGuides: Boolean,
     isFlipped: Boolean,
     isStreamPaused: Boolean = false,
+    cameraSource: CameraSource = CameraSource.RASPI,
+    androidLens: AndroidLens = AndroidLens.FRONT,
+    onToggleLens: () -> Unit = {},
+    onToggleCameraSource: () -> Unit = {},
     onToggleStreamPause: () -> Unit = {},
     onToggleGuides: () -> Unit,
     onToggleFlip: () -> Unit,
@@ -79,6 +73,8 @@ fun Header(
     onNavigateToBooth: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val theme = MaterialTheme.current
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -88,8 +84,8 @@ fun Header(
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(22.dp))
-                .background(BgSurface.copy(alpha = 0.95f))
-                .border(width = 1.dp, color = BorderSubtle, shape = RoundedCornerShape(22.dp))
+                .background(theme.surface.copy(alpha = 0.95f))
+                .border(width = 1.dp, color = theme.outlineVariant, shape = RoundedCornerShape(22.dp))
                 .padding(horizontal = 10.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -102,7 +98,7 @@ fun Header(
             ) {
                 Text(
                     text = "TRC",
-                    color = TextMain,
+                    color = theme.onSurface,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 13.sp,
                     letterSpacing = 0.5.sp,
@@ -110,7 +106,7 @@ fun Header(
                 )
                 Text(
                     text = "BOOTH",
-                    color = NeonPink,
+                    color = theme.primary,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 13.sp,
                     letterSpacing = 0.5.sp,
@@ -123,15 +119,30 @@ fun Header(
                 status = connectionStatus,
                 fps = fps,
                 isStreamPaused = isStreamPaused,
+                cameraSource = cameraSource,
+                androidLens = androidLens,
             )
+
+            // If using on-device camera, show lens switch button (Front/Back)
+            if (cameraSource == CameraSource.ANDROID) {
+                IslandToolButton(
+                    icon = Icons.Default.Cameraswitch,
+                    isActive = true,
+                    activeBg = theme.secondary.copy(alpha = 0.15f),
+                    activeBorder = theme.secondary,
+                    activeTint = theme.secondary,
+                    onClick = onToggleLens,
+                    contentDescription = "Switch Camera Lens (${androidLens.name})",
+                )
+            }
 
             // Camera Turn On / Turn Off Button
             IslandToolButton(
                 icon = if (isStreamPaused) Icons.Default.VideocamOff else Icons.Default.Videocam,
                 isActive = true,
-                activeBg = if (isStreamPaused) AmberGold.copy(alpha = 0.15f) else EmeraldGreen.copy(alpha = 0.15f),
-                activeBorder = if (isStreamPaused) AmberGold else EmeraldGreen,
-                activeTint = if (isStreamPaused) AmberGold else EmeraldGreen,
+                activeBg = if (isStreamPaused) theme.tertiary.copy(alpha = 0.15f) else theme.primary.copy(alpha = 0.15f),
+                activeBorder = if (isStreamPaused) theme.tertiary else theme.primary,
+                activeTint = if (isStreamPaused) theme.tertiary else theme.primary,
                 onClick = onToggleStreamPause,
                 contentDescription = if (isStreamPaused) "Turn Camera ON" else "Turn Camera OFF",
             )
@@ -166,7 +177,7 @@ fun Header(
                     .clip(RoundedCornerShape(14.dp))
                     .background(
                         Brush.horizontalGradient(
-                            listOf(NeonPink, Color(0xFF8B5CF6))
+                            listOf(theme.primary, theme.secondary)
                         )
                     )
                     .clickable { onNavigateToBooth() }
@@ -202,7 +213,10 @@ private fun IslandStatusPill(
     status: ConnectionStatus,
     fps: Int,
     isStreamPaused: Boolean,
+    cameraSource: CameraSource = CameraSource.RASPI,
+    androidLens: AndroidLens = AndroidLens.FRONT,
 ) {
+    val theme = MaterialTheme.current
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
@@ -215,29 +229,41 @@ private fun IslandStatusPill(
     )
 
     val (bgColor, borderColor, text, iconColor) = when {
-        isStreamPaused && status == ConnectionStatus.CONNECTED -> Quad(
-            AmberGold.copy(alpha = 0.15f),
-            AmberGold.copy(alpha = 0.6f),
+        cameraSource == CameraSource.ANDROID && isStreamPaused -> Quad(
+            theme.tertiary.copy(alpha = 0.15f),
+            theme.tertiary.copy(alpha = 0.6f),
             "CAMERA OFF",
-            AmberGold,
+            theme.tertiary,
+        )
+        cameraSource == CameraSource.ANDROID -> Quad(
+            theme.secondary.copy(alpha = 0.15f),
+            theme.secondary.copy(alpha = 0.6f),
+            if (fps > 0) "${if (androidLens == AndroidLens.FRONT) "FRONT" else "BACK"} • ${fps}fps" else "${if (androidLens == AndroidLens.FRONT) "FRONT" else "BACK"} CAM",
+            theme.secondary,
+        )
+        isStreamPaused && status == ConnectionStatus.CONNECTED -> Quad(
+            theme.tertiary.copy(alpha = 0.15f),
+            theme.tertiary.copy(alpha = 0.6f),
+            "CAMERA OFF",
+            theme.tertiary,
         )
         status == ConnectionStatus.CONNECTED -> Quad(
-            EmeraldGreen.copy(alpha = 0.15f),
-            EmeraldGreen.copy(alpha = 0.6f),
+            theme.primary.copy(alpha = 0.15f),
+            theme.primary.copy(alpha = 0.6f),
             if (fps > 0) "${fps}fps" else "LIVE",
-            EmeraldGreen,
+            theme.primary,
         )
         status == ConnectionStatus.CONNECTING -> Quad(
-            AmberGold.copy(alpha = 0.15f),
-            AmberGold.copy(alpha = 0.6f),
+            theme.tertiary.copy(alpha = 0.15f),
+            theme.tertiary.copy(alpha = 0.6f),
             "CONNECTING",
-            AmberGold,
+            theme.tertiary,
         )
         else -> Quad(
-            NeonPink.copy(alpha = 0.15f),
-            NeonPink.copy(alpha = 0.6f),
+            theme.error.copy(alpha = 0.15f),
+            theme.error.copy(alpha = 0.6f),
             "OFFLINE",
-            NeonPink,
+            theme.error,
         )
     }
 
@@ -255,14 +281,14 @@ private fun IslandStatusPill(
                 modifier = Modifier
                     .size(5.dp)
                     .clip(CircleShape)
-                    .background(EmeraldGreen)
+                    .background(theme.primary)
             )
         } else if (isStreamPaused) {
             Box(
                 modifier = Modifier
                     .size(5.dp)
                     .clip(CircleShape)
-                    .background(AmberGold)
+                    .background(theme.tertiary)
             )
         } else if (status == ConnectionStatus.CONNECTING) {
             Icon(
@@ -298,13 +324,14 @@ private fun IslandToolButton(
     isActive: Boolean,
     onClick: () -> Unit,
     contentDescription: String,
-    activeBg: Color = CyberCyan.copy(alpha = 0.15f),
-    activeBorder: Color = CyberCyan,
-    activeTint: Color = CyberCyan,
+    activeBg: Color = MaterialTheme.current.primary.copy(alpha = 0.15f),
+    activeBorder: Color = MaterialTheme.current.primary,
+    activeTint: Color = MaterialTheme.current.primary,
 ) {
-    val bg = if (isActive) activeBg else BgSurfaceElevated
-    val border = if (isActive) activeBorder else BorderSubtle
-    val tint = if (isActive) activeTint else TextMuted
+    val theme = MaterialTheme.current
+    val bg = if (isActive) activeBg else theme.surfaceVariant
+    val border = if (isActive) activeBorder else theme.outlineVariant
+    val tint = if (isActive) activeTint else theme.onSurfaceVariant
 
     Box(
         modifier = Modifier

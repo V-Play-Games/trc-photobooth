@@ -456,4 +456,57 @@ object BitmapUtils {
             null
         }
     }
+
+    /**
+     * Saves a single captured photo to Pictures/TRCPhotoBooth/captures/
+     * and registers it with the Android MediaStore.
+     */
+    fun saveSinglePhoto(
+        context: Context,
+        bitmap: Bitmap,
+        prefix: String = "device_photo",
+    ): File? {
+        val baseDir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+            "TRCPhotoBooth/captures"
+        )
+        if (!baseDir.exists()) {
+            baseDir.mkdirs()
+        }
+
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val filename = "${prefix}_${timestamp}.jpg"
+        val targetFile = File(baseDir, filename)
+
+        return try {
+            FileOutputStream(targetFile).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                out.flush()
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                    put(
+                        MediaStore.Images.Media.RELATIVE_PATH,
+                        "${Environment.DIRECTORY_PICTURES}/TRCPhotoBooth/captures"
+                    )
+                    put(MediaStore.Images.Media.IS_PENDING, 0)
+                }
+                try {
+                    context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                } catch (ignored: Exception) {}
+            } else {
+                val scanIntent = Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE).apply {
+                    data = Uri.fromFile(targetFile)
+                }
+                context.sendBroadcast(scanIntent)
+            }
+            targetFile
+        } catch (e: Exception) {
+            Log.e("BitmapUtils", "Failed to save photo: ${e.message}", e)
+            null
+        }
+    }
 }

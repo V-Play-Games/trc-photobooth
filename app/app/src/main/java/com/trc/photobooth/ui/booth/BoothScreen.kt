@@ -1,12 +1,20 @@
 package com.trc.photobooth.ui.booth
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.core.content.ContextCompat
+import com.trc.photobooth.camera.AndroidLens
+import com.trc.photobooth.camera.CameraSource
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -71,28 +79,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.trc.photobooth.data.models.PhotoBoothTemplate
-import com.trc.photobooth.theme.BgSurfaceElevated
-import com.trc.photobooth.util.BitmapUtils
+import androidx.compose.material3.MaterialTheme
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trc.photobooth.data.models.ConnectionStatus
+import com.trc.photobooth.data.models.PhotoBoothTemplate
 import com.trc.photobooth.filters.FilterPresets
-import com.trc.photobooth.theme.AmberGold
-import com.trc.photobooth.theme.BgBase
-import com.trc.photobooth.theme.BgCard
-import com.trc.photobooth.theme.BgSurface
-import com.trc.photobooth.theme.BgSurfaceElevated
-import com.trc.photobooth.theme.BorderMedium
-import com.trc.photobooth.theme.BorderSubtle
-import com.trc.photobooth.theme.CyberCyan
-import com.trc.photobooth.theme.EmeraldGreen
-import com.trc.photobooth.theme.NeonPink
-import com.trc.photobooth.theme.NeonPinkHover
-import com.trc.photobooth.theme.PurpleNeon
-import com.trc.photobooth.theme.TextMain
-import com.trc.photobooth.theme.TextMuted
-import com.trc.photobooth.theme.TextSubtle
+import com.trc.photobooth.theme.current
+import com.trc.photobooth.util.BitmapUtils
 import com.trc.photobooth.ui.components.BoothCountdownOverlay
 import com.trc.photobooth.ui.components.BoothFilterStrip
 import com.trc.photobooth.ui.components.QuadrantGrid
@@ -117,6 +111,7 @@ fun BoothScreen(
     viewModel: BoothScreenViewModel = viewModel(),
 ) {
     val context = LocalContext.current
+    val theme = MaterialTheme.current
 
     val boothState by viewModel.boothState.collectAsStateWithLifecycle()
     val activeQuadrant by viewModel.activeQuadrant.collectAsStateWithLifecycle()
@@ -149,6 +144,27 @@ fun BoothScreen(
     val printerColorMode by viewModel.printerColorMode.collectAsStateWithLifecycle()
     val printerCopies by viewModel.printerCopies.collectAsStateWithLifecycle()
     val isStreamPaused by viewModel.isStreamPaused.collectAsStateWithLifecycle()
+    val cameraSource by viewModel.cameraSource.collectAsStateWithLifecycle()
+    val androidLens by viewModel.androidLens.collectAsStateWithLifecycle()
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.setCameraSource(CameraSource.ANDROID)
+        } else {
+            Toast.makeText(context, "Camera permission is required to use device camera", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val requestAndroidCamera: () -> Unit = {
+        val permissionCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+        if (permissionCheck == PackageManager.PERMISSION_GRANTED) {
+            viewModel.setCameraSource(CameraSource.ANDROID)
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
 
     val isCapturing = boothState == BoothState.CAPTURING
     val isComplete = boothState == BoothState.COMPLETE
@@ -169,7 +185,7 @@ fun BoothScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(BgBase),
+            .background(theme.background),
     ) {
         // Layer 1: Full-Screen Camera Quadrant Grid (takes the full screen)
         QuadrantGrid(
@@ -204,8 +220,8 @@ fun BoothScreen(
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
-                        .background(BgSurface.copy(alpha = 0.95f))
-                        .border(1.dp, AmberGold.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                        .background(theme.surface.copy(alpha = 0.95f))
+                        .border(1.dp, theme.tertiary.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
                         .clickable(onClick = viewModel::toggleStreamPause)
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -214,20 +230,20 @@ fun BoothScreen(
                     Icon(
                         imageVector = Icons.Default.VideocamOff,
                         contentDescription = null,
-                        tint = AmberGold,
+                        tint = theme.tertiary,
                         modifier = Modifier.size(20.dp),
                     )
                     Column {
                         Text(
                             text = "CAMERA TURNED OFF",
-                            color = AmberGold,
+                            color = theme.tertiary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
                         )
                         Text(
                             text = "Camera feed is turned off • Tap to turn ON",
-                            color = TextMuted,
+                            color = theme.onSurfaceVariant,
                             fontSize = 10.sp,
                         )
                     }
@@ -248,8 +264,8 @@ fun BoothScreen(
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(22.dp))
-                    .background(BgSurface.copy(alpha = 0.95f))
-                    .border(width = 1.dp, color = BorderSubtle, shape = RoundedCornerShape(22.dp))
+                    .background(theme.surface.copy(alpha = 0.95f))
+                    .border(width = 1.dp, color = theme.outlineVariant, shape = RoundedCornerShape(22.dp))
                     .padding(horizontal = 10.dp, vertical = 5.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -260,15 +276,15 @@ fun BoothScreen(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(BgSurfaceElevated)
-                            .border(1.dp, BorderSubtle, CircleShape)
+                            .background(theme.surfaceVariant)
+                            .border(1.dp, theme.outlineVariant, CircleShape)
                             .clickable(onClick = onBack),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = TextMuted,
+                            tint = theme.onSurfaceVariant,
                             modifier = Modifier.size(15.dp),
                         )
                     }
@@ -281,14 +297,14 @@ fun BoothScreen(
                 ) {
                     Text(
                         text = "TRC",
-                        color = TextMain,
+                        color = theme.onSurface,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
                         fontFamily = FontFamily.Monospace,
                     )
                     Text(
                         text = "BOOTH",
-                        color = NeonPink,
+                        color = theme.primary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
                         fontFamily = FontFamily.Monospace,
@@ -301,17 +317,17 @@ fun BoothScreen(
                         .clip(RoundedCornerShape(12.dp))
                         .background(
                             when {
-                                isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> AmberGold.copy(alpha = 0.15f)
-                                connectionStatus == ConnectionStatus.CONNECTED -> EmeraldGreen.copy(alpha = 0.15f)
-                                else -> NeonPink.copy(alpha = 0.15f)
+                                isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> theme.tertiary.copy(alpha = 0.15f)
+                                connectionStatus == ConnectionStatus.CONNECTED -> theme.primary.copy(alpha = 0.15f)
+                                else -> theme.error.copy(alpha = 0.15f)
                             }
                         )
                         .border(
                             1.dp,
                             when {
-                                isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> AmberGold.copy(alpha = 0.5f)
-                                connectionStatus == ConnectionStatus.CONNECTED -> EmeraldGreen.copy(alpha = 0.5f)
-                                else -> NeonPink.copy(alpha = 0.5f)
+                                isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> theme.tertiary.copy(alpha = 0.5f)
+                                connectionStatus == ConnectionStatus.CONNECTED -> theme.primary.copy(alpha = 0.5f)
+                                else -> theme.error.copy(alpha = 0.5f)
                             },
                             RoundedCornerShape(12.dp)
                         )
@@ -328,9 +344,9 @@ fun BoothScreen(
                             .clip(CircleShape)
                             .background(
                                 when {
-                                    isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> AmberGold
-                                    connectionStatus == ConnectionStatus.CONNECTED -> EmeraldGreen
-                                    else -> NeonPink
+                                    isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> theme.tertiary
+                                    connectionStatus == ConnectionStatus.CONNECTED -> theme.primary
+                                    else -> theme.error
                                 }
                             ),
                     )
@@ -341,9 +357,9 @@ fun BoothScreen(
                             else -> "OFFLINE"
                         },
                         color = when {
-                            isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> AmberGold
-                            connectionStatus == ConnectionStatus.CONNECTED -> EmeraldGreen
-                            else -> NeonPink
+                            isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> theme.tertiary
+                            connectionStatus == ConnectionStatus.CONNECTED -> theme.primary
+                            else -> theme.error
                         },
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
@@ -355,8 +371,8 @@ fun BoothScreen(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isStreamPaused) AmberGold.copy(alpha = 0.15f) else EmeraldGreen.copy(alpha = 0.15f))
-                        .border(1.dp, if (isStreamPaused) AmberGold else EmeraldGreen, RoundedCornerShape(8.dp))
+                        .background(if (isStreamPaused) theme.tertiary.copy(alpha = 0.15f) else theme.primary.copy(alpha = 0.15f))
+                        .border(1.dp, if (isStreamPaused) theme.tertiary else theme.primary, RoundedCornerShape(8.dp))
                         .clickable { viewModel.toggleStreamPause() }
                         .padding(horizontal = 7.dp, vertical = 4.dp),
                     contentAlignment = Alignment.Center,
@@ -368,16 +384,68 @@ fun BoothScreen(
                         Icon(
                             imageVector = if (isStreamPaused) Icons.Default.VideocamOff else Icons.Default.Videocam,
                             contentDescription = if (isStreamPaused) "Turn Camera ON" else "Turn Camera OFF",
-                            tint = if (isStreamPaused) AmberGold else EmeraldGreen,
+                            tint = if (isStreamPaused) theme.tertiary else theme.primary,
                             modifier = Modifier.size(14.dp),
                         )
                         Text(
                             text = if (isStreamPaused) "CAM OFF" else "CAM ON",
-                            color = if (isStreamPaused) AmberGold else EmeraldGreen,
+                            color = if (isStreamPaused) theme.tertiary else theme.primary,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
                         )
+                    }
+                }
+
+                // Lens Switch Button (when using Android Camera)
+                if (cameraSource == CameraSource.ANDROID && !isCapturing) {
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(theme.surfaceVariant)
+                            .border(1.dp, theme.primary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .clickable { viewModel.toggleAndroidLens() },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Cameraswitch,
+                            contentDescription = "Switch Camera Lens",
+                            tint = theme.primary,
+                            modifier = Modifier.size(15.dp),
+                        )
+                    }
+                }
+
+                // If Raspi camera is selected but offline, show quick switch to Device Camera
+                if (connectionStatus != ConnectionStatus.CONNECTED && cameraSource == CameraSource.RASPI && isIdle) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(theme.primary.copy(alpha = 0.2f))
+                            .border(1.dp, theme.primary, RoundedCornerShape(8.dp))
+                            .clickable { requestAndroidCamera() }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Videocam,
+                                contentDescription = null,
+                                tint = theme.primary,
+                                modifier = Modifier.size(13.dp),
+                            )
+                            Text(
+                                text = "USE DEVICE CAM",
+                                color = theme.primary,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
                     }
                 }
 
@@ -386,15 +454,15 @@ fun BoothScreen(
                     modifier = Modifier
                         .size(30.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(BgSurfaceElevated)
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
+                        .background(theme.surfaceVariant)
+                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(8.dp))
                         .clickable { viewModel.openSettings() },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = Icons.Default.Settings,
                         contentDescription = "Studio Settings",
-                        tint = TextMuted,
+                        tint = theme.onSurfaceVariant,
                         modifier = Modifier.size(15.dp),
                     )
                 }
@@ -414,8 +482,8 @@ fun BoothScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(26.dp))
-                            .background(BgSurface.copy(alpha = 0.94f))
-                            .border(1.5.dp, BorderMedium, RoundedCornerShape(26.dp))
+                            .background(theme.surface.copy(alpha = 0.94f))
+                            .border(1.5.dp, theme.outline, RoundedCornerShape(26.dp))
                             .padding(20.dp),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -460,40 +528,30 @@ fun BoothScreen(
                         }
 
                         // Big START Button in the exact middle
-                        val isReadyToStart = connectionStatus == ConnectionStatus.CONNECTED && !isStreamPaused
+                        val isConnected = connectionStatus == ConnectionStatus.CONNECTED
                         Box(
                             modifier = Modifier
                                 .size(108.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    if (isReadyToStart) {
+                                    if (isConnected) {
                                         Brush.linearGradient(
-                                            listOf(NeonPink, Color(0xFFE11D48), PurpleNeon)
-                                        )
-                                    } else if (connectionStatus == ConnectionStatus.CONNECTED && isStreamPaused) {
-                                        Brush.linearGradient(
-                                            listOf(AmberGold, Color(0xFFD97706), AmberGold)
+                                            listOf(theme.primary, theme.secondary, theme.tertiary)
                                         )
                                     } else {
                                         Brush.linearGradient(
-                                            listOf(Color(0xFF94A3B8), Color(0xFF64748B))
+                                            listOf(theme.outlineVariant, theme.outline)
                                         )
                                     }
                                 )
                                 .border(
                                     width = 3.dp,
-                                    color = if (isReadyToStart) Color.White.copy(alpha = 0.9f) else if (isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED) AmberGold else Color.Transparent,
+                                    color = if (isConnected) Color.White.copy(alpha = 0.9f) else Color.Transparent,
                                     shape = CircleShape
                                 )
                                 .clickable(
-                                    enabled = isReadyToStart || (connectionStatus == ConnectionStatus.CONNECTED && isStreamPaused),
-                                    onClick = {
-                                        if (isStreamPaused) {
-                                            viewModel.toggleStreamPause()
-                                        } else {
-                                            viewModel.startSession()
-                                        }
-                                    }
+                                    enabled = isConnected,
+                                    onClick = { viewModel.startSession() }
                                 ),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -502,16 +560,16 @@ fun BoothScreen(
                                 verticalArrangement = Arrangement.Center,
                             ) {
                                 Icon(
-                                    imageVector = if (isStreamPaused) Icons.Default.VideocamOff else Icons.Default.CameraAlt,
+                                    imageVector = Icons.Default.CameraAlt,
                                     contentDescription = "Start",
                                     tint = Color.White,
                                     modifier = Modifier.size(24.dp),
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = if (isStreamPaused) "WAKE" else "START",
+                                    text = "START",
                                     color = Color.White,
-                                    fontSize = if (isStreamPaused) 15.sp else 18.sp,
+                                    fontSize = 18.sp,
                                     fontWeight = FontWeight.Black,
                                     letterSpacing = 1.5.sp,
                                     fontFamily = FontFamily.Monospace,
@@ -529,8 +587,8 @@ fun BoothScreen(
                         .padding(horizontal = 14.dp, vertical = 10.dp)
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(20.dp))
-                        .background(BgSurface.copy(alpha = 0.95f))
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
+                        .background(theme.surface.copy(alpha = 0.95f))
+                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(20.dp))
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                 ) {
                     BoothFilterStrip(
@@ -552,8 +610,8 @@ fun BoothScreen(
                         modifier = Modifier
                             .widthIn(max = 520.dp)
                             .clip(RoundedCornerShape(22.dp))
-                            .background(BgSurface.copy(alpha = 0.98f))
-                            .border(1.5.dp, BorderMedium, RoundedCornerShape(22.dp))
+                            .background(theme.surface.copy(alpha = 0.98f))
+                            .border(1.5.dp, theme.outline, RoundedCornerShape(22.dp))
                             .verticalScroll(rememberScrollState())
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -572,12 +630,12 @@ fun BoothScreen(
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
                                     contentDescription = null,
-                                    tint = EmeraldGreen,
+                                    tint = theme.primary,
                                     modifier = Modifier.size(17.dp),
                                 )
                                 Text(
                                     text = "4-SHOT STRIP READY! 🎉",
-                                    color = TextMain,
+                                    color = theme.onSurface,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = FontFamily.Monospace,
@@ -588,8 +646,8 @@ fun BoothScreen(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(BgCard)
-                                        .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
+                                        .background(theme.surfaceVariant)
+                                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(8.dp))
                                         .clickable {
                                             BitmapUtils.shareBitmap(
                                                 context,
@@ -607,12 +665,12 @@ fun BoothScreen(
                                         Icon(
                                             imageVector = Icons.Default.Share,
                                             contentDescription = "Share",
-                                            tint = CyberCyan,
+                                            tint = theme.primary,
                                             modifier = Modifier.size(12.dp),
                                         )
                                         Text(
                                             text = "SHARE",
-                                            color = CyberCyan,
+                                            color = theme.primary,
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
                                             fontFamily = FontFamily.Monospace,
@@ -634,12 +692,12 @@ fun BoothScreen(
                                 Icon(
                                     imageVector = Icons.Default.AutoAwesome,
                                     contentDescription = null,
-                                    tint = CyberCyan,
+                                    tint = theme.primary,
                                     modifier = Modifier.size(13.dp),
                                 )
                                 Text(
                                     text = "CHOOSE YOUR FRAME TEMPLATE",
-                                    color = TextMuted,
+                                    color = theme.onSurfaceVariant,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = FontFamily.Monospace,
@@ -659,10 +717,10 @@ fun BoothScreen(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(10.dp))
-                                            .background(if (isSelected) BgSurfaceElevated else BgCard)
+                                            .background(if (isSelected) theme.primaryContainer else theme.surfaceVariant)
                                             .border(
                                                 width = if (isSelected) 2.dp else 1.dp,
-                                                color = if (isSelected) CyberCyan else BorderSubtle,
+                                                color = if (isSelected) theme.primary else theme.outlineVariant,
                                                 shape = RoundedCornerShape(10.dp)
                                             )
                                             .clickable { viewModel.selectTemplate(tpl) }
@@ -681,13 +739,13 @@ fun BoothScreen(
                                             Column {
                                                 Text(
                                                     text = tpl.title,
-                                                    color = if (isSelected) Color(0xFF0F172A) else TextMain,
+                                                    color = if (isSelected) theme.onPrimaryContainer else theme.onSurface,
                                                     fontSize = 11.sp,
                                                     fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
                                                 )
                                                 Text(
                                                     text = tpl.subtitle,
-                                                    color = if (isSelected) CyberCyan else TextSubtle,
+                                                    color = if (isSelected) theme.primary else theme.onSurfaceVariant,
                                                     fontSize = 8.5.sp,
                                                     fontFamily = FontFamily.Monospace,
                                                 )
@@ -696,7 +754,7 @@ fun BoothScreen(
                                                 Icon(
                                                     imageVector = Icons.Default.CheckCircle,
                                                     contentDescription = null,
-                                                    tint = CyberCyan,
+                                                    tint = theme.primary,
                                                     modifier = Modifier.size(13.dp),
                                                 )
                                             }
@@ -713,8 +771,8 @@ fun BoothScreen(
                                     .fillMaxWidth()
                                     .height(230.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFF030509))
-                                    .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
+                                    .background(theme.surfaceVariant)
+                                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(12.dp))
                                     .padding(6.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
@@ -735,15 +793,15 @@ fun BoothScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0x1400F0FF))
-                                        .border(1.dp, CyberCyan.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                        .background(theme.surfaceVariant)
+                                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(12.dp))
                                         .padding(10.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                 ) {
                                     Text(
                                         text = "Preview your strip above. When you're happy with your pick, tap below to upload and generate your QR codes!",
-                                        color = TextMuted,
+                                        color = theme.onSurfaceVariant,
                                         fontSize = 10.sp,
                                         textAlign = TextAlign.Center,
                                         lineHeight = 14.sp,
@@ -756,7 +814,7 @@ fun BoothScreen(
                                             .clip(RoundedCornerShape(10.dp))
                                             .background(
                                                 Brush.horizontalGradient(
-                                                    listOf(CyberCyan, PurpleNeon, NeonPink)
+                                                    listOf(theme.primary, theme.secondary, theme.tertiary)
                                                 )
                                             )
                                             .clickable { viewModel.uploadCollages() },
@@ -791,28 +849,28 @@ fun BoothScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0x1A00F0FF))
-                                        .border(1.dp, CyberCyan.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                                        .background(theme.surfaceVariant)
+                                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(12.dp))
                                         .padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(28.dp),
-                                        color = CyberCyan,
+                                        color = theme.primary,
                                         strokeWidth = 2.5.dp,
                                     )
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = msg,
-                                            color = CyberCyan,
+                                            color = theme.primary,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             fontFamily = FontFamily.Monospace,
                                         )
                                         Text(
                                             text = "Uploading themed and blank template strips...",
-                                            color = TextMuted,
+                                            color = theme.onSurfaceVariant,
                                             fontSize = 9.5.sp,
                                         )
                                     }
@@ -832,12 +890,12 @@ fun BoothScreen(
                                         Icon(
                                             imageVector = Icons.Default.CloudDone,
                                             contentDescription = null,
-                                            tint = EmeraldGreen,
+                                            tint = theme.primary,
                                             modifier = Modifier.size(15.dp),
                                         )
                                         Text(
                                             text = "SCAN QR CODES TO DOWNLOAD 📱",
-                                            color = EmeraldGreen,
+                                            color = theme.primary,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Black,
                                             fontFamily = FontFamily.Monospace,
@@ -855,8 +913,8 @@ fun BoothScreen(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(14.dp))
-                                                .background(Color(0x1F00E599))
-                                                .border(1.dp, EmeraldGreen.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                                                .background(theme.surfaceVariant)
+                                                .border(1.dp, theme.outlineVariant, RoundedCornerShape(14.dp))
                                                 .padding(8.dp),
                                         ) {
                                             Column(
@@ -866,7 +924,7 @@ fun BoothScreen(
                                             ) {
                                                 Text(
                                                     text = "${selectedTemplate.title.uppercase()} STRIP",
-                                                    color = EmeraldGreen,
+                                                    color = theme.primary,
                                                     fontSize = 9.5.sp,
                                                     fontWeight = FontWeight.Black,
                                                     fontFamily = FontFamily.Monospace,
@@ -893,7 +951,7 @@ fun BoothScreen(
 
                                                 Text(
                                                     text = "Themed Frame",
-                                                    color = TextMuted,
+                                                    color = theme.onSurfaceVariant,
                                                     fontSize = 8.5.sp,
                                                     fontFamily = FontFamily.Monospace,
                                                 )
@@ -905,8 +963,8 @@ fun BoothScreen(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(14.dp))
-                                                .background(Color(0x1A00F0FF))
-                                                .border(1.dp, CyberCyan.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                                                .background(theme.surfaceVariant)
+                                                .border(1.dp, theme.outlineVariant, RoundedCornerShape(14.dp))
                                                 .padding(8.dp),
                                         ) {
                                             Column(
@@ -916,7 +974,7 @@ fun BoothScreen(
                                             ) {
                                                 Text(
                                                     text = "CLASSIC / BLANK",
-                                                    color = CyberCyan,
+                                                    color = theme.secondary,
                                                     fontSize = 9.5.sp,
                                                     fontWeight = FontWeight.Black,
                                                     fontFamily = FontFamily.Monospace,
@@ -943,7 +1001,7 @@ fun BoothScreen(
 
                                                 Text(
                                                     text = "Clean Template",
-                                                    color = TextMuted,
+                                                    color = theme.onSurfaceVariant,
                                                     fontSize = 8.5.sp,
                                                     fontFamily = FontFamily.Monospace,
                                                 )
@@ -958,8 +1016,8 @@ fun BoothScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0x1AFF3366))
-                                        .border(1.dp, NeonPink.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                        .background(theme.errorContainer)
+                                        .border(1.dp, theme.error, RoundedCornerShape(12.dp))
                                         .padding(10.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -967,13 +1025,13 @@ fun BoothScreen(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = "Upload failed",
-                                            color = NeonPink,
+                                            color = theme.error,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                         )
                                         Text(
                                             text = state.error,
-                                            color = TextSubtle,
+                                            color = theme.onErrorContainer,
                                             fontSize = 9.sp,
                                             fontFamily = FontFamily.Monospace,
                                             maxLines = 2,
@@ -983,8 +1041,8 @@ fun BoothScreen(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(6.dp))
-                                            .background(BgCard)
-                                            .border(1.dp, NeonPink, RoundedCornerShape(6.dp))
+                                            .background(theme.surface)
+                                            .border(1.dp, theme.error, RoundedCornerShape(6.dp))
                                             .clickable { viewModel.retryUpload() }
                                             .padding(horizontal = 8.dp, vertical = 5.dp),
                                         contentAlignment = Alignment.Center,
@@ -996,12 +1054,12 @@ fun BoothScreen(
                                             Icon(
                                                 imageVector = Icons.Default.Refresh,
                                                 contentDescription = "Retry",
-                                                tint = NeonPink,
+                                                tint = theme.error,
                                                 modifier = Modifier.size(12.dp),
                                             )
                                             Text(
                                                 text = "RETRY",
-                                                color = NeonPink,
+                                                color = theme.error,
                                                 fontSize = 9.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 fontFamily = FontFamily.Monospace,
@@ -1033,9 +1091,9 @@ fun BoothScreen(
                                         .background(
                                             Brush.horizontalGradient(
                                                 when {
-                                                    isError -> listOf(NeonPink, Color(0xFFE11D48))
-                                                    isSuccess -> listOf(Color(0xFF00C853), EmeraldGreen)
-                                                    else -> listOf(EmeraldGreen, Color(0xFF00C853))
+                                                    isError -> listOf(theme.error, theme.errorContainer)
+                                                    isSuccess -> listOf(theme.primary, theme.secondary)
+                                                    else -> listOf(theme.primary, theme.secondary)
                                                 }
                                             )
                                         )
@@ -1052,7 +1110,7 @@ fun BoothScreen(
                                             CircularProgressIndicator(
                                                 modifier = Modifier.size(13.dp),
                                                 strokeWidth = 1.6.dp,
-                                                color = Color(0xFF070B14),
+                                                color = Color.White,
                                             )
                                         } else {
                                             Icon(
@@ -1062,7 +1120,7 @@ fun BoothScreen(
                                                     else -> Icons.Default.Print
                                                 },
                                                 contentDescription = null,
-                                                tint = Color(0xFF070B14),
+                                                tint = Color.White,
                                                 modifier = Modifier.size(14.dp),
                                             )
                                         }
@@ -1073,7 +1131,7 @@ fun BoothScreen(
                                                 isError -> "RETRY (PI)"
                                                 else -> "PRINT (PI)"
                                             },
-                                            color = Color(0xFF070B14),
+                                            color = Color.White,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Black,
                                             fontFamily = FontFamily.Monospace,
@@ -1089,7 +1147,7 @@ fun BoothScreen(
                                         .clip(RoundedCornerShape(10.dp))
                                         .background(
                                             Brush.horizontalGradient(
-                                                listOf(CyberCyan, Color(0xFF0099FF))
+                                                listOf(theme.secondary, theme.tertiary)
                                             )
                                         )
                                         .clickable {
@@ -1108,12 +1166,12 @@ fun BoothScreen(
                                         Icon(
                                             imageVector = Icons.Default.Print,
                                             contentDescription = null,
-                                            tint = Color(0xFF070B14),
+                                            tint = Color.White,
                                             modifier = Modifier.size(14.dp),
                                         )
                                         Text(
                                             text = "PRINT (APP)",
-                                            color = Color(0xFF070B14),
+                                            color = Color.White,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Black,
                                             fontFamily = FontFamily.Monospace,
@@ -1131,7 +1189,7 @@ fun BoothScreen(
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(
                                     Brush.horizontalGradient(
-                                        listOf(NeonPink, Color(0xFFE11D48), PurpleNeon)
+                                        listOf(theme.primary, theme.secondary, theme.tertiary)
                                     )
                                 )
                                 .clickable(onClick = viewModel::resetSession),
@@ -1169,8 +1227,8 @@ fun BoothScreen(
                         .navigationBarsPadding()
                         .padding(bottom = 16.dp)
                         .clip(RoundedCornerShape(20.dp))
-                        .background(BgSurface.copy(alpha = 0.95f))
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
+                        .background(theme.surface.copy(alpha = 0.95f))
+                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(20.dp))
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1182,11 +1240,11 @@ fun BoothScreen(
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(NeonPink),
+                                .background(theme.primary),
                         )
                         Text(
                             text = "PHOTO ${activeQuadrant + 1} OF 4 • SEQUENCE IN PROGRESS",
-                            color = NeonPink,
+                            color = theme.primary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
@@ -1217,6 +1275,16 @@ fun BoothScreen(
             currentPrinterName = printerName,
             currentColorMode = printerColorMode,
             currentCopies = printerCopies,
+            cameraSource = cameraSource,
+            onSelectCameraSource = { source ->
+                if (source == CameraSource.ANDROID) {
+                    requestAndroidCamera()
+                } else {
+                    viewModel.setCameraSource(CameraSource.RASPI)
+                }
+            },
+            androidLens = androidLens,
+            onSelectAndroidLens = viewModel::setAndroidLens,
             onSavePrinterSettings = viewModel::updatePrinterSettings,
             onClose = viewModel::closeSettings,
         )
@@ -1230,6 +1298,7 @@ private fun BoothTimerGridButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val theme = MaterialTheme.current
     Box(
         modifier = modifier
             .size(76.dp)
@@ -1237,17 +1306,17 @@ private fun BoothTimerGridButton(
             .background(
                 if (isSelected) {
                     Brush.verticalGradient(
-                        listOf(CyberCyan, Color(0xFF0099FF))
+                        listOf(theme.primary, theme.secondary)
                     )
                 } else {
                     Brush.verticalGradient(
-                        listOf(BgCard, BgSurfaceElevated)
+                        listOf(theme.surfaceVariant, theme.surface)
                     )
                 }
             )
             .border(
                 width = if (isSelected) 2.dp else 1.5.dp,
-                color = if (isSelected) CyberCyan else BorderSubtle,
+                color = if (isSelected) theme.primary else theme.outlineVariant,
                 shape = RoundedCornerShape(18.dp)
             )
             .clickable(onClick = onClick),
@@ -1259,14 +1328,14 @@ private fun BoothTimerGridButton(
         ) {
             Text(
                 text = "${seconds}s",
-                color = if (isSelected) Color.White else TextMain,
+                color = if (isSelected) Color.White else theme.onSurface,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Black,
                 fontFamily = FontFamily.Monospace,
             )
             Text(
                 text = "TIMER",
-                color = if (isSelected) Color.White.copy(alpha = 0.85f) else TextMuted,
+                color = if (isSelected) Color.White.copy(alpha = 0.85f) else theme.onSurfaceVariant,
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Monospace,

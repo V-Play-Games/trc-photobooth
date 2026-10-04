@@ -1,7 +1,6 @@
 package com.trc.photobooth.ui.components
 
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,21 +23,17 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Computer
-import androidx.compose.material.icons.filled.Flip
-import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Router
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
@@ -47,6 +42,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -60,31 +56,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import com.trc.photobooth.data.PhotoBoothRepository
-import kotlinx.coroutines.launch
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.trc.photobooth.camera.AndroidLens
+import com.trc.photobooth.camera.CameraSource
+import com.trc.photobooth.data.PhotoBoothRepository
 import com.trc.photobooth.data.models.CameraConfig
 import com.trc.photobooth.data.models.ConnectionStatus
 import com.trc.photobooth.data.models.SystemStats
-import com.trc.photobooth.theme.BgCard
-import com.trc.photobooth.theme.BgElevated
-import com.trc.photobooth.theme.BgSurface
-import com.trc.photobooth.theme.BgSurfaceElevated
-import com.trc.photobooth.theme.AmberGold
-import com.trc.photobooth.theme.BorderMedium
-import com.trc.photobooth.theme.BorderSubtle
-import com.trc.photobooth.theme.CyberCyan
-import com.trc.photobooth.theme.EmeraldGreen
-import com.trc.photobooth.theme.NeonPink
-import com.trc.photobooth.theme.TextMain
-import com.trc.photobooth.theme.TextMuted
-
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.text.style.TextOverflow
+import com.trc.photobooth.theme.current
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsDialog(
@@ -106,12 +90,17 @@ fun SettingsDialog(
     currentPrinterName: String = "TRC_Printer",
     currentColorMode: String = "monochrome",
     currentCopies: Int = 1,
+    cameraSource: CameraSource = CameraSource.RASPI,
+    onSelectCameraSource: (CameraSource) -> Unit = {},
+    androidLens: AndroidLens = AndroidLens.FRONT,
+    onSelectAndroidLens: (AndroidLens) -> Unit = {},
     onSavePrinterSettings: (name: String, colorMode: String, copies: Int) -> Unit = { _, _, _ -> },
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (!isOpen) return
 
+    val theme = MaterialTheme.current
     val context = LocalContext.current
     var hostInput by remember(currentHost) { mutableStateOf(currentHost) }
     var fpsSlider by remember(cameraConfig.fps) { mutableFloatStateOf((cameraConfig.fps ?: 20).toFloat()) }
@@ -147,7 +136,7 @@ fun SettingsDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xCC000000))
+                .background(theme.scrim.copy(alpha = 0.6f))
                 .clickable(onClick = onClose),
             contentAlignment = Alignment.Center
         ) {
@@ -156,8 +145,8 @@ fun SettingsDialog(
                     .fillMaxWidth(0.92f)
                     .height(680.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF0B0F17))
-                    .border(1.dp, BorderMedium, RoundedCornerShape(20.dp))
+                    .background(theme.surface)
+                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(20.dp))
                     .clickable(enabled = false) {}
                     .padding(20.dp)
                     .verticalScroll(rememberScrollState()),
@@ -175,12 +164,12 @@ fun SettingsDialog(
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = null,
-                            tint = CyberCyan,
+                            tint = theme.primary,
                             modifier = Modifier.size(22.dp)
                         )
                         Text(
                             text = "STUDIO SETTINGS",
-                            color = TextMain,
+                            color = theme.onSurface,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
@@ -191,7 +180,7 @@ fun SettingsDialog(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = TextMuted
+                            tint = theme.onSurfaceVariant
                         )
                     }
                 }
@@ -205,14 +194,14 @@ fun SettingsDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0x800F172A))
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
+                        .background(theme.surfaceVariant)
+                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(12.dp))
                         .padding(14.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
                             text = "Raspberry Pi IP / Hostname",
-                            color = TextMuted,
+                            color = theme.onSurfaceVariant,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -229,17 +218,17 @@ fun SettingsDialog(
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                                 keyboardActions = KeyboardActions(onDone = { onSaveHost(hostInput) }),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = CyberCyan,
-                                    unfocusedBorderColor = BorderSubtle,
-                                    focusedTextColor = TextMain,
-                                    unfocusedTextColor = TextMain
+                                    focusedBorderColor = theme.primary,
+                                    unfocusedBorderColor = theme.outlineVariant,
+                                    focusedTextColor = theme.onSurface,
+                                    unfocusedTextColor = theme.onSurface
                                 ),
                                 modifier = Modifier.weight(1f)
                             )
 
                             Button(
                                 onClick = { onSaveHost(hostInput) },
-                                colors = ButtonDefaults.buttonColors(containerColor = CyberCyan, contentColor = Color.Black),
+                                colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = Color.White),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text("Connect", fontWeight = FontWeight.Bold)
@@ -249,7 +238,7 @@ fun SettingsDialog(
                         // Auto NSD Discovery Button
                         Button(
                             onClick = onStartNsdSearch,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0x3300F0FF), contentColor = CyberCyan),
+                            colors = ButtonDefaults.buttonColors(containerColor = theme.primary.copy(alpha = 0.15f), contentColor = theme.primary),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -269,11 +258,117 @@ fun SettingsDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0x800F172A))
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
+                        .background(theme.surfaceVariant)
+                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(12.dp))
                         .padding(14.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        // Camera Source: Raspberry Pi vs Device Camera (Android)
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                "CAMERA SOURCE",
+                                color = theme.onSurfaceVariant,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val isRaspi = cameraSource == CameraSource.RASPI
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isRaspi) theme.primary else theme.surface)
+                                        .border(1.dp, if (isRaspi) theme.primary else theme.outlineVariant, RoundedCornerShape(8.dp))
+                                        .clickable { onSelectCameraSource(CameraSource.RASPI) }
+                                        .padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "🍓 Raspberry Pi",
+                                        color = if (isRaspi) Color.White else theme.onSurface,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                val isAndroid = cameraSource == CameraSource.ANDROID
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isAndroid) theme.primary else theme.surface)
+                                        .border(1.dp, if (isAndroid) theme.primary else theme.outlineVariant, RoundedCornerShape(8.dp))
+                                        .clickable { onSelectCameraSource(CameraSource.ANDROID) }
+                                        .padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "📱 Device Camera",
+                                        color = if (isAndroid) Color.White else theme.onSurface,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        if (cameraSource == CameraSource.ANDROID) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    "DEVICE LENS",
+                                    color = theme.onSurfaceVariant,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    val isFront = androidLens == AndroidLens.FRONT
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isFront) theme.primary.copy(alpha = 0.2f) else theme.surface)
+                                            .border(1.dp, if (isFront) theme.primary else theme.outlineVariant, RoundedCornerShape(8.dp))
+                                            .clickable { onSelectAndroidLens(AndroidLens.FRONT) }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "Front (Selfie)",
+                                            color = if (isFront) theme.primary else theme.onSurface,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+
+                                    val isBack = androidLens == AndroidLens.BACK
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isBack) theme.primary.copy(alpha = 0.2f) else theme.surface)
+                                            .border(1.dp, if (isBack) theme.primary else theme.outlineVariant, RoundedCornerShape(8.dp))
+                                            .clickable { onSelectAndroidLens(AndroidLens.BACK) }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "Back Camera",
+                                            color = if (isBack) theme.primary else theme.onSurface,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
                         // Section 2.1: Camera Hardware Device (/dev/video*)
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(
@@ -285,13 +380,13 @@ fun SettingsDialog(
                                     Icon(
                                         imageVector = Icons.Default.Videocam,
                                         contentDescription = null,
-                                        tint = CyberCyan,
+                                        tint = theme.primary,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         "CAMERA HARDWARE (/dev/video*)",
-                                        color = TextMain,
+                                        color = theme.onSurface,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -299,7 +394,7 @@ fun SettingsDialog(
                                 Row(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0x3300F0FF))
+                                        .background(theme.primary.copy(alpha = 0.15f))
                                         .clickable { onRefreshDevices() }
                                         .padding(horizontal = 8.dp, vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -307,11 +402,11 @@ fun SettingsDialog(
                                     Icon(
                                         imageVector = Icons.Default.Refresh,
                                         contentDescription = "Scan Devices",
-                                        tint = CyberCyan,
+                                        tint = theme.primary,
                                         modifier = Modifier.size(12.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Scan", color = CyberCyan, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("Scan", color = theme.primary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                 }
                             }
 
@@ -334,8 +429,8 @@ fun SettingsDialog(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isSelected) CyberCyan.copy(alpha = 0.2f) else Color(0x301E293B))
-                                            .border(1.dp, if (isSelected) CyberCyan else BorderSubtle, RoundedCornerShape(8.dp))
+                                            .background(if (isSelected) theme.primary.copy(alpha = 0.2f) else theme.surface)
+                                            .border(1.dp, if (isSelected) theme.primary else theme.outlineVariant, RoundedCornerShape(8.dp))
                                             .clickable { onSetCameraDevice(dev.device) }
                                             .padding(horizontal = 10.dp, vertical = 8.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -345,7 +440,7 @@ fun SettingsDialog(
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(
                                                     text = dev.device,
-                                                    color = if (isSelected) CyberCyan else TextMain,
+                                                    color = if (isSelected) theme.primary else theme.onSurface,
                                                     fontSize = 12.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     fontFamily = FontFamily.Monospace
@@ -355,17 +450,17 @@ fun SettingsDialog(
                                                     Box(
                                                         modifier = Modifier
                                                             .clip(RoundedCornerShape(4.dp))
-                                                            .background(CyberCyan)
+                                                            .background(theme.primary)
                                                             .padding(horizontal = 4.dp, vertical = 1.dp)
                                                     ) {
-                                                        Text("ACTIVE", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+                                                        Text("ACTIVE", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
                                                     }
                                                 }
                                             }
                                             if (dev.name.isNotBlank()) {
                                                 Text(
                                                     text = dev.name,
-                                                    color = TextMuted,
+                                                    color = theme.onSurfaceVariant,
                                                     fontSize = 11.sp,
                                                     maxLines = 1
                                                 )
@@ -373,7 +468,7 @@ fun SettingsDialog(
                                         }
                                         Text(
                                             text = if (isSelected) "Selected" else "Select",
-                                            color = if (isSelected) CyberCyan else TextMuted,
+                                            color = if (isSelected) theme.primary else theme.onSurfaceVariant,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.SemiBold
                                         )
@@ -390,13 +485,13 @@ fun SettingsDialog(
                                 OutlinedTextField(
                                     value = customDeviceInput,
                                     onValueChange = { customDeviceInput = it },
-                                    placeholder = { Text("e.g. /dev/video1", color = TextMuted, fontSize = 11.sp) },
+                                    placeholder = { Text("e.g. /dev/video1", color = theme.onSurfaceVariant, fontSize = 11.sp) },
                                     singleLine = true,
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = CyberCyan,
-                                        unfocusedBorderColor = BorderSubtle,
-                                        focusedTextColor = TextMain,
-                                        unfocusedTextColor = TextMain
+                                        focusedBorderColor = theme.primary,
+                                        unfocusedBorderColor = theme.outlineVariant,
+                                        focusedTextColor = theme.onSurface,
+                                        unfocusedTextColor = theme.onSurface
                                     ),
                                     modifier = Modifier.weight(1f)
                                 )
@@ -406,7 +501,7 @@ fun SettingsDialog(
                                             onSetCameraDevice(customDeviceInput.trim())
                                         }
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = CyberCyan, contentColor = Color.Black),
+                                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = Color.White),
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
                                     Text("Switch", fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -415,7 +510,7 @@ fun SettingsDialog(
                         }
 
                         // Resolution selector chips
-                        Text("Stream Resolution", color = TextMuted, fontSize = 12.sp)
+                        Text("Stream Resolution", color = theme.onSurfaceVariant, fontSize = 12.sp)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -427,15 +522,15 @@ fun SettingsDialog(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSel) CyberCyan.copy(alpha = 0.25f) else Color(0x401E293B))
-                                        .border(1.dp, if (isSel) CyberCyan else BorderSubtle, RoundedCornerShape(8.dp))
+                                        .background(if (isSel) theme.primary.copy(alpha = 0.25f) else theme.surface)
+                                        .border(1.dp, if (isSel) theme.primary else theme.outlineVariant, RoundedCornerShape(8.dp))
                                         .clickable { onSetResolution(res) }
                                         .padding(vertical = 8.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = label,
-                                        color = if (isSel) CyberCyan else TextMuted,
+                                        color = if (isSel) theme.primary else theme.onSurfaceVariant,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -449,8 +544,8 @@ fun SettingsDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("Target FPS", color = TextMuted, fontSize = 12.sp)
-                                Text("${fpsSlider.toInt()} fps", color = TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("Target FPS", color = theme.onSurfaceVariant, fontSize = 12.sp)
+                                Text("${fpsSlider.toInt()} fps", color = theme.onSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                             Slider(
                                 value = fpsSlider,
@@ -459,8 +554,8 @@ fun SettingsDialog(
                                 valueRange = 10f..30f,
                                 steps = 19,
                                 colors = SliderDefaults.colors(
-                                    thumbColor = CyberCyan,
-                                    activeTrackColor = CyberCyan
+                                    thumbColor = theme.primary,
+                                    activeTrackColor = theme.primary
                                 )
                             )
                         }
@@ -471,8 +566,8 @@ fun SettingsDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("JPEG Compression Quality", color = TextMuted, fontSize = 12.sp)
-                                Text("${qualitySlider.toInt()}%", color = TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("JPEG Compression Quality", color = theme.onSurfaceVariant, fontSize = 12.sp)
+                                Text("${qualitySlider.toInt()}%", color = theme.onSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                             Slider(
                                 value = qualitySlider,
@@ -481,47 +576,48 @@ fun SettingsDialog(
                                 valueRange = 50f..95f,
                                 steps = 8,
                                 colors = SliderDefaults.colors(
-                                    thumbColor = NeonPink,
-                                    activeTrackColor = NeonPink
+                                    thumbColor = theme.primary,
+                                    activeTrackColor = theme.primary
                                 )
                             )
                         }
 
-                        // Toggles: Flip & Swap RB
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("Swap Red / Blue Channels", color = theme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Text("Fixes blue-tinted Pi Camera feeds", color = theme.onSurfaceVariant, fontSize = 11.sp)
+                                }
+                                Switch(
+                                    checked = cameraConfig.swapRb ?: false,
+                                    onCheckedChange = { onToggleSwapRb() },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = theme.primary,
+                                        checkedTrackColor = theme.primary.copy(alpha = 0.35f)
+                                    )
+                                )
+                            }
+                        }
+
+                        // Mirror Preview Toggle (applies to both camera sources)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text("Mirror Preview", color = TextMain, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                Text("Flips feed horizontally like a mirror", color = TextMuted, fontSize = 11.sp)
+                                Text("Mirror Preview", color = theme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text("Flips feed horizontally like a mirror", color = theme.onSurfaceVariant, fontSize = 11.sp)
                             }
                             Switch(
                                 checked = cameraConfig.flipHorizontal ?: false,
                                 onCheckedChange = { onToggleFlip() },
                                 colors = SwitchDefaults.colors(
-                                    checkedThumbColor = CyberCyan,
-                                    checkedTrackColor = CyberCyan.copy(alpha = 0.35f)
-                                )
-                            )
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("Swap Red / Blue Channels", color = TextMain, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                Text("Fixes blue-tinted Pi Camera feeds", color = TextMuted, fontSize = 11.sp)
-                            }
-                            Switch(
-                                checked = cameraConfig.swapRb ?: false,
-                                onCheckedChange = { onToggleSwapRb() },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = NeonPink,
-                                    checkedTrackColor = NeonPink.copy(alpha = 0.35f)
+                                    checkedThumbColor = theme.primary,
+                                    checkedTrackColor = theme.primary.copy(alpha = 0.35f)
                                 )
                             )
                         }
@@ -538,7 +634,7 @@ fun SettingsDialog(
                 ) {
                     SettingsSectionTitle("PI HARDWARE TELEMETRY")
                     IconButton(onClick = onRefreshStats, modifier = Modifier.size(24.dp)) {
-                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "Refresh", tint = TextMuted)
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "Refresh", tint = theme.onSurfaceVariant)
                     }
                 }
 
@@ -546,34 +642,34 @@ fun SettingsDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0x800F172A))
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
+                        .background(theme.surfaceVariant)
+                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(12.dp))
                         .padding(14.dp)
                 ) {
                     if (systemStats != null) {
                         val cpu = systemStats.cpuPercent ?: 0.0
                         val temp = systemStats.cpuTempC ?: 0.0
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TelemetryRow("CPU Usage", "${String.format("%.1f", cpu)}%", if (cpu > 80) NeonPink else EmeraldGreen)
-                            TelemetryRow("CPU Temperature", "${String.format("%.1f", temp)} °C", if (temp > 70) NeonPink else CyberCyan)
+                            TelemetryRow("CPU Usage", "${String.format("%.1f", cpu)}%", if (cpu > 80) theme.error else theme.primary)
+                            TelemetryRow("CPU Temperature", "${String.format("%.1f", temp)} °C", if (temp > 70) theme.error else theme.secondary)
                             if (systemStats.cpuCount != null) {
-                                TelemetryRow("CPU Cores", "${systemStats.cpuCount} Cores", TextMain)
+                                TelemetryRow("CPU Cores", "${systemStats.cpuCount} Cores", theme.onSurface)
                             }
                             if (systemStats.memory != null) {
-                                TelemetryRow("RAM Usage", "${systemStats.memory.percent}% (${systemStats.memory.usedMb.toInt()} / ${systemStats.memory.totalMb.toInt()} MB)", TextMain)
+                                TelemetryRow("RAM Usage", "${systemStats.memory.percent}% (${systemStats.memory.usedMb.toInt()} / ${systemStats.memory.totalMb.toInt()} MB)", theme.onSurface)
                             }
                             if (systemStats.loadAvg != null) {
                                 val loads = systemStats.loadAvg.joinToString(", ") { String.format("%.2f", it) }
-                                TelemetryRow("Load Average", loads, TextMuted)
+                                TelemetryRow("Load Average", loads, theme.onSurfaceVariant)
                             }
                             if (!systemStats.throttled.isNullOrEmpty()) {
-                                TelemetryRow("Throttling State", systemStats.throttled, if (systemStats.throttled == "0x0") EmeraldGreen else AmberGold)
+                                TelemetryRow("Throttling State", systemStats.throttled, if (systemStats.throttled == "0x0") theme.primary else theme.tertiary)
                             }
                         }
                     } else {
                         Text(
                             text = if (connectionStatus == ConnectionStatus.CONNECTED) "Requesting telemetry from Pi..." else "Connect to Raspberry Pi to view hardware telemetry",
-                            color = TextMuted,
+                            color = theme.onSurfaceVariant,
                             fontSize = 12.sp
                         )
                     }
@@ -587,8 +683,8 @@ fun SettingsDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0x800F172A))
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
+                        .background(theme.surfaceVariant)
+                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(12.dp))
                         .padding(14.dp)
                 ) {
                     val scope = rememberCoroutineScope()
@@ -604,11 +700,11 @@ fun SettingsDialog(
                                     modifier = Modifier
                                         .size(6.dp)
                                         .clip(CircleShape)
-                                        .background(EmeraldGreen)
+                                        .background(theme.primary)
                                 )
                                 Text(
                                     text = printerStatusMsg!!,
-                                    color = EmeraldGreen,
+                                    color = theme.primary,
                                     fontSize = 11.sp,
                                     fontFamily = FontFamily.Monospace,
                                 )
@@ -619,7 +715,7 @@ fun SettingsDialog(
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
                                 text = "CUPS Printer Queue Name",
-                                color = TextMuted,
+                                color = theme.onSurfaceVariant,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -627,12 +723,12 @@ fun SettingsDialog(
                                 value = printerNameInput,
                                 onValueChange = { printerNameInput = it },
                                 singleLine = true,
-                                placeholder = { Text("e.g. TRC_Printer", color = TextMuted) },
+                                placeholder = { Text("e.g. TRC_Printer", color = theme.onSurfaceVariant) },
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = CyberCyan,
-                                    unfocusedBorderColor = BorderSubtle,
-                                    focusedTextColor = TextMain,
-                                    unfocusedTextColor = TextMain,
+                                    focusedBorderColor = theme.primary,
+                                    unfocusedBorderColor = theme.outlineVariant,
+                                    focusedTextColor = theme.onSurface,
+                                    unfocusedTextColor = theme.onSurface,
                                 ),
                                 modifier = Modifier.fillMaxWidth(),
                             )
@@ -651,14 +747,14 @@ fun SettingsDialog(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(6.dp))
-                                            .background(if (isSelected) CyberCyan.copy(alpha = 0.25f) else Color(0x401E293B))
-                                            .border(1.dp, if (isSelected) CyberCyan else BorderSubtle, RoundedCornerShape(6.dp))
+                                            .background(if (isSelected) theme.primary.copy(alpha = 0.25f) else theme.surface)
+                                            .border(1.dp, if (isSelected) theme.primary else theme.outlineVariant, RoundedCornerShape(6.dp))
                                             .clickable { printerNameInput = suggestion }
                                             .padding(horizontal = 8.dp, vertical = 4.dp),
                                     ) {
                                         Text(
                                             text = suggestion,
-                                            color = if (isSelected) CyberCyan else TextMuted,
+                                            color = if (isSelected) theme.primary else theme.onSurfaceVariant,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
                                             fontFamily = FontFamily.Monospace,
@@ -672,7 +768,7 @@ fun SettingsDialog(
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
                                 text = "Print Color Mode",
-                                color = TextMuted,
+                                color = theme.onSurfaceVariant,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -686,15 +782,15 @@ fun SettingsDialog(
                                         modifier = Modifier
                                             .weight(1f)
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isSel) CyberCyan.copy(alpha = 0.25f) else Color(0x401E293B))
-                                            .border(1.dp, if (isSel) CyberCyan else BorderSubtle, RoundedCornerShape(8.dp))
+                                            .background(if (isSel) theme.primary.copy(alpha = 0.25f) else theme.surface)
+                                            .border(1.dp, if (isSel) theme.primary else theme.outlineVariant, RoundedCornerShape(8.dp))
                                             .clickable { colorModeInput = mode }
                                             .padding(vertical = 8.dp),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Text(
                                             text = label,
-                                            color = if (isSel) CyberCyan else TextMuted,
+                                            color = if (isSel) theme.primary else theme.onSurfaceVariant,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                         )
@@ -707,7 +803,7 @@ fun SettingsDialog(
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
                                 text = "Default Copies",
-                                color = TextMuted,
+                                color = theme.onSurfaceVariant,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -721,15 +817,15 @@ fun SettingsDialog(
                                         modifier = Modifier
                                             .weight(1f)
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isSel) EmeraldGreen.copy(alpha = 0.25f) else Color(0x401E293B))
-                                            .border(1.dp, if (isSel) EmeraldGreen else BorderSubtle, RoundedCornerShape(8.dp))
+                                            .background(if (isSel) theme.secondary.copy(alpha = 0.25f) else theme.surface)
+                                            .border(1.dp, if (isSel) theme.secondary else theme.outlineVariant, RoundedCornerShape(8.dp))
                                             .clickable { copiesInput = count }
                                             .padding(vertical = 8.dp),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Text(
                                             text = "$count ${if (count == 1) "Copy" else "Copies"}",
-                                            color = if (isSel) EmeraldGreen else TextMuted,
+                                            color = if (isSel) theme.secondary else theme.onSurfaceVariant,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                         )
@@ -743,7 +839,7 @@ fun SettingsDialog(
                         TelemetryRow(
                             label = "Command Preview",
                             value = "lp -d $queueName -o print-color-mode=$colorModeInput${if (copiesInput > 1) " -n $copiesInput" else ""}",
-                            valueColor = CyberCyan,
+                            valueColor = theme.primary,
                         )
 
                         // Action Buttons Row
@@ -759,8 +855,8 @@ fun SettingsDialog(
                                     Toast.makeText(context, "💾 Printer settings saved & synced to Pi!", Toast.LENGTH_SHORT).show()
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = CyberCyan,
-                                    contentColor = Color(0xFF070B14),
+                                    containerColor = theme.primary,
+                                    contentColor = Color.White,
                                 ),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier
@@ -798,8 +894,8 @@ fun SettingsDialog(
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = EmeraldGreen,
-                                    contentColor = Color(0xFF070B14),
+                                    containerColor = theme.secondary,
+                                    contentColor = Color.White,
                                 ),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier
@@ -810,7 +906,7 @@ fun SettingsDialog(
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(16.dp),
                                         strokeWidth = 2.dp,
-                                        color = Color(0xFF070B14),
+                                        color = Color.White,
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
@@ -846,7 +942,7 @@ fun SettingsDialog(
 private fun SettingsSectionTitle(title: String) {
     Text(
         text = title,
-        color = CyberCyan,
+        color = MaterialTheme.current.primary,
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = 1.2.sp,
@@ -861,7 +957,7 @@ private fun TelemetryRow(label: String, value: String, valueColor: Color) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = label, color = TextMuted, fontSize = 12.sp)
+        Text(text = label, color = MaterialTheme.current.onSurfaceVariant, fontSize = 12.sp)
         Text(
             text = value,
             color = valueColor,

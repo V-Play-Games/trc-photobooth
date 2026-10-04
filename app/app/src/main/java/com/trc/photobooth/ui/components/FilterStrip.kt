@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,7 +33,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -42,13 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trc.photobooth.filters.FilterPreset
 import com.trc.photobooth.filters.FilterPresets
-import com.trc.photobooth.theme.BgElevated
-import com.trc.photobooth.theme.BorderMedium
-import com.trc.photobooth.theme.BorderSubtle
-import com.trc.photobooth.theme.CyberCyan
-import com.trc.photobooth.theme.NeonPink
-import com.trc.photobooth.theme.TextMain
-import com.trc.photobooth.theme.TextMuted
+import com.trc.photobooth.theme.current
 
 @Composable
 fun FilterStrip(
@@ -56,6 +50,7 @@ fun FilterStrip(
     onSelectFilter: (FilterPreset) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val theme = MaterialTheme.current
     val listState = rememberLazyListState()
 
     // Scroll active filter into view if changed
@@ -69,7 +64,7 @@ fun FilterStrip(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xD907090E))
+            .background(theme.surface)
             .padding(vertical = 10.dp)
     ) {
         // Label row
@@ -87,12 +82,12 @@ fun FilterStrip(
                 Icon(
                     imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
-                    tint = CyberCyan,
+                    tint = theme.primary,
                     modifier = Modifier.size(13.dp)
                 )
                 Text(
                     text = "STUDIO PRESETS",
-                    color = TextMuted,
+                    color = theme.onSurfaceVariant,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.2.sp,
@@ -136,14 +131,15 @@ private fun FilterCard(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
+    val theme = MaterialTheme.current
     val borderColor by animateColorAsState(
-        targetValue = if (isSelected) preset.accentColor else BorderSubtle,
+        targetValue = if (isSelected) preset.accentColor else theme.outlineVariant,
         animationSpec = tween(250),
         label = "filterCardBorder"
     )
 
     val bgColor by animateColorAsState(
-        targetValue = if (isSelected) Color(0x331E293B) else Color(0x800F172A),
+        targetValue = if (isSelected) theme.primary.copy(alpha = 0.15f) else theme.surfaceVariant,
         animationSpec = tween(250),
         label = "filterCardBg"
     )
@@ -185,14 +181,14 @@ private fun FilterCard(
                                 )
                             )
                         )
-                        .border(1.dp, Color(0x66FFFFFF), CircleShape),
+                        .border(1.dp, theme.outlineVariant, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     if (isSelected) {
                         Icon(
                             imageVector = Icons.Default.Check,
                             contentDescription = null,
-                            tint = Color.Black,
+                            tint = Color.White,
                             modifier = Modifier.size(10.dp)
                         )
                     }
@@ -221,7 +217,7 @@ private fun FilterCard(
             Column {
                 Text(
                     text = preset.name,
-                    color = if (isSelected) TextMain else Color(0xFFCBD5E1),
+                    color = if (isSelected) theme.onSurface else theme.onSurfaceVariant,
                     fontSize = 12.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     maxLines = 1,
@@ -229,7 +225,7 @@ private fun FilterCard(
                 )
                 Text(
                     text = preset.tagline,
-                    color = TextMuted,
+                    color = theme.onSurfaceVariant,
                     fontSize = 9.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis

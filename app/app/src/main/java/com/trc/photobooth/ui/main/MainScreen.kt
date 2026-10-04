@@ -1,6 +1,13 @@
 package com.trc.photobooth.ui.main
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.trc.photobooth.camera.AndroidLens
+import com.trc.photobooth.camera.CameraSource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -34,6 +41,7 @@ import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,8 +52,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -55,19 +65,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trc.photobooth.data.models.ConnectionStatus
-import com.trc.photobooth.theme.AmberGold
-import com.trc.photobooth.theme.BgBase
-import com.trc.photobooth.theme.BgSurface
-import com.trc.photobooth.theme.BgSurfaceElevated
-import com.trc.photobooth.theme.BorderMedium
-import com.trc.photobooth.theme.BorderSubtle
-import com.trc.photobooth.theme.CyberCyan
-import com.trc.photobooth.theme.EmeraldGreen
-import com.trc.photobooth.theme.NeonPink
-import com.trc.photobooth.theme.PurpleNeon
-import com.trc.photobooth.theme.TextMain
-import com.trc.photobooth.theme.TextMuted
-import com.trc.photobooth.theme.TextSubtle
+import com.trc.photobooth.theme.current
 import com.trc.photobooth.ui.components.CaptureControls
 import com.trc.photobooth.ui.components.CountdownOverlay
 import com.trc.photobooth.ui.components.FilterStrip
@@ -85,6 +83,7 @@ fun MainScreen(
     viewModel: MainScreenViewModel = viewModel(),
 ) {
     val context = LocalContext.current
+    val theme = MaterialTheme.current
 
     // Observe ViewModel state flows
     val connectionStatus by viewModel.status.collectAsStateWithLifecycle()
@@ -115,6 +114,27 @@ fun MainScreen(
     val isGalleryOpen by viewModel.isGalleryOpen.collectAsStateWithLifecycle()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
     val lightboxCapture by viewModel.lightboxCapture.collectAsStateWithLifecycle()
+    val cameraSource by viewModel.cameraSource.collectAsStateWithLifecycle()
+    val androidLens by viewModel.androidLens.collectAsStateWithLifecycle()
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.setCameraSource(CameraSource.ANDROID)
+        } else {
+            Toast.makeText(context, "Camera permission is required to use device camera", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val requestAndroidCamera: () -> Unit = {
+        val permissionCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+        if (permissionCheck == PackageManager.PERMISSION_GRANTED) {
+            viewModel.setCameraSource(CameraSource.ANDROID)
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
 
     // Handle toast messages
     LaunchedEffect(Unit) {
@@ -128,7 +148,7 @@ fun MainScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(BgBase)
+            .background(theme.background)
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
@@ -142,27 +162,117 @@ fun MainScreen(
                 showGuides = showGuides,
                 isFlipped = cameraConfig.flipHorizontal ?: false,
                 isStreamPaused = isStreamPaused,
+                cameraSource = cameraSource,
+                androidLens = androidLens,
+                onToggleLens = viewModel::toggleAndroidLens,
+                onToggleCameraSource = {
+                    if (cameraSource == CameraSource.RASPI) {
+                        requestAndroidCamera()
+                    } else {
+                        viewModel.setCameraSource(CameraSource.RASPI)
+                    }
+                },
                 onToggleStreamPause = viewModel::toggleStreamPause,
                 onToggleGuides = viewModel::toggleGuides,
                 onToggleFlip = viewModel::toggleFlip,
                 onOpenGallery = viewModel::openGallery,
                 onOpenSettings = viewModel::openSettings,
                 onNavigateToBooth = onNavigateToBooth,
-                modifier = Modifier.statusBarsPadding()
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .zIndex(10f)
             )
 
-            // Reconnection Banner
+            // Reconnection Banner (when Raspi camera is selected but disconnected)
             AnimatedVisibility(
-                visible = connectionStatus != ConnectionStatus.CONNECTED,
+                visible = cameraSource == CameraSource.RASPI && connectionStatus != ConnectionStatus.CONNECTED,
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically(),
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFFEF3C7))
-                        .border(width = 1.dp, color = AmberGold.copy(alpha = 0.35f))
+                        .background(theme.tertiaryContainer)
+                        .border(width = 1.dp, color = theme.tertiary.copy(alpha = 0.35f))
                         .padding(horizontal = 14.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(
+                            imageVector = if (connectionStatus == ConnectionStatus.CONNECTING) Icons.Default.Wifi else Icons.Default.WifiOff,
+                            contentDescription = null,
+                            tint = theme.tertiary,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            text = if (connectionStatus == ConnectionStatus.CONNECTING)
+                                "Connecting to Pi ($hostAddress)..."
+                            else
+                                "Disconnected from Pi ($hostAddress)",
+                            color = theme.onTertiaryContainer,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(theme.primary.copy(alpha = 0.2f))
+                                .border(1.dp, theme.primary.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                                .clickable { requestAndroidCamera() }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                        ) {
+                            Text(
+                                text = "Use Device Camera",
+                                color = theme.primary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(theme.tertiary.copy(alpha = 0.2f))
+                                .border(1.dp, theme.tertiary.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                                .clickable { viewModel.repository.reconnect() }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                        ) {
+                            Text(
+                                text = "Retry",
+                                color = theme.tertiary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Device Camera Active Banner
+            AnimatedVisibility(
+                visible = cameraSource == CameraSource.ANDROID,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(theme.surfaceVariant.copy(alpha = 0.9f))
+                        .border(width = 1.dp, color = theme.primary.copy(alpha = 0.35f))
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -171,36 +281,54 @@ fun MainScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Icon(
-                            imageVector = if (connectionStatus == ConnectionStatus.CONNECTING) Icons.Default.Wifi else Icons.Default.WifiOff,
+                            imageVector = Icons.Default.Videocam,
                             contentDescription = null,
-                            tint = AmberGold,
+                            tint = theme.primary,
                             modifier = Modifier.size(16.dp),
                         )
                         Text(
-                            text = if (connectionStatus == ConnectionStatus.CONNECTING)
-                                "Connecting to Pi ($hostAddress)..."
-                            else
-                                "Disconnected from Pi ($hostAddress)",
-                            color = AmberGold,
+                            text = "Device Camera Active (${if (androidLens == AndroidLens.FRONT) "Front" else "Back"})",
+                            color = theme.onSurfaceVariant,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                         )
                     }
 
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(AmberGold.copy(alpha = 0.2f))
-                            .border(1.dp, AmberGold.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
-                            .clickable { viewModel.repository.reconnect() }
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            text = "Retry",
-                            color = AmberGold,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(theme.surface)
+                                .border(1.dp, theme.outlineVariant, RoundedCornerShape(6.dp))
+                                .clickable { viewModel.toggleAndroidLens() }
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        ) {
+                            Text(
+                                text = "Flip Lens",
+                                color = theme.primary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(theme.surface)
+                                .border(1.dp, theme.outlineVariant, RoundedCornerShape(6.dp))
+                                .clickable { viewModel.setCameraSource(CameraSource.RASPI) }
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        ) {
+                            Text(
+                                text = "Switch to Pi",
+                                color = theme.onSurfaceVariant,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
                     }
                 }
             }
@@ -210,7 +338,8 @@ fun MainScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .clipToBounds(),
                 contentAlignment = Alignment.Center
             ) {
                 LivePreview(
@@ -236,7 +365,7 @@ fun MainScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color(0x99FFFFFF))
+                            .background(theme.scrim.copy(alpha = 0.45f))
                             .clickable(onClick = viewModel::toggleStreamPause),
                         contentAlignment = Alignment.Center
                     ) {
@@ -245,35 +374,35 @@ fun MainScreen(
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(18.dp))
-                                .background(BgSurface)
-                                .border(1.dp, BorderMedium, RoundedCornerShape(18.dp))
+                                .background(theme.surface)
+                                .border(1.dp, theme.outlineVariant, RoundedCornerShape(18.dp))
                                 .padding(horizontal = 24.dp, vertical = 20.dp)
                         ) {
                             Box(
                                 modifier = Modifier
                                     .size(52.dp)
                                     .clip(CircleShape)
-                                    .background(AmberGold.copy(alpha = 0.15f))
-                                    .border(1.5.dp, AmberGold, CircleShape),
+                                    .background(theme.tertiary.copy(alpha = 0.15f))
+                                    .border(1.5.dp, theme.tertiary, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.VideocamOff,
                                     contentDescription = null,
-                                    tint = AmberGold,
+                                    tint = theme.tertiary,
                                     modifier = Modifier.size(28.dp)
                                 )
                             }
                             Text(
                                 text = "CAMERA TURNED OFF",
-                                color = TextMain,
+                                color = theme.onSurface,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace,
                             )
                             Text(
                                 text = "Camera feed is currently turned off.\nTap button below or header to resume.",
-                                color = TextMuted,
+                                color = theme.onSurfaceVariant,
                                 fontSize = 12.sp,
                                 textAlign = TextAlign.Center,
                                 lineHeight = 16.sp,
@@ -281,7 +410,7 @@ fun MainScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(EmeraldGreen)
+                                    .background(theme.primary)
                                     .clickable(onClick = viewModel::toggleStreamPause)
                                     .padding(horizontal = 16.dp, vertical = 8.dp),
                                 contentAlignment = Alignment.Center
@@ -384,6 +513,16 @@ fun MainScreen(
             currentPrinterName = printerName,
             currentColorMode = printerColorMode,
             currentCopies = printerCopies,
+            cameraSource = cameraSource,
+            onSelectCameraSource = { source ->
+                if (source == CameraSource.ANDROID) {
+                    requestAndroidCamera()
+                } else {
+                    viewModel.setCameraSource(CameraSource.RASPI)
+                }
+            },
+            androidLens = androidLens,
+            onSelectAndroidLens = viewModel::setAndroidLens,
             onSavePrinterSettings = viewModel::setPrinterSettings,
             onClose = viewModel::closeSettings
         )
@@ -396,6 +535,7 @@ private fun ActionLogsCard(
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val theme = MaterialTheme.current
     var isExpanded by remember { mutableStateOf(false) }
     val latestLog = logs.lastOrNull()
     val listState = rememberLazyListState()
@@ -409,8 +549,8 @@ private fun ActionLogsCard(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(BgSurface)
-            .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+            .background(theme.surface)
+            .border(1.dp, theme.outlineVariant, RoundedCornerShape(14.dp))
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
         // Header Row
@@ -427,12 +567,12 @@ private fun ActionLogsCard(
                 Icon(
                     imageVector = Icons.Default.Terminal,
                     contentDescription = null,
-                    tint = CyberCyan,
+                    tint = theme.primary,
                     modifier = Modifier.size(14.dp)
                 )
                 Text(
                     text = "STATUS LOGS",
-                    color = TextMain,
+                    color = theme.onSurface,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
@@ -441,7 +581,7 @@ private fun ActionLogsCard(
                 if (latestLog != null && !isExpanded) {
                     Text(
                         text = "• ${latestLog.message}",
-                        color = TextMuted,
+                        color = theme.onSurfaceVariant,
                         fontSize = 10.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -458,7 +598,7 @@ private fun ActionLogsCard(
                 if (logs.isNotEmpty()) {
                     Text(
                         text = "Clear",
-                        color = TextSubtle,
+                        color = theme.onSurfaceVariant,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
@@ -469,14 +609,14 @@ private fun ActionLogsCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(BgSurfaceElevated)
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(6.dp))
+                        .background(theme.surfaceVariant)
+                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(6.dp))
                         .clickable { isExpanded = !isExpanded }
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
                         text = if (isExpanded) "Hide" else "Logs (${logs.size})",
-                        color = CyberCyan,
+                        color = theme.primary,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
@@ -499,8 +639,8 @@ private fun ActionLogsCard(
                         .fillMaxWidth()
                         .height(110.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(BgSurfaceElevated)
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
+                        .background(theme.surfaceVariant)
+                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(8.dp))
                         .padding(6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -508,7 +648,7 @@ private fun ActionLogsCard(
                         item {
                             Text(
                                 text = "No recent action logs.",
-                                color = TextSubtle,
+                                color = theme.onSurfaceVariant,
                                 fontSize = 10.sp,
                                 fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(4.dp)
@@ -527,13 +667,14 @@ private fun ActionLogsCard(
 
 @Composable
 private fun LogEntryRow(log: com.trc.photobooth.data.ActionLog) {
+    val theme = MaterialTheme.current
     val tagColor = when (log.type) {
-        com.trc.photobooth.data.LogType.CAPTURE -> EmeraldGreen
-        com.trc.photobooth.data.LogType.CAMERA -> AmberGold
-        com.trc.photobooth.data.LogType.COMPLETE -> PurpleNeon
-        com.trc.photobooth.data.LogType.ERROR -> NeonPink
-        com.trc.photobooth.data.LogType.STATUS -> CyberCyan
-        else -> TextMuted
+        com.trc.photobooth.data.LogType.CAPTURE -> theme.primary
+        com.trc.photobooth.data.LogType.CAMERA -> theme.tertiary
+        com.trc.photobooth.data.LogType.COMPLETE -> theme.secondary
+        com.trc.photobooth.data.LogType.ERROR -> theme.error
+        com.trc.photobooth.data.LogType.STATUS -> theme.primary
+        else -> theme.onSurfaceVariant
     }
 
     Row(
@@ -543,7 +684,7 @@ private fun LogEntryRow(log: com.trc.photobooth.data.ActionLog) {
     ) {
         Text(
             text = log.timestamp,
-            color = TextSubtle,
+            color = theme.onSurfaceVariant,
             fontSize = 9.sp,
             fontFamily = FontFamily.Monospace
         )
@@ -556,7 +697,7 @@ private fun LogEntryRow(log: com.trc.photobooth.data.ActionLog) {
         )
         Text(
             text = log.message,
-            color = TextMain,
+            color = theme.onSurface,
             fontSize = 10.sp,
             fontFamily = FontFamily.Monospace,
             modifier = Modifier.weight(1f)
