@@ -42,6 +42,8 @@ import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -71,6 +73,8 @@ import com.trc.photobooth.filters.FilterPresets
 import com.trc.photobooth.theme.AmberGold
 import com.trc.photobooth.theme.BgBase
 import com.trc.photobooth.theme.BgCard
+import com.trc.photobooth.theme.BgSurface
+import com.trc.photobooth.theme.BgSurfaceElevated
 import com.trc.photobooth.theme.BorderMedium
 import com.trc.photobooth.theme.BorderSubtle
 import com.trc.photobooth.theme.CyberCyan
@@ -188,7 +192,7 @@ fun BoothScreen(
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xD90D121F))
+                        .background(BgSurface.copy(alpha = 0.95f))
                         .border(1.dp, AmberGold.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
                         .clickable(onClick = viewModel::toggleStreamPause)
                         .padding(horizontal = 16.dp, vertical = 10.dp),
@@ -196,21 +200,21 @@ fun BoothScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Icon(
-                        imageVector = Icons.Default.PlayArrow,
+                        imageVector = Icons.Default.VideocamOff,
                         contentDescription = null,
                         tint = AmberGold,
                         modifier = Modifier.size(20.dp),
                     )
                     Column {
                         Text(
-                            text = "PI STREAM PAUSED",
+                            text = "CAMERA TURNED OFF",
                             color = AmberGold,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
                         )
                         Text(
-                            text = "Camera feed paused to cool Pi • Tap to resume",
+                            text = "Camera feed is turned off • Tap to turn ON",
                             color = TextMuted,
                             fontSize = 10.sp,
                         )
@@ -232,7 +236,7 @@ fun BoothScreen(
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(22.dp))
-                    .background(Color(0xD90B0F17))
+                    .background(BgSurface.copy(alpha = 0.95f))
                     .border(width = 1.dp, color = BorderSubtle, shape = RoundedCornerShape(22.dp))
                     .padding(horizontal = 10.dp, vertical = 5.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -244,7 +248,8 @@ fun BoothScreen(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(Color(0x1AFFFFFF))
+                            .background(BgSurfaceElevated)
+                            .border(1.dp, BorderSubtle, CircleShape)
                             .clickable(onClick = onBack),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -284,9 +289,9 @@ fun BoothScreen(
                         .clip(RoundedCornerShape(12.dp))
                         .background(
                             when {
-                                isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> Color(0x26FFB703)
-                                connectionStatus == ConnectionStatus.CONNECTED -> Color(0x1A00E599)
-                                else -> Color(0x1AFF3366)
+                                isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> AmberGold.copy(alpha = 0.15f)
+                                connectionStatus == ConnectionStatus.CONNECTED -> EmeraldGreen.copy(alpha = 0.15f)
+                                else -> NeonPink.copy(alpha = 0.15f)
                             }
                         )
                         .border(
@@ -319,7 +324,7 @@ fun BoothScreen(
                     )
                     Text(
                         text = when {
-                            isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> "PAUSED"
+                            isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED -> "CAMERA OFF"
                             connectionStatus == ConnectionStatus.CONNECTED -> "READY"
                             else -> "OFFLINE"
                         },
@@ -334,22 +339,34 @@ fun BoothScreen(
                     )
                 }
 
-                // Pause / Play Stream Toggle Button (Thermal management to avoid Pi overheating)
+                // Camera Turn On / Turn Off Button
                 Box(
                     modifier = Modifier
-                        .size(30.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isStreamPaused) Color(0x33FFB703) else Color(0x1AFFFFFF))
-                        .border(1.dp, if (isStreamPaused) AmberGold else BorderSubtle, RoundedCornerShape(8.dp))
-                        .clickable { viewModel.toggleStreamPause() },
+                        .background(if (isStreamPaused) AmberGold.copy(alpha = 0.15f) else EmeraldGreen.copy(alpha = 0.15f))
+                        .border(1.dp, if (isStreamPaused) AmberGold else EmeraldGreen, RoundedCornerShape(8.dp))
+                        .clickable { viewModel.toggleStreamPause() }
+                        .padding(horizontal = 7.dp, vertical = 4.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        imageVector = if (isStreamPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                        contentDescription = if (isStreamPaused) "Resume Stream (Pi Cooled)" else "Pause Stream (Cool Pi)",
-                        tint = if (isStreamPaused) AmberGold else TextMuted,
-                        modifier = Modifier.size(16.dp),
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (isStreamPaused) Icons.Default.VideocamOff else Icons.Default.Videocam,
+                            contentDescription = if (isStreamPaused) "Turn Camera ON" else "Turn Camera OFF",
+                            tint = if (isStreamPaused) AmberGold else EmeraldGreen,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Text(
+                            text = if (isStreamPaused) "CAM OFF" else "CAM ON",
+                            color = if (isStreamPaused) AmberGold else EmeraldGreen,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
                 }
 
                 // Settings Button
@@ -357,7 +374,7 @@ fun BoothScreen(
                     modifier = Modifier
                         .size(30.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0x1AFFFFFF))
+                        .background(BgSurfaceElevated)
                         .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
                         .clickable { viewModel.openSettings() },
                     contentAlignment = Alignment.Center,
@@ -372,120 +389,133 @@ fun BoothScreen(
             }
         }
 
-        // Layer 4: Floating Bottom Controls
+        // Layer 4: Floating Controls
         when {
             isIdle -> {
-                Column(
+                // Central 2x2 Timer Grid + Big Center START Button
+                Box(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xD9070B12))
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 60.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    // Filter Selection Strip (Includes RANDOM)
-                    BoothFilterStrip(
-                        selectedFilter = selectedFilter,
-                        onSelectFilter = viewModel::selectFilter,
-                        enabled = true,
-                    )
-
-                    // Timer Options & Start Button Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(BgSurface.copy(alpha = 0.94f))
+                            .border(1.5.dp, BorderMedium, RoundedCornerShape(26.dp))
+                            .padding(20.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        // Timer Selector Pills
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(BgCard)
-                                .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
-                                .padding(4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                        // 2x2 Grid of Big Timer Buttons
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(26.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Timer,
-                                contentDescription = null,
-                                tint = TextMuted,
-                                modifier = Modifier
-                                    .padding(start = 4.dp)
-                                    .size(14.dp),
-                            )
+                            // Top Row: 1s (left) and 3s (right)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(36.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                BoothTimerGridButton(
+                                    seconds = 1,
+                                    isSelected = timerSeconds == 1,
+                                    onClick = { viewModel.setTimerSeconds(1) }
+                                )
+                                BoothTimerGridButton(
+                                    seconds = 3,
+                                    isSelected = timerSeconds == 3,
+                                    onClick = { viewModel.setTimerSeconds(3) }
+                                )
+                            }
 
-                            listOf(3, 5, 10).forEach { seconds ->
-                                val isSelected = timerSeconds == seconds
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(
-                                            if (isSelected) CyberCyan.copy(alpha = 0.25f)
-                                            else Color.Transparent
-                                        )
-                                        .border(
-                                            width = if (isSelected) 1.dp else 0.dp,
-                                            color = if (isSelected) CyberCyan else Color.Transparent,
-                                            shape = RoundedCornerShape(8.dp),
-                                        )
-                                        .clickable { viewModel.setTimerSeconds(seconds) }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        text = "${seconds}s",
-                                        color = if (isSelected) CyberCyan else TextMuted,
-                                        fontSize = 12.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        fontFamily = FontFamily.Monospace,
-                                    )
-                                }
+                            // Bottom Row: 5s (left) and 10s (right)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(36.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                BoothTimerGridButton(
+                                    seconds = 5,
+                                    isSelected = timerSeconds == 5,
+                                    onClick = { viewModel.setTimerSeconds(5) }
+                                )
+                                BoothTimerGridButton(
+                                    seconds = 10,
+                                    isSelected = timerSeconds == 10,
+                                    onClick = { viewModel.setTimerSeconds(10) }
+                                )
                             }
                         }
 
-                        // Big Start Button
+                        // Big START Button in the exact middle
+                        val isReadyToStart = connectionStatus == ConnectionStatus.CONNECTED && !isStreamPaused
                         Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .clip(RoundedCornerShape(12.dp))
+                                .size(108.dp)
+                                .clip(CircleShape)
                                 .background(
-                                    Brush.horizontalGradient(
-                                        listOf(NeonPink, Color(0xFFE11D48), PurpleNeon)
-                                    )
+                                    if (isReadyToStart) {
+                                        Brush.linearGradient(
+                                            listOf(NeonPink, Color(0xFFE11D48), PurpleNeon)
+                                        )
+                                    } else {
+                                        Brush.linearGradient(
+                                            listOf(Color(0xFF94A3B8), Color(0xFF64748B))
+                                        )
+                                    }
+                                )
+                                .border(
+                                    width = 3.dp,
+                                    color = if (isReadyToStart) Color.White.copy(alpha = 0.9f) else Color.Transparent,
+                                    shape = CircleShape
                                 )
                                 .clickable(
-                                    enabled = connectionStatus == ConnectionStatus.CONNECTED,
-                                    onClick = viewModel::startSession,
+                                    enabled = isReadyToStart,
+                                    onClick = viewModel::startSession
                                 ),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.CameraAlt,
-                                    contentDescription = null,
+                                    contentDescription = "Start",
                                     tint = Color.White,
-                                    modifier = Modifier.size(18.dp),
+                                    modifier = Modifier.size(24.dp),
                                 )
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "START BOOTH",
+                                    text = if (isStreamPaused) "OFF" else "START",
                                     color = Color.White,
-                                    fontSize = 14.sp,
+                                    fontSize = 18.sp,
                                     fontWeight = FontWeight.Black,
-                                    letterSpacing = 1.2.sp,
+                                    letterSpacing = 1.5.sp,
                                     fontFamily = FontFamily.Monospace,
                                 )
                             }
                         }
                     }
+                }
+
+                // Filter Selection Strip docked at bottom
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(BgSurface.copy(alpha = 0.95f))
+                        .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    BoothFilterStrip(
+                        selectedFilter = selectedFilter,
+                        onSelectFilter = viewModel::selectFilter,
+                        enabled = true,
+                    )
                 }
             }
 
@@ -500,7 +530,7 @@ fun BoothScreen(
                         modifier = Modifier
                             .widthIn(max = 480.dp)
                             .clip(RoundedCornerShape(22.dp))
-                            .background(Color(0xF2070B14))
+                            .background(BgSurface.copy(alpha = 0.98f))
                             .border(1.5.dp, BorderMedium, RoundedCornerShape(22.dp))
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -757,8 +787,9 @@ fun BoothScreen(
                             is BoothUploadState.Idle -> {}
                         }
 
-                        // Print Buttons: Print (Pi) + Print (App)
-                        if (collageBitmap != null) {
+                        // Print Buttons: Print (Pi) + Print (App) [Hidden for now as requested]
+                        val showPrintButtons = false
+                        if (showPrintButtons && collageBitmap != null) {
                             val isPrinting = printState is PrintState.Printing
                             val isSuccess = printState is PrintState.Success
                             val isError = printState is PrintState.Error
@@ -913,8 +944,8 @@ fun BoothScreen(
                         .navigationBarsPadding()
                         .padding(bottom = 16.dp)
                         .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xD9070B12))
-                        .border(1.dp, NeonPink.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+                        .background(BgSurface.copy(alpha = 0.95f))
+                        .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -966,3 +997,57 @@ fun BoothScreen(
         )
     }
 }
+
+@Composable
+private fun BoothTimerGridButton(
+    seconds: Int,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(76.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                if (isSelected) {
+                    Brush.verticalGradient(
+                        listOf(CyberCyan, Color(0xFF0099FF))
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        listOf(BgCard, BgSurfaceElevated)
+                    )
+                }
+            )
+            .border(
+                width = if (isSelected) 2.dp else 1.5.dp,
+                color = if (isSelected) CyberCyan else BorderSubtle,
+                shape = RoundedCornerShape(18.dp)
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = "${seconds}s",
+                color = if (isSelected) Color.White else TextMain,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Black,
+                fontFamily = FontFamily.Monospace,
+            )
+            Text(
+                text = "TIMER",
+                color = if (isSelected) Color.White.copy(alpha = 0.85f) else TextMuted,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 0.8.sp,
+            )
+        }
+    }
+}
+

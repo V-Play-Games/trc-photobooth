@@ -66,7 +66,9 @@ import com.trc.photobooth.data.PhotoBoothRepository
 import com.trc.photobooth.data.models.CaptureMetadata
 import com.trc.photobooth.filters.FilterPreset
 import com.trc.photobooth.filters.FilterPresets
+import com.trc.photobooth.theme.BgBase
 import com.trc.photobooth.theme.BgElevated
+import com.trc.photobooth.theme.BgSurface
 import com.trc.photobooth.theme.BorderMedium
 import com.trc.photobooth.theme.BorderSubtle
 import com.trc.photobooth.theme.CyberCyan
@@ -139,7 +141,7 @@ fun LightboxDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xF007090E))
+                .background(BgBase.copy(alpha = 0.98f))
                 .padding(16.dp),
         ) {
             Column(
@@ -266,7 +268,7 @@ fun LightboxDialog(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) preset.accentColor.copy(alpha = 0.2f) else Color(0x661E293B))
+                                        .background(if (isSelected) preset.accentColor.copy(alpha = 0.2f) else BgElevated)
                                         .border(
                                             width = if (isSelected) 1.5.dp else 1.dp,
                                             color = if (isSelected) preset.accentColor else BorderSubtle,
@@ -287,8 +289,9 @@ fun LightboxDialog(
                     }
                 }
 
-                // Print Button for still photos
-                if (!isGif) {
+                // Print Button for still photos (Hidden for now as requested)
+                val showPrintButtons = false
+                if (showPrintButtons && !isGif) {
                     var isPrinting by remember { mutableStateOf(false) }
                     Button(
                         onClick = {
@@ -449,7 +452,7 @@ fun LightboxDialog(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            containerColor = Color(0xFF0F172A),
+            containerColor = BgElevated,
             title = {
                 Text(
                     text = "Delete Capture?",

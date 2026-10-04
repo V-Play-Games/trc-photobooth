@@ -87,11 +87,61 @@ class PhotoBoothRepository(
     val flashEvent: SharedFlow<Unit> = wsClient.flashEvent
     val captureResult: SharedFlow<CaptureMetadata> = wsClient.captureResult
 
+    // Action Logs (observable by Admin Panel)
+    private val _actionLogs = MutableStateFlow<List<ActionLog>>(listOf(
+        ActionLog(
+            timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date()),
+            message = "Admin Console initialized in Light Mode",
+            type = LogType.STATUS
+        )
+    ))
+    val actionLogs: StateFlow<List<ActionLog>> = _actionLogs.asStateFlow()
+
+    fun logAction(message: String, type: LogType = LogType.INFO) {
+        val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+        val entry = ActionLog(timestamp = time, message = message, type = type)
+        _actionLogs.value = (_actionLogs.value + entry).takeLast(100)
+        Log.d(tag, "[$time] [${type.name}] $message")
+    }
+
+    fun clearLogs() {
+        _actionLogs.value = emptyList()
+    }
+
     init {
         // Collect new captures pushed over WebSocket
         scope.launch {
             wsClient.captureResult.collect { newCapture ->
                 _captures.value = listOf(newCapture) + _captures.value.filter { it.id != newCapture.id }
+                logAction("High-res capture saved: ${newCapture.filename}", LogType.COMPLETE)
+            }
+        }
+
+        // Monitor connection status changes for logging
+        scope.launch {
+            wsClient.status.collect { st ->
+                when (st) {
+                    ConnectionStatus.CONNECTED -> logAction("Connected to Pi at ${_hostAddress.value}", LogType.STATUS)
+                    ConnectionStatus.DISCONNECTED -> logAction("Disconnected from Pi (${_hostAddress.value})", LogType.STATUS)
+                    ConnectionStatus.CONNECTING -> logAction("Connecting to Pi at ${_hostAddress.value}...", LogType.STATUS)
+                    ConnectionStatus.ERROR -> logAction("Connection error with Pi at ${_hostAddress.value}", LogType.ERROR)
+                }
+            }
+        }
+
+        // Monitor camera on/off (pause state)
+        scope.launch {
+            var isFirst = true
+            wsClient.isStreamPaused.collect { isPaused ->
+                if (isFirst) {
+                    isFirst = false
+                    return@collect
+                }
+                if (isPaused) {
+                    logAction("Camera turned OFF", LogType.CAMERA)
+                } else {
+                    logAction("Camera turned ON", LogType.CAMERA)
+                }
             }
         }
     }
@@ -407,3 +457,20 @@ class PhotoBoothRepository(
         }
     }
 }
+
+data class ActionLog(
+    val id: Long = System.currentTimeMillis() + (0..999).random(),
+    val timestamp: String,
+    val message: String,
+    val type: LogType = LogType.INFO,
+)
+
+enum class LogType {
+    INFO,
+    CAPTURE,
+    STATUS,
+    CAMERA,
+    COMPLETE,
+    ERROR,
+}
+

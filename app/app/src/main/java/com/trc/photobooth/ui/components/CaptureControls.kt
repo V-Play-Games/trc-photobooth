@@ -59,6 +59,8 @@ import com.trc.photobooth.data.models.CaptureType
 import com.trc.photobooth.data.models.ConnectionStatus
 import com.trc.photobooth.theme.BgCard
 import com.trc.photobooth.theme.BgElevated
+import com.trc.photobooth.theme.BgSurface
+import com.trc.photobooth.theme.BgSurfaceElevated
 import com.trc.photobooth.theme.BorderMedium
 import com.trc.photobooth.theme.BorderSubtle
 import com.trc.photobooth.theme.CyberCyan
@@ -93,7 +95,7 @@ fun CaptureControls(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xF207090E))
+            .background(BgSurface.copy(alpha = 0.95f))
             .border(width = 1.dp, color = BorderSubtle)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -108,7 +110,7 @@ fun CaptureControls(
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0x800F172A))
+                    .background(BgSurfaceElevated)
                     .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
                     .padding(3.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -131,7 +133,7 @@ fun CaptureControls(
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0x800F172A))
+                    .background(BgSurfaceElevated)
                     .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
                     .padding(3.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -169,7 +171,7 @@ fun CaptureControls(
                     .fillMaxWidth()
                     .padding(top = 10.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0x401E293B))
+                    .background(BgSurfaceElevated)
                     .border(1.dp, BorderSubtle, RoundedCornerShape(10.dp))
                     .padding(horizontal = 10.dp, vertical = 6.dp)
             ) {

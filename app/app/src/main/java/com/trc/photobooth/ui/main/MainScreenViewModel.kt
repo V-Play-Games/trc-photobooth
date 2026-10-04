@@ -80,6 +80,9 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
     val printerColorMode: StateFlow<String> = repository.printerColorMode
     val printerCopies: StateFlow<Int> = repository.printerCopies
     val isStreamPaused: StateFlow<Boolean> = repository.isStreamPaused
+    val actionLogs: StateFlow<List<com.trc.photobooth.data.ActionLog>> = repository.actionLogs
+
+    fun clearActionLogs() = repository.clearLogs()
 
     init {
         // Start connection with saved host
@@ -185,8 +188,10 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
         if (status.value != ConnectionStatus.CONNECTED) return
         val sec = _countdownSetting.value
         if (_captureMode.value == CaptureType.PHOTO) {
+            repository.logAction("Admin triggered photo capture (Timer: ${sec}s)", com.trc.photobooth.data.LogType.CAPTURE)
             repository.triggerPhoto(sec)
         } else {
+            repository.logAction("Admin triggered GIF burst (${_gifFrames.value} frames @ ${_gifIntervalMs.value}ms)", com.trc.photobooth.data.LogType.CAPTURE)
             repository.triggerGif(sec, _gifFrames.value, _gifIntervalMs.value)
         }
     }

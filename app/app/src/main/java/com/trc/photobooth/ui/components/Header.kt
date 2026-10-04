@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Icon
@@ -46,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trc.photobooth.data.models.ConnectionStatus
 import com.trc.photobooth.theme.AmberGold
+import com.trc.photobooth.theme.BgSurface
+import com.trc.photobooth.theme.BgSurfaceElevated
 import com.trc.photobooth.theme.BorderSubtle
 import com.trc.photobooth.theme.CyberCyan
 import com.trc.photobooth.theme.EmeraldGreen
@@ -55,7 +59,7 @@ import com.trc.photobooth.theme.TextMuted
 
 /**
  * Compact Dynamic Island Top Bar for the main viewfinder screen.
- * Keeps camera feed clear while providing fast access to stream pause/play (to prevent Pi overheating),
+ * Keeps camera feed clear while providing fast access to camera turn on/off,
  * connection telemetry, mirror flip, framing guides, settings, and booth mode.
  */
 @Composable
@@ -84,7 +88,7 @@ fun Header(
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xD90B0F17))
+                .background(BgSurface.copy(alpha = 0.95f))
                 .border(width = 1.dp, color = BorderSubtle, shape = RoundedCornerShape(22.dp))
                 .padding(horizontal = 10.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -121,15 +125,15 @@ fun Header(
                 isStreamPaused = isStreamPaused,
             )
 
-            // Pause / Play Stream Button (Thermal management to prevent Pi overheating)
+            // Camera Turn On / Turn Off Button
             IslandToolButton(
-                icon = if (isStreamPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                isActive = isStreamPaused,
-                activeBg = Color(0x33FFB703),
-                activeBorder = AmberGold,
-                activeTint = AmberGold,
+                icon = if (isStreamPaused) Icons.Default.VideocamOff else Icons.Default.Videocam,
+                isActive = true,
+                activeBg = if (isStreamPaused) AmberGold.copy(alpha = 0.15f) else EmeraldGreen.copy(alpha = 0.15f),
+                activeBorder = if (isStreamPaused) AmberGold else EmeraldGreen,
+                activeTint = if (isStreamPaused) AmberGold else EmeraldGreen,
                 onClick = onToggleStreamPause,
-                contentDescription = if (isStreamPaused) "Resume Stream (Pi Cooled)" else "Pause Stream (Cool Pi)",
+                contentDescription = if (isStreamPaused) "Turn Camera ON" else "Turn Camera OFF",
             )
 
             // Framing Guides Button
@@ -212,26 +216,26 @@ private fun IslandStatusPill(
 
     val (bgColor, borderColor, text, iconColor) = when {
         isStreamPaused && status == ConnectionStatus.CONNECTED -> Quad(
-            Color(0x26FFB703),
-            AmberGold.copy(alpha = 0.5f),
-            "PAUSED",
+            AmberGold.copy(alpha = 0.15f),
+            AmberGold.copy(alpha = 0.6f),
+            "CAMERA OFF",
             AmberGold,
         )
         status == ConnectionStatus.CONNECTED -> Quad(
-            Color(0x1A00E599),
-            EmeraldGreen.copy(alpha = 0.4f),
+            EmeraldGreen.copy(alpha = 0.15f),
+            EmeraldGreen.copy(alpha = 0.6f),
             if (fps > 0) "${fps}fps" else "LIVE",
             EmeraldGreen,
         )
         status == ConnectionStatus.CONNECTING -> Quad(
-            Color(0x1AFFB703),
-            Color(0x66FFB703),
+            AmberGold.copy(alpha = 0.15f),
+            AmberGold.copy(alpha = 0.6f),
             "CONNECTING",
-            Color(0xFFFFB703),
+            AmberGold,
         )
         else -> Quad(
-            Color(0x1AFF3366),
-            NeonPink.copy(alpha = 0.4f),
+            NeonPink.copy(alpha = 0.15f),
+            NeonPink.copy(alpha = 0.6f),
             "OFFLINE",
             NeonPink,
         )
@@ -294,11 +298,11 @@ private fun IslandToolButton(
     isActive: Boolean,
     onClick: () -> Unit,
     contentDescription: String,
-    activeBg: Color = CyberCyan.copy(alpha = 0.18f),
+    activeBg: Color = CyberCyan.copy(alpha = 0.15f),
     activeBorder: Color = CyberCyan,
     activeTint: Color = CyberCyan,
 ) {
-    val bg = if (isActive) activeBg else Color(0x1AFFFFFF)
+    val bg = if (isActive) activeBg else BgSurfaceElevated
     val border = if (isActive) activeBorder else BorderSubtle
     val tint = if (isActive) activeTint else TextMuted
 

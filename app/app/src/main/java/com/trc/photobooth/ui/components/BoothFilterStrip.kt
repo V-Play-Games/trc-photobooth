@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.trc.photobooth.filters.FilterPreset
 import com.trc.photobooth.filters.FilterPresets
 import com.trc.photobooth.theme.BgCard
+import com.trc.photobooth.theme.BgSurfaceElevated
 import com.trc.photobooth.theme.BorderMedium
 import com.trc.photobooth.theme.BorderSubtle
 import com.trc.photobooth.theme.CyberCyan
@@ -168,7 +169,7 @@ private fun BoothFilterCard(
             listOf(preset.accentColor.copy(alpha = 0.28f), BgCard)
         )
         else -> Brush.linearGradient(
-            listOf(BgCard, Color(0xFF090D14))
+            listOf(BgCard, BgSurfaceElevated)
         )
     }
 

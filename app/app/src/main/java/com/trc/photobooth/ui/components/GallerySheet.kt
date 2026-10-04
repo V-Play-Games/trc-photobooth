@@ -58,6 +58,8 @@ import coil.compose.AsyncImage
 import com.trc.photobooth.data.models.CaptureMetadata
 import com.trc.photobooth.theme.BgCard
 import com.trc.photobooth.theme.BgElevated
+import com.trc.photobooth.theme.BgSurface
+import com.trc.photobooth.theme.BgSurfaceElevated
 import com.trc.photobooth.theme.BorderMedium
 import com.trc.photobooth.theme.BorderSubtle
 import com.trc.photobooth.theme.CyberCyan
@@ -95,7 +97,7 @@ fun GallerySheet(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xCC000000))
+                .background(Color(0x66000000))
                 .clickable(onClick = onClose),
             contentAlignment = Alignment.BottomCenter
         ) {
@@ -105,7 +107,7 @@ fun GallerySheet(
                     .fillMaxWidth()
                     .height(680.dp)
                     .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                    .background(Color(0xFF0B0F17))
+                    .background(BgSurface)
                     .border(1.dp, BorderSubtle, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                     .clickable(enabled = false) {} // Prevent click-through
                     .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 24.dp)
@@ -181,7 +183,7 @@ fun GallerySheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0x660F172A))
+                        .background(BgSurfaceElevated)
                         .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {

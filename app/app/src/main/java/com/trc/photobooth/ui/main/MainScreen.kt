@@ -23,8 +23,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Icon
@@ -32,6 +38,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -47,8 +57,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trc.photobooth.data.models.ConnectionStatus
 import com.trc.photobooth.theme.AmberGold
 import com.trc.photobooth.theme.BgBase
+import com.trc.photobooth.theme.BgSurface
+import com.trc.photobooth.theme.BgSurfaceElevated
+import com.trc.photobooth.theme.BorderMedium
+import com.trc.photobooth.theme.BorderSubtle
+import com.trc.photobooth.theme.CyberCyan
+import com.trc.photobooth.theme.EmeraldGreen
+import com.trc.photobooth.theme.NeonPink
+import com.trc.photobooth.theme.PurpleNeon
 import com.trc.photobooth.theme.TextMain
 import com.trc.photobooth.theme.TextMuted
+import com.trc.photobooth.theme.TextSubtle
 import com.trc.photobooth.ui.components.CaptureControls
 import com.trc.photobooth.ui.components.CountdownOverlay
 import com.trc.photobooth.ui.components.FilterStrip
@@ -91,6 +110,7 @@ fun MainScreen(
     val printerColorMode by viewModel.printerColorMode.collectAsStateWithLifecycle()
     val printerCopies by viewModel.printerCopies.collectAsStateWithLifecycle()
     val isStreamPaused by viewModel.isStreamPaused.collectAsStateWithLifecycle()
+    val actionLogs by viewModel.actionLogs.collectAsStateWithLifecycle()
 
     val isGalleryOpen by viewModel.isGalleryOpen.collectAsStateWithLifecycle()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
@@ -140,7 +160,7 @@ fun MainScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF261908))
+                        .background(Color(0xFFFEF3C7))
                         .border(width = 1.dp, color = AmberGold.copy(alpha = 0.35f))
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -211,12 +231,12 @@ fun MainScreen(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Stream Paused Overlay (Saving Pi thermal load)
+                // Camera Turned Off Overlay
                 if (isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color(0xB3000000))
+                            .background(Color(0x99FFFFFF))
                             .clickable(onClick = viewModel::toggleStreamPause),
                         contentAlignment = Alignment.Center
                     ) {
@@ -225,43 +245,79 @@ fun MainScreen(
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(18.dp))
-                                .background(Color(0xE60D121F))
-                                .border(1.dp, AmberGold.copy(alpha = 0.5f), RoundedCornerShape(18.dp))
-                                .padding(horizontal = 22.dp, vertical = 16.dp)
+                                .background(BgSurface)
+                                .border(1.dp, BorderMedium, RoundedCornerShape(18.dp))
+                                .padding(horizontal = 24.dp, vertical = 20.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(46.dp)
+                                    .size(52.dp)
                                     .clip(CircleShape)
                                     .background(AmberGold.copy(alpha = 0.15f))
-                                    .border(1.dp, AmberGold.copy(alpha = 0.6f), CircleShape),
+                                    .border(1.5.dp, AmberGold, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.PlayArrow,
+                                    imageVector = Icons.Default.VideocamOff,
                                     contentDescription = null,
                                     tint = AmberGold,
-                                    modifier = Modifier.size(26.dp)
+                                    modifier = Modifier.size(28.dp)
                                 )
                             }
                             Text(
-                                text = "STREAM PAUSED",
+                                text = "CAMERA TURNED OFF",
                                 color = TextMain,
-                                fontSize = 13.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace,
                             )
                             Text(
-                                text = "Camera feed paused to keep Raspberry Pi cool.\nTap anywhere to resume live stream.",
+                                text = "Camera feed is currently turned off.\nTap button below or header to resume.",
                                 color = TextMuted,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 textAlign = TextAlign.Center,
-                                lineHeight = 15.sp,
+                                lineHeight = 16.sp,
                             )
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(EmeraldGreen)
+                                    .clickable(onClick = viewModel::toggleStreamPause)
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Videocam,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "TURN CAMERA ON",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
+
+            // Action & Booth Logs Console
+            ActionLogsCard(
+                logs = actionLogs,
+                onClear = viewModel::clearActionLogs,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+            )
 
             // Studio Presets Carousel
             FilterStrip(
@@ -330,6 +386,180 @@ fun MainScreen(
             currentCopies = printerCopies,
             onSavePrinterSettings = viewModel::setPrinterSettings,
             onClose = viewModel::closeSettings
+        )
+    }
+}
+
+@Composable
+private fun ActionLogsCard(
+    logs: List<com.trc.photobooth.data.ActionLog>,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    val latestLog = logs.lastOrNull()
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(logs.size) {
+        if (logs.isNotEmpty()) {
+            listState.animateScrollToItem(logs.size - 1)
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(BgSurface)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        // Header Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Terminal,
+                    contentDescription = null,
+                    tint = CyberCyan,
+                    modifier = Modifier.size(14.dp)
+                )
+                Text(
+                    text = "STATUS LOGS",
+                    color = TextMain,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 0.5.sp
+                )
+                if (latestLog != null && !isExpanded) {
+                    Text(
+                        text = "• ${latestLog.message}",
+                        color = TextMuted,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (logs.isNotEmpty()) {
+                    Text(
+                        text = "Clear",
+                        color = TextSubtle,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clickable(onClick = onClear)
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(BgSurfaceElevated)
+                        .border(1.dp, BorderSubtle, RoundedCornerShape(6.dp))
+                        .clickable { isExpanded = !isExpanded }
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = if (isExpanded) "Hide" else "Logs (${logs.size})",
+                        color = CyberCyan,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+            }
+        }
+
+        // Expanded log scroll list
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column {
+                Spacer(modifier = Modifier.height(6.dp))
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(110.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(BgSurfaceElevated)
+                        .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
+                        .padding(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (logs.isEmpty()) {
+                        item {
+                            Text(
+                                text = "No recent action logs.",
+                                color = TextSubtle,
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(4.dp)
+                            )
+                        }
+                    } else {
+                        items(logs, key = { it.id }) { log ->
+                            LogEntryRow(log)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LogEntryRow(log: com.trc.photobooth.data.ActionLog) {
+    val tagColor = when (log.type) {
+        com.trc.photobooth.data.LogType.CAPTURE -> EmeraldGreen
+        com.trc.photobooth.data.LogType.CAMERA -> AmberGold
+        com.trc.photobooth.data.LogType.COMPLETE -> PurpleNeon
+        com.trc.photobooth.data.LogType.ERROR -> NeonPink
+        com.trc.photobooth.data.LogType.STATUS -> CyberCyan
+        else -> TextMuted
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = log.timestamp,
+            color = TextSubtle,
+            fontSize = 9.sp,
+            fontFamily = FontFamily.Monospace
+        )
+        Text(
+            text = "[${log.type.name}]",
+            color = tagColor,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace
+        )
+        Text(
+            text = log.message,
+            color = TextMain,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.weight(1f)
         )
     }
 }

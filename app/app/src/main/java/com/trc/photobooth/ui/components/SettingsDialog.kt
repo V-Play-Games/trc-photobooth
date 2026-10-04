@@ -72,6 +72,8 @@ import com.trc.photobooth.data.models.ConnectionStatus
 import com.trc.photobooth.data.models.SystemStats
 import com.trc.photobooth.theme.BgCard
 import com.trc.photobooth.theme.BgElevated
+import com.trc.photobooth.theme.BgSurface
+import com.trc.photobooth.theme.BgSurfaceElevated
 import com.trc.photobooth.theme.AmberGold
 import com.trc.photobooth.theme.BorderMedium
 import com.trc.photobooth.theme.BorderSubtle

@@ -202,6 +202,7 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
     fun selectFilter(filter: FilterPreset) {
         if (_boothState.value != BoothState.IDLE) return
         _selectedFilter.value = filter
+        repository.logAction("Booth filter selected: ${filter.name}", com.trc.photobooth.data.LogType.INFO)
         if (filter.id != FilterPresets.RANDOM.id) {
             _currentFeedFilter.value = filter
         } else {
@@ -213,6 +214,7 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
     fun setTimerSeconds(seconds: Int) {
         if (_boothState.value != BoothState.IDLE) return
         _timerSeconds.value = seconds
+        repository.logAction("Booth timer set to ${seconds}s", com.trc.photobooth.data.LogType.INFO)
     }
 
     /**
@@ -228,6 +230,10 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
         captureJob = viewModelScope.launch {
             _boothState.value = BoothState.CAPTURING
             _capturedPhotos.value = listOf(null, null, null, null)
+            repository.logAction(
+                "Booth 4-shot session started (Timer: ${_timerSeconds.value}s, Filter: ${_selectedFilter.value.name})",
+                com.trc.photobooth.data.LogType.CAPTURE
+            )
 
             val resolved = mutableListOf<FilterPreset>()
             val captures = mutableListOf<Bitmap>()
@@ -242,6 +248,11 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
                     _selectedFilter.value
                 }
                 _currentFeedFilter.value = concreteFilter
+
+                repository.logAction(
+                    "Clicking photo ${quadrant + 1}/4 (Filter: ${concreteFilter.name})...",
+                    com.trc.photobooth.data.LogType.CAPTURE
+                )
 
                 // Update resolved list
                 val updatedResolved = _resolvedFilters.value.toMutableList()
@@ -289,6 +300,11 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
                 updatedCaptures[quadrant] = bakedBitmap
                 _capturedPhotos.value = updatedCaptures
 
+                repository.logAction(
+                    "Clicked photo ${quadrant + 1}/4 (${concreteFilter.name})",
+                    com.trc.photobooth.data.LogType.CAPTURE
+                )
+
                 _currentCountdown.value = null
 
                 // Pause so guest sees their captured quadrant before switching to next
@@ -297,6 +313,7 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
 
             // 5. Sequence complete! Auto-save all 4 photos to directory
             hapticHelper.captureComplete()
+            repository.logAction("All 4 photos clicked! Assembling 1x4 photo strip...", com.trc.photobooth.data.LogType.CAPTURE)
             val timestamp = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(Date())
             _sessionTimestamp.value = timestamp
 
@@ -315,6 +332,7 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
             _collageBitmap.value = collage
             val cFile = BitmapUtils.saveCollage(getApplication(), collage, timestamp)
             _collageFile.value = cFile
+            repository.logAction("Photo strip ready & saved: collage_${timestamp}.jpg", com.trc.photobooth.data.LogType.COMPLETE)
 
             // 7. Upload photo strip to Cloudinary & Generate QR code
             uploadCollageInternal(collage, timestamp)
@@ -418,6 +436,7 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
         _uploadState.value = BoothUploadState.Idle
         _printState.value = PrintState.Idle
         _boothState.value = BoothState.IDLE
+        repository.logAction("Booth reset to IDLE, ready for next session", com.trc.photobooth.data.LogType.STATUS)
         if (_selectedFilter.value.id != FilterPresets.RANDOM.id) {
             _currentFeedFilter.value = _selectedFilter.value
         } else {

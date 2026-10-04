@@ -42,6 +42,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trc.photobooth.filters.FilterPreset
+import com.trc.photobooth.theme.BgCard
+import com.trc.photobooth.theme.BgSurface
+import com.trc.photobooth.theme.BgSurfaceElevated
 import com.trc.photobooth.theme.BorderMedium
 import com.trc.photobooth.theme.BorderSubtle
 import com.trc.photobooth.theme.CyberCyan
@@ -189,7 +192,7 @@ private fun QuadrantCell(
     Box(
         modifier = modifier
             .clip(shape)
-            .background(Color(0xFF070B12))
+            .background(BgCard)
             .then(borderModifier),
         contentAlignment = Alignment.Center,
     ) {
@@ -209,7 +212,7 @@ private fun QuadrantCell(
                         .align(Alignment.TopStart)
                         .padding(8.dp)
                         .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xCC050811))
+                        .background(BgSurface.copy(alpha = 0.92f))
                         .border(1.dp, EmeraldGreen.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
                         .padding(horizontal = 6.dp, vertical = 3.dp),
                 ) {
@@ -286,7 +289,7 @@ private fun QuadrantCell(
                         .align(Alignment.TopStart)
                         .padding(8.dp)
                         .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xD90D0315))
+                        .background(BgSurface.copy(alpha = 0.95f))
                         .border(1.dp, NeonPink.copy(alpha = pulseAlpha), RoundedCornerShape(6.dp))
                         .padding(horizontal = 7.dp, vertical = 3.dp),
                 ) {
@@ -316,7 +319,8 @@ private fun QuadrantCell(
                         .align(Alignment.BottomEnd)
                         .padding(8.dp)
                         .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xCC000000))
+                        .background(BgSurface.copy(alpha = 0.9f))
+                        .border(1.dp, BorderSubtle, RoundedCornerShape(6.dp))
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                 ) {
                     Text(
@@ -338,7 +342,7 @@ private fun QuadrantCell(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF131924))
+                            .background(BgSurfaceElevated)
                             .border(1.dp, BorderSubtle, CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
