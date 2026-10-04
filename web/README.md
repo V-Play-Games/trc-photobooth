@@ -46,9 +46,9 @@ Served directly by the Raspberry Pi FastAPI server at `http://<pi-ip>:8000/`.
 
 ---
 
-## ☁️ Cloudinary Configuration (2×2 Collage Upload & QR Code)
+## ☁️ Cloudinary Configuration (1×4 Photo Strip Upload & QR Code)
 
-When a 4-photo photobooth session completes, the web client creates a 1200×1400 2×2 composite collage on canvas, uploads it to Cloudinary, and generates a QR code on screen for guests to scan with their phones.
+When a 4-photo photobooth session completes, the web client creates a 210 mm × 74.25 mm (877×2480 px at 300 DPI) 1×4 vertical composite photo strip on canvas with clean white padding, uploads it to Cloudinary, and generates a QR code on screen for guests to scan with their phones.
 
 ### 1. Create an Unsigned Upload Preset in Cloudinary
 1. Log in to [Cloudinary](https://cloudinary.com/) -> **Settings** (gear icon) -> **Upload**.

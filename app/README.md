@@ -104,9 +104,9 @@ An immersive, simplified, 4-quadrant photobooth experience tailored for event gu
 
 ---
 
-## ☁️ Cloudinary Configuration (2×2 Collage Upload & QR Code)
+## ☁️ Cloudinary Configuration (1×4 Photo Strip Upload & QR Code)
 
-When a 4-photo photobooth session finishes, the Android app stitches the 4 shots into a high-resolution 1200×1400 2×2 grid collage and uploads it to Cloudinary, generating a QR code on screen for guests to scan.
+When a 4-photo photobooth session finishes, the Android app stitches the 4 shots into a 210 mm × 74.25 mm (877×2480 px at 300 DPI) 1×4 vertical photo strip with clean white padding and uploads it to Cloudinary, generating a QR code on screen for guests to scan.
 
 ### Step 1: Create an Unsigned Upload Preset in Cloudinary
 1. Open Cloudinary Console -> **Settings** -> **Upload**.

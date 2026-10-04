@@ -81,6 +81,7 @@ export function useWebSocket({
           pingTimestampRef.current = performance.now()
           ws.send('ping')
           ws.send(JSON.stringify({ action: 'get_system_stats' }))
+          ws.send(JSON.stringify({ action: 'get_devices' }))
         } catch {
           // Ignore
         }
@@ -162,6 +163,13 @@ export function useWebSocket({
               }
             } else if (type === 'config') {
               setCameraConfig((prev) => ({ ...prev, ...msg }))
+            } else if (type === 'devices') {
+              setCameraConfig((prev) => ({
+                ...prev,
+                webcam_device: msg.webcam_device,
+                device_path: msg.device_path,
+                available_devices: msg.available_devices,
+              }))
             } else if (type === 'system_stats') {
               if (msg.data) {
                 setSystemStats(msg.data)
@@ -307,6 +315,17 @@ export function useWebSocket({
     return sendCommand({ action: 'get_system_stats' })
   }, [sendCommand])
 
+  const setCameraDevice = useCallback(
+    (device: string | number) => {
+      return sendCommand({ action: 'set_device', device })
+    },
+    [sendCommand],
+  )
+
+  const requestDevices = useCallback(() => {
+    return sendCommand({ action: 'get_devices' })
+  }, [sendCommand])
+
   return {
     status,
     fps,
@@ -324,6 +343,8 @@ export function useWebSocket({
     toggleFlip,
     toggleSwapRb,
     requestSystemStats,
+    setCameraDevice,
+    requestDevices,
     reconnect: connect,
   }
 }

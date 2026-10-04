@@ -115,6 +115,7 @@ fun BoothScreen(
     val collageBitmap by viewModel.collageBitmap.collectAsStateWithLifecycle()
     val qrCodeBitmap by viewModel.qrCodeBitmap.collectAsStateWithLifecycle()
     val cloudinaryUrl by viewModel.cloudinaryUrl.collectAsStateWithLifecycle()
+    val printState by viewModel.printState.collectAsStateWithLifecycle()
 
     val connectionStatus by viewModel.connectionStatus.collectAsStateWithLifecycle()
     val lastFrame by viewModel.lastFrame.collectAsStateWithLifecycle()
@@ -409,7 +410,7 @@ fun BoothScreen(
                                 modifier = Modifier.size(18.dp),
                             )
                             Text(
-                                text = "4-SHOT COLLAGE READY! 🎉",
+                                text = "4-SHOT PHOTO STRIP READY! 🎉",
                                 color = TextMain,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
@@ -428,11 +429,7 @@ fun BoothScreen(
                                         .background(BgCard)
                                         .border(1.dp, EmeraldGreen.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                                         .clickable {
-                                            BitmapUtils.printBitmap(
-                                                context,
-                                                collageBitmap!!,
-                                                "TRC Photo Booth Collage"
-                                            )
+                                            viewModel.printCollage()
                                         }
                                         .padding(horizontal = 8.dp, vertical = 4.dp),
                                     contentAlignment = Alignment.Center,
@@ -441,14 +438,27 @@ fun BoothScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Print,
-                                            contentDescription = "Print",
-                                            tint = EmeraldGreen,
-                                            modifier = Modifier.size(13.dp),
-                                        )
+                                        if (printState is PrintState.Printing) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(11.dp),
+                                                strokeWidth = 1.5.dp,
+                                                color = EmeraldGreen,
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.Print,
+                                                contentDescription = "Print via Pi",
+                                                tint = EmeraldGreen,
+                                                modifier = Modifier.size(13.dp),
+                                            )
+                                        }
                                         Text(
-                                            text = "PRINT",
+                                            text = when (printState) {
+                                                is PrintState.Printing -> "PRINTING..."
+                                                is PrintState.Success -> "PRINTED"
+                                                is PrintState.Error -> "RETRY"
+                                                PrintState.Idle -> "PRINT (PI)"
+                                            },
                                             color = EmeraldGreen,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
@@ -523,7 +533,7 @@ fun BoothScreen(
                                         fontFamily = FontFamily.Monospace,
                                     )
                                     Text(
-                                        text = "Uploading 2×2 grid collage to Cloudinary...",
+                                        text = "Uploading 1×4 photo strip to Cloudinary...",
                                         color = TextMuted,
                                         fontSize = 10.sp,
                                     )
@@ -554,7 +564,7 @@ fun BoothScreen(
                                     ) {
                                         Image(
                                             bitmap = qrCodeBitmap!!.asImageBitmap(),
-                                            contentDescription = "QR Code to download photo collage",
+                                            contentDescription = "QR Code to download photo strip",
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Fit,
                                         )
@@ -586,7 +596,7 @@ fun BoothScreen(
                                     }
 
                                     Text(
-                                        text = "Scan QR code with your phone to view and download your 2×2 collage.",
+                                        text = "Scan QR code with your phone to view and download your 1×4 photo strip.",
                                         color = TextMain,
                                         fontSize = 11.sp,
                                         lineHeight = 15.sp,
@@ -603,26 +613,22 @@ fun BoothScreen(
                                     }
                                 }
 
-                                // 2x2 Collage Thumbnail
+                                // 1x4 Photo Strip Thumbnail
                                 if (collageBitmap != null) {
                                     Box(
                                         modifier = Modifier
-                                            .size(width = 64.dp, height = 64.dp)
+                                            .size(width = 44.dp, height = 124.dp)
                                             .clip(RoundedCornerShape(8.dp))
                                             .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
                                             .clickable {
-                                                BitmapUtils.printBitmap(
-                                                    context,
-                                                    collageBitmap!!,
-                                                    "TRC Photo Booth Collage"
-                                                )
+                                                viewModel.printCollage()
                                             },
                                     ) {
                                         Image(
                                             bitmap = collageBitmap!!.asImageBitmap(),
-                                            contentDescription = "2x2 Collage Preview",
+                                            contentDescription = "1x4 Photo Strip Preview",
                                             modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop,
+                                            contentScale = ContentScale.Fit,
                                         )
                                     }
                                 }
@@ -692,24 +698,26 @@ fun BoothScreen(
                         }
                     }
 
-                    // Print from Printer Button (displayed right after QR is generated)
-                    if (uploadState is BoothUploadState.Success && collageBitmap != null) {
+                    // Print from Printer Button (displayed as soon as collage is ready)
+                    if (collageBitmap != null) {
+                        val isPrinting = printState is PrintState.Printing
+                        val isSuccess = printState is PrintState.Success
+                        val isError = printState is PrintState.Error
+
+                        val gradientColors = when {
+                            isError -> listOf(NeonPink, Color(0xFFE11D48))
+                            isSuccess -> listOf(Color(0xFF00C853), EmeraldGreen)
+                            else -> listOf(EmeraldGreen, Color(0xFF00C853))
+                        }
+
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(46.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    Brush.horizontalGradient(
-                                        listOf(EmeraldGreen, Color(0xFF00C853))
-                                    )
-                                )
-                                .clickable {
-                                    BitmapUtils.printBitmap(
-                                        context,
-                                        collageBitmap!!,
-                                        "TRC Photo Booth Collage"
-                                    )
+                                .background(Brush.horizontalGradient(gradientColors))
+                                .clickable(enabled = !isPrinting) {
+                                    viewModel.printCollage()
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
@@ -717,14 +725,31 @@ fun BoothScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Print,
-                                    contentDescription = null,
-                                    tint = Color(0xFF070B14),
-                                    modifier = Modifier.size(20.dp),
-                                )
+                                if (isPrinting) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Color(0xFF070B14),
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = when {
+                                            isSuccess -> Icons.Default.CheckCircle
+                                            isError -> Icons.Default.Refresh
+                                            else -> Icons.Default.Print
+                                        },
+                                        contentDescription = null,
+                                        tint = Color(0xFF070B14),
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
                                 Text(
-                                    text = "PRINT FROM PRINTER",
+                                    text = when {
+                                        isPrinting -> "SENDING TO TRC_PRINTER..."
+                                        isSuccess -> "PRINTED TO TRC_PRINTER (TAP TO PRINT AGAIN)"
+                                        isError -> "RETRY PRINT VIA PI PRINTER"
+                                        else -> "PRINT FROM PRINTER (PI)"
+                                    },
                                     color = Color(0xFF070B14),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Black,

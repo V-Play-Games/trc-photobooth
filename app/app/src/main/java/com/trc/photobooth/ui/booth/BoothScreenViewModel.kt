@@ -40,6 +40,13 @@ sealed interface BoothUploadState {
     data class Error(val error: String) : BoothUploadState
 }
 
+sealed interface PrintState {
+    data object Idle : PrintState
+    data class Printing(val message: String = "Sending to TRC_Printer...") : PrintState
+    data class Success(val message: String, val jobId: String? = null) : PrintState
+    data class Error(val error: String) : PrintState
+}
+
 class BoothScreenViewModel(application: Application) : AndroidViewModel(application) {
 
     val repository = PhotoBoothRepository.getInstance(application)
@@ -118,6 +125,9 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
 
     private val _uploadState = MutableStateFlow<BoothUploadState>(BoothUploadState.Idle)
     val uploadState: StateFlow<BoothUploadState> = _uploadState.asStateFlow()
+
+    private val _printState = MutableStateFlow<PrintState>(PrintState.Idle)
+    val printState: StateFlow<PrintState> = _printState.asStateFlow()
 
     // Pass-through connection flows from repository
     val connectionStatus: StateFlow<ConnectionStatus> = repository.status
@@ -235,14 +245,14 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
             _savedSessionFiles.value = files
             _boothState.value = BoothState.COMPLETE
 
-            // 6. Generate 2x2 collage
-            _uploadState.value = BoothUploadState.Generating("Creating 2x2 collage...")
+            // 6. Generate 1x4 photo strip (210 mm x 74.25 mm)
+            _uploadState.value = BoothUploadState.Generating("Creating 1x4 photo strip...")
             val collage = BitmapUtils.createCollage(captures, timestamp)
             _collageBitmap.value = collage
             val cFile = BitmapUtils.saveCollage(getApplication(), collage, timestamp)
             _collageFile.value = cFile
 
-            // 7. Upload collage to Cloudinary & Generate QR code
+            // 7. Upload photo strip to Cloudinary & Generate QR code
             uploadCollageInternal(collage, timestamp)
         }
     }
@@ -257,7 +267,7 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
                 return@launch
             }
 
-            _uploadState.value = BoothUploadState.Uploading("Uploading collage to Cloudinary...")
+            _uploadState.value = BoothUploadState.Uploading("Uploading photo strip to Cloudinary...")
             val result = CloudinaryUploader.uploadBitmap(
                 bitmap = collage,
                 fileName = "collage_${timestamp}.jpg",
@@ -271,7 +281,7 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
                     val qr = BitmapUtils.generateQrCodeBitmap(url, 512)
                     _qrCodeBitmap.value = qr
                     _uploadState.value = BoothUploadState.Success(url)
-                    _toastMessage.emit("Collage uploaded! Scan QR Code 📱")
+                    _toastMessage.emit("Photo strip uploaded! Scan QR Code 📱")
                 },
                 onFailure = { err ->
                     val msg = err.message ?: "Upload failed"
@@ -292,6 +302,40 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
+     * Prints the 2x2 collage via the Raspberry Pi CUPS printer API.
+     */
+    fun printCollage() {
+        val collage = _collageBitmap.value
+        if (collage == null) {
+            viewModelScope.launch {
+                _toastMessage.emit("Collage not ready yet")
+            }
+            return
+        }
+        if (_printState.value is PrintState.Printing) return
+
+        viewModelScope.launch {
+            _printState.value = PrintState.Printing("Sending to TRC_Printer...")
+            hapticHelper.tick()
+            val ts = _sessionTimestamp.value ?: "session"
+            val result = repository.printBitmap(collage, "collage_${ts}.jpg")
+            result.fold(
+                onSuccess = { res ->
+                    _printState.value = PrintState.Success(res.message, res.jobId)
+                    hapticHelper.captureComplete()
+                    val jobInfo = if (res.jobId != null) " (Job: ${res.jobId})" else ""
+                    _toastMessage.emit("🖨️ Sent to TRC_Printer!$jobInfo")
+                },
+                onFailure = { err ->
+                    val errorMsg = err.message ?: "Printing failed"
+                    _printState.value = PrintState.Error(errorMsg)
+                    _toastMessage.emit("❌ Pi Print Error: $errorMsg")
+                }
+            )
+        }
+    }
+
+    /**
      * Reset back to IDLE state for a new session.
      * Only permitted when in COMPLETE state (cannot be cancelled while CAPTURING).
      */
@@ -308,6 +352,7 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
         _cloudinaryUrl.value = null
         _qrCodeBitmap.value = null
         _uploadState.value = BoothUploadState.Idle
+        _printState.value = PrintState.Idle
         _boothState.value = BoothState.IDLE
         if (_selectedFilter.value.id != FilterPresets.RANDOM.id) {
             _currentFeedFilter.value = _selectedFilter.value

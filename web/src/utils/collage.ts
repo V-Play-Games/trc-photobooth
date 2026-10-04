@@ -1,15 +1,31 @@
 import QRCode from 'qrcode'
 
+export const STRIP_WIDTH_MM = 74.25
+export const STRIP_HEIGHT_MM = 210.0
+export const PRINT_DPI = 300
+
+// Exact pixel dimensions at 300 DPI (74.25 mm x 210 mm)
+export const STRIP_WIDTH_PX = 877
+export const STRIP_HEIGHT_PX = 2480
+
+// Cell and padding metrics
+export const PHOTO_WIDTH_PX = 749
+export const PHOTO_HEIGHT_PX = 562
+export const MARGIN_X_PX = 64
+export const MARGIN_TOP_PX = 44
+export const GAP_Y_PX = 48
+
 /**
- * Creates a 2x2 grid collage strictly of the 4 captured photos.
- * No black background, borders, headers, or footers - strictly the 4 photos tiled together.
+ * Creates a 1x4 vertical photo strip strictly of 210 mm x 74.25 mm (877x2480 px at 300 DPI).
+ * The 4 captured photos are arranged vertically in a single column with clean white padding
+ * between images and around the borders.
  */
 export async function createCollageGridBlob(
   photoBlobs: (Blob | null)[],
   _sessionTimestamp: string = '',
   _title = 'TRC PHOTO BOOTH',
 ): Promise<Blob> {
-  // Load and draw the 4 photos
+  // Load the 4 photos
   const loadImgPromises = photoBlobs.map((blob) => {
     if (!blob) return Promise.resolve(null)
     return new Promise<HTMLImageElement | null>((resolve) => {
@@ -29,41 +45,33 @@ export async function createCollageGridBlob(
 
   const loadedImages = await Promise.all(loadImgPromises)
 
-  const firstImg = loadedImages.find((img) => img !== null)
-  const cellWidth = firstImg ? (firstImg.naturalWidth || firstImg.width) : 640
-  const cellHeight = firstImg ? (firstImg.naturalHeight || firstImg.height) : 480
-
-  const width = cellWidth * 2
-  const height = cellHeight * 2
   const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
+  canvas.width = STRIP_WIDTH_PX
+  canvas.height = STRIP_HEIGHT_PX
   const ctx = canvas.getContext('2d')
 
   if (!ctx) {
     throw new Error('Failed to acquire 2D canvas context for collage')
   }
 
-  // Clean neutral white canvas - never black
+  // Clean neutral white canvas for strip & padding
   ctx.fillStyle = '#FFFFFF'
-  ctx.fillRect(0, 0, width, height)
+  ctx.fillRect(0, 0, STRIP_WIDTH_PX, STRIP_HEIGHT_PX)
 
-  const coords = [
-    { x: 0, y: 0 },
-    { x: cellWidth, y: 0 },
-    { x: 0, y: cellHeight },
-    { x: cellWidth, y: cellHeight },
-  ]
+  // Configure high quality image rendering
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
 
   for (let i = 0; i < 4; i++) {
-    const { x, y } = coords[i]
+    const x = MARGIN_X_PX
+    const y = MARGIN_TOP_PX + i * (PHOTO_HEIGHT_PX + GAP_Y_PX)
     const img = loadedImages[i]
 
     if (img) {
       // Center-crop image into destination cell
       const srcW = img.naturalWidth || img.width
       const srcH = img.naturalHeight || img.height
-      const targetRatio = cellWidth / cellHeight
+      const targetRatio = PHOTO_WIDTH_PX / PHOTO_HEIGHT_PX
       const srcRatio = srcW / srcH
 
       let sx = 0
@@ -79,10 +87,10 @@ export async function createCollageGridBlob(
         sy = (srcH - sh) / 2
       }
 
-      ctx.drawImage(img, sx, sy, sw, sh, x, y, cellWidth, cellHeight)
+      ctx.drawImage(img, sx, sy, sw, sh, x, y, PHOTO_WIDTH_PX, PHOTO_HEIGHT_PX)
     } else {
       ctx.fillStyle = '#FFFFFF'
-      ctx.fillRect(x, y, cellWidth, cellHeight)
+      ctx.fillRect(x, y, PHOTO_WIDTH_PX, PHOTO_HEIGHT_PX)
     }
   }
 
@@ -97,6 +105,11 @@ export async function createCollageGridBlob(
     )
   })
 }
+
+/**
+ * Semantic alias for 1x4 vertical photo strip.
+ */
+export const createPhotoStripBlob = createCollageGridBlob
 
 /**
  * Generates a high-contrast QR Code as a Data URL for the given URL string.

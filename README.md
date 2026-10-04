@@ -222,21 +222,21 @@ An interactive, automated photobooth experience tailored for event guests:
 
 ---
 
-## ☁️ Cloudinary Configuration (2×2 Collage Upload & QR Code)
+## ☁️ Cloudinary Configuration (1×4 Photo Strip Upload & QR Code)
 
 Both the **Native Android App** and **Web Client** integrate with Cloudinary to automatically host composite photos and generate instant download QR codes:
 
 ```
 ┌──────────────────┐     ┌───────────────────────┐     ┌──────────────────────┐     ┌──────────────────┐
-│  4 Photos Taken  │ ──▶ │ Stitched 2×2 Collage  │ ──▶ │ Upload to Cloudinary │ ──▶ │ QR Code Displayed│
-│ (Sequential 2×2) │     │ (1200×1400 composite) │     │  (Direct HTTPS POST) │     │ (Scan to Download)
+│  4 Photos Taken  │ ──▶ │  1×4 Vertical Strip   │ ──▶ │ Upload to Cloudinary │ ──▶ │ QR Code Displayed│
+│ (Sequential 1×4) │     │ (210 mm × 74.25 mm)   │     │  (Direct HTTPS POST) │     │ (Scan to Download)
 └──────────────────┘     └───────────────────────┘     └──────────────────────┘     └──────────────────┘
 ```
 
 When a 4-photo session completes:
-1. The app stitches the 4 photos into a high-resolution 1200×1400 **2×2 grid collage** with branded header and timestamp.
-2. The collage is uploaded directly to Cloudinary.
-3. A **QR code** pointing to the Cloudinary URL is generated and displayed on screen so guests can scan and download their photos immediately.
+1. The app stitches the 4 photos into a 210 mm × 74.25 mm **1×4 vertical photo strip** (877×2480 px at 300 DPI) with clean white padding around and between each photo.
+2. The photo strip is uploaded directly to Cloudinary.
+3. A **QR code** pointing to the Cloudinary URL is generated and displayed on screen so guests can scan and download their photo strip immediately.
 
 ---
 
@@ -327,7 +327,7 @@ For the React Web client:
 
 1. Launch Photobooth mode on Android or Web.
 2. Tap **START BOOTH** and complete the 4-photo sequence.
-3. Upon completion, the screen will show **"Uploading 2×2 grid collage to Cloudinary..."** followed by the generated **QR Code** and collage preview.
+3. Upon completion, the screen will show **"Uploading 1×4 photo strip to Cloudinary..."** followed by the generated **QR Code** and photo strip preview.
 4. Scan the QR code using any smartphone camera to open and download the high-resolution composite photo!
 
 ---

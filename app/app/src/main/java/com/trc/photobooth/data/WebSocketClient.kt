@@ -9,6 +9,7 @@ import com.trc.photobooth.data.models.ConnectionStatus
 import com.trc.photobooth.data.models.CountdownState
 import com.trc.photobooth.data.models.GifRecordingState
 import com.trc.photobooth.data.models.SystemStats
+import com.trc.photobooth.data.models.VideoDevice
 import com.trc.photobooth.util.BitmapUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -138,6 +139,7 @@ class WebSocketClient(
                 // Request initial state & start heartbeat
                 webSocket.send("ping")
                 webSocket.send("{\"action\":\"get_system_stats\"}")
+                webSocket.send("{\"action\":\"get_devices\"}")
                 startHeartbeat()
             }
 
@@ -240,6 +242,11 @@ class WebSocketClient(
                 }
                 "config" -> {
                     val prev = _cameraConfig.value
+                    val devs = element["available_devices"]?.let { devArray ->
+                        try {
+                            json.decodeFromJsonElement<List<VideoDevice>>(devArray)
+                        } catch (_: Exception) { null }
+                    }
                     _cameraConfig.value = prev.copy(
                         fps = element["fps"]?.jsonPrimitive?.intOrNull ?: prev.fps,
                         quality = element["quality"]?.jsonPrimitive?.intOrNull ?: prev.quality,
@@ -249,6 +256,24 @@ class WebSocketClient(
                         height = element["height"]?.jsonPrimitive?.intOrNull ?: prev.height,
                         flipHorizontal = element["flip_horizontal"]?.jsonPrimitive?.booleanOrNull ?: prev.flipHorizontal,
                         swapRb = element["swap_rb"]?.jsonPrimitive?.booleanOrNull ?: prev.swapRb,
+                        webcamDevice = element["webcam_device"]?.jsonPrimitive?.intOrNull ?: prev.webcamDevice,
+                        devicePath = element["device_path"]?.jsonPrimitive?.contentOrNull ?: prev.devicePath,
+                        availableDevices = devs ?: prev.availableDevices,
+                    )
+                }
+                "devices" -> {
+                    val prev = _cameraConfig.value
+                    val currentDev = element["webcam_device"]?.jsonPrimitive?.intOrNull
+                    val path = element["device_path"]?.jsonPrimitive?.contentOrNull
+                    val devs = element["available_devices"]?.let { devArray ->
+                        try {
+                            json.decodeFromJsonElement<List<VideoDevice>>(devArray)
+                        } catch (_: Exception) { null }
+                    }
+                    _cameraConfig.value = prev.copy(
+                        webcamDevice = currentDev ?: prev.webcamDevice,
+                        devicePath = path ?: prev.devicePath,
+                        availableDevices = devs ?: prev.availableDevices,
                     )
                 }
                 "system_stats" -> {
@@ -332,5 +357,13 @@ class WebSocketClient(
 
     fun requestSystemStats() {
         sendCommand("{\"action\":\"get_system_stats\"}")
+    }
+
+    fun setCameraDevice(device: String) {
+        sendCommand("{\"action\":\"set_device\",\"device\":\"$device\"}")
+    }
+
+    fun requestDevices() {
+        sendCommand("{\"action\":\"get_devices\"}")
     }
 }

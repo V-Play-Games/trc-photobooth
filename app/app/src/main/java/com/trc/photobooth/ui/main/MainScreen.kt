@@ -260,6 +260,8 @@ fun MainScreen(
             onSetQuality = viewModel::setQuality,
             onSetResolution = viewModel::setResolution,
             onRefreshStats = viewModel::refreshStats,
+            onSetCameraDevice = viewModel::setCameraDevice,
+            onRefreshDevices = viewModel::refreshDevices,
             onClose = viewModel::closeSettings
         )
     }

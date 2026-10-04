@@ -1,18 +1,24 @@
 import asyncio
+import base64
 import time
 from typing import Any
-from fastapi import APIRouter, HTTPException, Response, status
-from src.camera import get_camera
+from fastapi import APIRouter, HTTPException, Request, Response, status
+from src.camera import get_camera, list_video_devices, switch_camera_device
 from src.capture import capture_gif, capture_photo, get_capture_store
 from src.config import settings
 from src.models import (
     CameraConfigUpdate,
     CaptureMetadata,
     CaptureTriggerRequest,
+    PrintJobRequest,
+    PrintResponse,
+    PrinterStatusResponse,
     SystemStatus,
     SystemStatsResponse,
+    VideoDeviceInfo,
     parse_resolution,
 )
+from src.printer import get_printer_service
 from src.streamer import get_streamer
 from src.system_info import get_system_stats
 
@@ -29,6 +35,7 @@ async def get_status() -> SystemStatus:
     is_healthy = getattr(cam, "is_healthy", cam.is_running)
     cam_connected = getattr(cam, "is_connected", True)
     status_str = "ok" if (cam.is_running and cam_connected) else "degraded"
+    devs = list_video_devices()
 
     return SystemStatus(
         status=status_str,
@@ -47,7 +54,21 @@ async def get_status() -> SystemStatus:
         is_healthy=is_healthy,
         memory_usage_mb=store.memory_usage_mb,
         capture_count=len(store.list_all()),
+        webcam_device=settings.webcam_device,
+        device_path=f"/dev/video{settings.webcam_device}",
+        available_devices=[VideoDeviceInfo(**d) for d in devs],
     )
+
+
+@router.get("/devices")
+async def get_video_devices() -> dict[str, Any]:
+    """List detected V4L2 video devices on the system."""
+    devices = list_video_devices()
+    return {
+        "current_device": settings.webcam_device,
+        "current_path": f"/dev/video{settings.webcam_device}",
+        "devices": devices,
+    }
 
 
 @router.get("/health")
@@ -59,6 +80,7 @@ async def health_check() -> dict[str, str | float]:
 @router.get("/config")
 async def get_camera_config() -> dict[str, Any]:
     """Get active preview streaming configuration."""
+    devices = list_video_devices()
     return {
         "width": settings.preview_width,
         "height": settings.preview_height,
@@ -69,6 +91,9 @@ async def get_camera_config() -> dict[str, Any]:
         "capture_width": settings.capture_width,
         "capture_height": settings.capture_height,
         "capture_quality": settings.capture_quality,
+        "webcam_device": settings.webcam_device,
+        "device_path": f"/dev/video{settings.webcam_device}",
+        "available_devices": devices,
     }
 
 
@@ -110,6 +135,26 @@ async def update_camera_config(config_update: CameraConfigUpdate) -> dict[str, A
         if hasattr(cam, "flip_horizontal"):
             cam.flip_horizontal = config_update.flip_horizontal
 
+    if config_update.webcam_device is not None:
+        switch_camera_device(config_update.webcam_device)
+        streamer = get_streamer()
+        streamer.camera = get_camera()
+
+    devices = list_video_devices()
+    streamer = get_streamer()
+    await streamer.broadcast_json({
+        "type": "config",
+        "fps": settings.preview_fps,
+        "quality": settings.preview_quality,
+        "width": settings.preview_width,
+        "height": settings.preview_height,
+        "swap_rb": settings.swap_rb,
+        "flip_horizontal": settings.flip_horizontal,
+        "webcam_device": settings.webcam_device,
+        "device_path": f"/dev/video{settings.webcam_device}",
+        "available_devices": devices,
+    })
+
     return {
         "message": "Config updated successfully",
         "fps": settings.preview_fps,
@@ -118,6 +163,9 @@ async def update_camera_config(config_update: CameraConfigUpdate) -> dict[str, A
         "height": settings.preview_height,
         "swap_rb": settings.swap_rb,
         "flip_horizontal": settings.flip_horizontal,
+        "webcam_device": settings.webcam_device,
+        "device_path": f"/dev/video{settings.webcam_device}",
+        "available_devices": devices,
     }
 
 
@@ -243,3 +291,217 @@ async def delete_capture(capture_id: str) -> dict[str, Any]:
             detail=f"Capture '{capture_id}' not found",
         )
     return {"status": "ok", "deleted": True, "id": capture_id}
+
+
+# ---------------------------------------------------------------------------
+# Physical CUPS Printer Endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post("/print", response_model=PrintResponse)
+async def submit_print_job(
+    request: Request,
+    capture_id: str | None = None,
+    printer_name: str | None = None,
+    color_mode: str | None = None,
+    copies: int = 1,
+    test: bool = False,
+) -> PrintResponse:
+    """Submit a print job to CUPS (lp -d "TRC_Printer" -o print-color-mode=monochrome).
+
+    Supports:
+    1. Direct binary JPEG / PNG payload in HTTP body (Content-Type: image/jpeg or application/octet-stream).
+    2. JSON payload with 'image_base64', 'capture_id', or 'test'.
+    3. Query parameters (?capture_id=... or ?test=true).
+    """
+    printer = get_printer_service()
+    streamer = get_streamer()
+    p_name = printer_name or settings.printer_name
+    c_mode = color_mode or settings.printer_color_mode
+
+    content_type = request.headers.get("content-type", "").lower()
+    body_bytes = await request.body()
+
+    is_json = "application/json" in content_type
+    json_payload: dict[str, Any] = {}
+    if is_json and body_bytes:
+        try:
+            import json
+            json_payload = json.loads(body_bytes.decode())
+        except Exception:
+            pass
+
+    req_test = test or bool(json_payload.get("test", False))
+    req_capture_id = capture_id or json_payload.get("capture_id")
+    req_printer_name = json_payload.get("printer_name") or p_name
+    req_color_mode = json_payload.get("color_mode") or c_mode
+    req_copies = json_payload.get("copies") or copies
+    req_image_base64 = json_payload.get("image_base64")
+    req_filename = json_payload.get("filename", "print_image.jpg")
+
+    if req_test:
+        success, msg, job_id, cmd = await printer.print_test(
+            printer_name=req_printer_name,
+            color_mode=req_color_mode,
+        )
+    elif req_image_base64:
+        try:
+            raw_data = base64.b64decode(req_image_base64)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid base64 image data: {e}",
+            )
+        success, msg, job_id, cmd = await printer.print_bytes(
+            data=raw_data,
+            filename=req_filename,
+            printer_name=req_printer_name,
+            color_mode=req_color_mode,
+            copies=req_copies,
+        )
+    elif req_capture_id:
+        store = get_capture_store()
+        item = store.get(req_capture_id, include_disk=True)
+        if not item:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Capture '{req_capture_id}' not found",
+            )
+        success, msg, job_id, cmd = await printer.print_bytes(
+            data=item.data,
+            filename=item.filename,
+            printer_name=req_printer_name,
+            color_mode=req_color_mode,
+            copies=req_copies,
+        )
+    elif body_bytes and not is_json:
+        ext = ".png" if "png" in content_type else ".jpg"
+        success, msg, job_id, cmd = await printer.print_bytes(
+            data=body_bytes,
+            filename=f"print_job{ext}",
+            printer_name=req_printer_name,
+            color_mode=req_color_mode,
+            copies=req_copies,
+        )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Must provide image binary body, 'image_base64', 'capture_id', or set 'test'=true to print",
+        )
+
+    await streamer.broadcast_json({
+        "type": "print_result",
+        "success": success,
+        "message": msg,
+        "job_id": job_id,
+        "printer": req_printer_name,
+    })
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Printing failed: {msg}",
+        )
+
+    return PrintResponse(
+        success=True,
+        message=msg,
+        job_id=job_id,
+        printer=req_printer_name,
+        command=cmd,
+    )
+
+
+@router.post("/print/capture/{capture_id}", response_model=PrintResponse)
+async def print_capture_by_id(
+    capture_id: str,
+    printer_name: str | None = None,
+    color_mode: str | None = None,
+    copies: int = 1,
+) -> PrintResponse:
+    """Print an existing still photo or capture stored on the Pi."""
+    store = get_capture_store()
+    item = store.get(capture_id, include_disk=True)
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Capture '{capture_id}' not found",
+        )
+    printer = get_printer_service()
+    p_name = printer_name or settings.printer_name
+    c_mode = color_mode or settings.printer_color_mode
+    success, msg, job_id, cmd = await printer.print_bytes(
+        data=item.data,
+        filename=item.filename,
+        printer_name=p_name,
+        color_mode=c_mode,
+        copies=copies,
+    )
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Printing failed: {msg}",
+        )
+
+    streamer = get_streamer()
+    await streamer.broadcast_json({
+        "type": "print_result",
+        "success": True,
+        "job_id": job_id,
+        "message": msg,
+        "printer": p_name,
+    })
+
+    return PrintResponse(
+        success=True,
+        message=msg,
+        job_id=job_id,
+        printer=p_name,
+        command=cmd,
+    )
+
+
+@router.post("/print/test", response_model=PrintResponse)
+async def print_test_page(
+    printer_name: str | None = None,
+    color_mode: str | None = None,
+) -> PrintResponse:
+    """Trigger test print of /etc/hostname via CUPS (lp -d 'TRC_Printer' -o print-color-mode=monochrome /etc/hostname)."""
+    printer = get_printer_service()
+    p_name = printer_name or settings.printer_name
+    c_mode = color_mode or settings.printer_color_mode
+    success, msg, job_id, cmd = await printer.print_test(
+        printer_name=p_name,
+        color_mode=c_mode,
+    )
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Test print failed: {msg}",
+        )
+
+    streamer = get_streamer()
+    await streamer.broadcast_json({
+        "type": "print_result",
+        "success": True,
+        "job_id": job_id,
+        "message": msg,
+        "printer": p_name,
+    })
+
+    return PrintResponse(
+        success=True,
+        message=msg,
+        job_id=job_id,
+        printer=p_name,
+        command=cmd,
+    )
+
+
+@router.get("/print/status", response_model=PrinterStatusResponse)
+async def get_print_status() -> PrinterStatusResponse:
+    """Return CUPS lp subsystem and printer availability status."""
+    printer = get_printer_service()
+    status_dict = await printer.get_status()
+    return PrinterStatusResponse(**status_dict)
+

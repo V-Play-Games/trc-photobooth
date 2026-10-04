@@ -202,7 +202,7 @@ export const BoothView: React.FC<BoothViewProps> = ({
       const config = getCloudinaryConfig()
       if (config.isConfigured) {
         setIsUploading(true)
-        setUploadProgress('Uploading 2×2 collage to Cloudinary...')
+        setUploadProgress('Uploading 1×4 photo strip to Cloudinary...')
         try {
           const res = await uploadPhotoToCloudinary(
             collage,
@@ -212,7 +212,7 @@ export const BoothView: React.FC<BoothViewProps> = ({
           setCollageCloudinaryUrl(res.secure_url)
           const qr = await generateQrCodeDataUrl(res.secure_url)
           setQrCodeDataUrl(qr)
-          onShowToast('☁️ Collage uploaded! Scan QR Code 📱')
+          onShowToast('☁️ Photo strip uploaded! Scan QR Code 📱')
         } catch (err) {
           console.error('Failed to upload collage to Cloudinary:', err)
           setCollageUploadError((err as Error)?.message || 'Upload failed')
@@ -263,7 +263,7 @@ export const BoothView: React.FC<BoothViewProps> = ({
 
     setIsUploading(true)
     setCollageUploadError(null)
-    setUploadProgress('Uploading 2×2 collage to Cloudinary...')
+    setUploadProgress('Uploading 1×4 photo strip to Cloudinary...')
     try {
       const res = await uploadPhotoToCloudinary(
         collageBlob,
@@ -273,7 +273,7 @@ export const BoothView: React.FC<BoothViewProps> = ({
       setCollageCloudinaryUrl(res.secure_url)
       const qr = await generateQrCodeDataUrl(res.secure_url)
       setQrCodeDataUrl(qr)
-      onShowToast('☁️ Collage uploaded! Scan QR Code 📱')
+      onShowToast('☁️ Photo strip uploaded! Scan QR Code 📱')
     } catch (err) {
       console.error('Failed to upload collage:', err)
       setCollageUploadError((err as Error)?.message || 'Upload failed')
@@ -432,7 +432,7 @@ export const BoothView: React.FC<BoothViewProps> = ({
             <div className="completion-card-header">
               <div className="flex items-center gap-2">
                 <CheckCircle size={20} className="text-green" />
-                <h3 className="completion-title">4-Shot Collage Ready! 🎉</h3>
+                <h3 className="completion-title">4-Shot Photo Strip Ready! 🎉</h3>
               </div>
               <span className="completion-path">
                 Session: {sessionTimestamp || 'N/A'}
@@ -459,7 +459,7 @@ export const BoothView: React.FC<BoothViewProps> = ({
                     <span>SCAN TO VIEW & DOWNLOAD</span>
                   </div>
                   <p className="qr-instructions">
-                    Scan with your smartphone camera to access and download your 2×2 composite collage.
+                    Scan with your smartphone camera to access and download your 1×4 photo strip.
                   </p>
                   {collageCloudinaryUrl && (
                     <a
@@ -473,8 +473,8 @@ export const BoothView: React.FC<BoothViewProps> = ({
                   )}
                 </div>
                 {collageUrl && (
-                  <div className="collage-preview-wrapper" title="2×2 Composite Collage Preview">
-                    <img src={collageUrl} alt="2×2 Collage" className="collage-thumb" />
+                  <div className="collage-preview-wrapper" title="1×4 Photo Strip Preview">
+                    <img src={collageUrl} alt="1×4 Photo Strip" className="collage-thumb" />
                   </div>
                 )}
               </div>
@@ -496,16 +496,16 @@ export const BoothView: React.FC<BoothViewProps> = ({
             ) : null}
 
             <div className="completion-actions-row">
-              {/* Download Collage */}
+              {/* Download Collage / Photo Strip */}
               {collageBlob && (
                 <button
                   type="button"
                   className="btn-booth-secondary"
                   onClick={handleDownloadCollage}
-                  title="Download 2x2 collage"
+                  title="Download 1x4 photo strip"
                 >
                   <Download size={15} />
-                  <span>Download Collage</span>
+                  <span>Download Strip</span>
                 </button>
               )}
 

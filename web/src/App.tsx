@@ -150,6 +150,8 @@ export function App() {
     toggleFlip,
     toggleSwapRb,
     requestSystemStats,
+    setCameraDevice,
+    requestDevices,
     reconnect,
   } = useWebSocket({
     onCaptureResult: handleCaptureResult,
@@ -339,6 +341,8 @@ export function App() {
           onToggleFlip={toggleFlip}
           onToggleSwapRb={toggleSwapRb}
           onRequestStats={requestSystemStats}
+          onSetCameraDevice={setCameraDevice}
+          onRefreshDevices={requestDevices}
         />
       </ErrorBoundary>
 

@@ -261,32 +261,33 @@ object BitmapUtils {
         return savedFiles
     }
 
+    const val STRIP_WIDTH_MM = 74.25f
+    const val STRIP_HEIGHT_MM = 210.0f
+    const val PRINT_DPI = 300
+
+    const val STRIP_WIDTH_PX = 877
+    const val STRIP_HEIGHT_PX = 2480
+
+    const val PHOTO_WIDTH_PX = 749f
+    const val PHOTO_HEIGHT_PX = 562f
+    const val MARGIN_X_PX = 64f
+    const val MARGIN_TOP_PX = 44f
+    const val GAP_Y_PX = 48f
+
     /**
-     * Creates a 2x2 grid collage strictly of the 4 captured photos.
-     * No black background, borders, headers, or footers - strictly the 4 photos tiled together.
+     * Creates a 1x4 vertical photo strip strictly of 210 mm x 74.25 mm (877x2480 px at 300 DPI).
+     * The 4 captured photos are arranged vertically in a single column with clean white padding
+     * between images and around the borders.
      */
     fun createCollage(
         photos: List<Bitmap>,
         sessionTimestamp: String = "",
         title: String = "TRC PHOTO BOOTH"
     ): Bitmap {
-        val firstPhoto = photos.firstOrNull()
-        val cellWidth = firstPhoto?.width ?: 640
-        val cellHeight = firstPhoto?.height ?: 480
-
-        val collageWidth = cellWidth * 2
-        val collageHeight = cellHeight * 2
-
-        val collage = Bitmap.createBitmap(collageWidth, collageHeight, Bitmap.Config.ARGB_8888)
+        val collage = Bitmap.createBitmap(STRIP_WIDTH_PX, STRIP_HEIGHT_PX, Bitmap.Config.ARGB_8888)
+        collage.density = PRINT_DPI
         val canvas = Canvas(collage)
         canvas.drawColor(Color.WHITE)
-
-        val coords = listOf(
-            RectF(0f, 0f, cellWidth.toFloat(), cellHeight.toFloat()),
-            RectF(cellWidth.toFloat(), 0f, (cellWidth * 2).toFloat(), cellHeight.toFloat()),
-            RectF(0f, cellHeight.toFloat(), cellWidth.toFloat(), (cellHeight * 2).toFloat()),
-            RectF(cellWidth.toFloat(), cellHeight.toFloat(), (cellWidth * 2).toFloat(), (cellHeight * 2).toFloat())
-        )
 
         val photoPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         val emptyPaint = Paint().apply {
@@ -295,13 +296,14 @@ object BitmapUtils {
         }
 
         for (i in 0 until 4) {
-            val dstRect = coords[i]
+            val y = MARGIN_TOP_PX + i * (PHOTO_HEIGHT_PX + GAP_Y_PX)
+            val dstRect = RectF(MARGIN_X_PX, y, MARGIN_X_PX + PHOTO_WIDTH_PX, y + PHOTO_HEIGHT_PX)
             val photo = photos.getOrNull(i)
             if (photo != null) {
                 // Center-crop source photo into cell
                 val srcW = photo.width
                 val srcH = photo.height
-                val targetRatio = cellWidth.toFloat() / cellHeight.toFloat()
+                val targetRatio = PHOTO_WIDTH_PX / PHOTO_HEIGHT_PX
                 val srcRatio = srcW.toFloat() / srcH.toFloat()
 
                 val srcCrop = if (srcRatio > targetRatio) {
@@ -324,7 +326,7 @@ object BitmapUtils {
     }
 
     /**
-     * Saves the 2x2 collage bitmap to the session directory in Pictures.
+     * Saves the 1x4 photo strip bitmap to the session directory in Pictures.
      */
     fun saveCollage(
         context: Context,

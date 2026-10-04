@@ -161,6 +161,7 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
 
     fun openSettings() {
         repository.requestSystemStats()
+        repository.requestDevices()
         _isSettingsOpen.value = true
     }
 
@@ -201,6 +202,8 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
     fun setResolution(res: String) = repository.setResolution(res)
     fun setHost(host: String) = repository.setHost(host)
     fun refreshStats() = repository.requestSystemStats()
+    fun setCameraDevice(device: String) = repository.setCameraDevice(device)
+    fun refreshDevices() = repository.requestDevices()
     fun startNsdSearch() = networkDiscovery.startDiscovery()
     fun deleteCapture(id: String) {
         viewModelScope.launch {

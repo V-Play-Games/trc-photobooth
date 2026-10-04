@@ -383,6 +383,34 @@ class Streamer:
                                             "height": settings.preview_height,
                                             "resolution": f"{settings.preview_width}x{settings.preview_height}",
                                         })
+                                elif action in ("set_device", "set_camera_device"):
+                                    dev = payload.get("device", payload.get("value"))
+                                    from src.camera import get_camera, list_video_devices, switch_camera_device
+                                    success = switch_camera_device(dev)
+                                    self.camera = get_camera()
+                                    devices = list_video_devices()
+                                    await websocket.send_json({
+                                        "type": "devices",
+                                        "webcam_device": settings.webcam_device,
+                                        "device_path": f"/dev/video{settings.webcam_device}",
+                                        "available_devices": devices,
+                                        "success": success,
+                                    })
+                                    await self.broadcast_json({
+                                        "type": "config",
+                                        "webcam_device": settings.webcam_device,
+                                        "device_path": f"/dev/video{settings.webcam_device}",
+                                        "available_devices": devices,
+                                    })
+                                elif action in ("get_devices", "list_devices"):
+                                    from src.camera import list_video_devices
+                                    devices = list_video_devices()
+                                    await websocket.send_json({
+                                        "type": "devices",
+                                        "webcam_device": settings.webcam_device,
+                                        "device_path": f"/dev/video{settings.webcam_device}",
+                                        "available_devices": devices,
+                                    })
                             except Exception:
                                 pass
         except WebSocketDisconnect:

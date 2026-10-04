@@ -59,6 +59,16 @@ export interface SystemStatus {
   uptime_seconds: number
   swap_rb: boolean
   flip_horizontal: boolean
+  webcam_device?: number
+  device_path?: string
+  available_devices?: VideoDevice[]
+}
+
+export interface VideoDevice {
+  device: string
+  index: number
+  name: string
+  available: boolean
 }
 
 export interface MemoryStats {
@@ -93,6 +103,9 @@ export interface CameraConfig {
   capture_width: number
   capture_height: number
   capture_quality: number
+  webcam_device?: number
+  device_path?: string
+  available_devices?: VideoDevice[]
 }
 
 export type WebSocketConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error'

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import glob
 import io
-import math
 import logging
+import math
+import os
 import threading
 import time
 from abc import ABC, abstractmethod
@@ -158,6 +160,51 @@ class MockCamera(BaseCamera):
         self.flip_horizontal = mirror if mirror is not None else settings.flip_horizontal
         self._active_backend = "webcam" if self.use_webcam else "mock"
         self._cap = None
+        self._device_lock = threading.Lock()
+
+    def set_device(self, device: int | str) -> bool:
+        """Switch active webcam device index or /dev/video* path on the fly."""
+        idx = parse_device_index(device)
+        self.device_index = idx
+        settings.webcam_device = idx
+        self.use_webcam = not settings.use_synthetic
+
+        with self._device_lock:
+            old_cap = self._cap
+            self._cap = None
+            if old_cap is not None:
+                try:
+                    old_cap.release()
+                except Exception:
+                    pass
+
+            try:
+                import cv2
+                logger.info("Opening webcam device index %d (/dev/video%d)...", idx, idx)
+                new_cap = cv2.VideoCapture(idx)
+                if new_cap.isOpened():
+                    new_cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                    new_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                    new_cap.set(cv2.CAP_PROP_FPS, self.target_fps)
+                    ret, test_frame = new_cap.read()
+                    if ret and test_frame is not None:
+                        self._cap = new_cap
+                        self._active_backend = "webcam"
+                        self.is_connected = True
+                        self.consecutive_errors = 0
+                        logger.info("Switched camera successfully to /dev/video%d (%dx%d)", idx, self.width, self.height)
+                        return True
+                    else:
+                        logger.warning("Webcam /dev/video%d opened but failed to read frames", idx)
+                        new_cap.release()
+                else:
+                    logger.warning("Unable to open webcam device /dev/video%d", idx)
+            except Exception as exc:
+                logger.error("Error opening /dev/video%d: %s", idx, exc)
+
+            self._active_backend = "mock"
+            self.is_connected = False
+            return False
 
     @property
     def mirror(self) -> bool:
@@ -300,59 +347,20 @@ class MockCamera(BaseCamera):
 
     def _capture_loop(self) -> None:
         """Capture loop with OpenCV webcam input and synthetic fallback."""
-        has_webcam = False
         cv2 = None
 
         if self.use_webcam:
             try:
                 import cv2 as cv_module
                 cv2 = cv_module
-
-                logger.info(
-                    "Opening webcam device index %d (/dev/video%d)...",
-                    self.device_index,
-                    self.device_index,
-                )
-                self._cap = cv2.VideoCapture(self.device_index)
-
-                if self._cap.isOpened():
-                    self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-                    self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-                    self._cap.set(cv2.CAP_PROP_FPS, self.target_fps)
-
-                    # Test initial frame read
-                    ret, test_frame = self._cap.read()
-                    if ret and test_frame is not None:
-                        has_webcam = True
-                        self._active_backend = "webcam"
-                        logger.info(
-                            "Laptop webcam active (%dx%d, source resolution: %dx%d)",
-                            self.width,
-                            self.height,
-                            test_frame.shape[1],
-                            test_frame.shape[0],
-                        )
-                    else:
-                        logger.warning(
-                            "Webcam /dev/video%d opened but failed to read frames. Falling back to synthetic pattern.",
-                            self.device_index,
-                        )
-                        self._cap.release()
-                        self._cap = None
-                else:
-                    logger.warning(
-                        "Unable to open webcam device %d. Falling back to synthetic pattern.",
-                        self.device_index,
-                    )
-                    self._cap = None
+                self.set_device(self.device_index)
             except Exception as exc:
                 logger.warning(
                     "OpenCV webcam initialization failed (%s). Falling back to synthetic pattern.",
                     exc,
                 )
-                self._cap = None
 
-        if not has_webcam:
+        if self._cap is None:
             self._active_backend = "mock"
             logger.info("Using synthetic photo booth test pattern generator")
 
@@ -364,9 +372,12 @@ class MockCamera(BaseCamera):
 
             jpeg_bytes = None
 
-            if has_webcam and self._cap is not None and cv2 is not None:
+            with self._device_lock:
+                cap = self._cap
+
+            if cap is not None and cv2 is not None:
                 try:
-                    ret, frame = self._cap.read()
+                    ret, frame = cap.read()
                     if ret and frame is not None:
                         self.consecutive_errors = 0
                         self.is_connected = True
@@ -398,30 +409,31 @@ class MockCamera(BaseCamera):
                                 "Falling back to synthetic pattern while probing for reconnection...",
                                 self.device_index,
                             )
-                            has_webcam = False
                             self._active_backend = "mock"
                             self.is_connected = False
-                            try:
-                                self._cap.release()
-                            except Exception:
-                                pass
-                            self._cap = None
+                            with self._device_lock:
+                                if self._cap is cap:
+                                    try:
+                                        self._cap.release()
+                                    except Exception:
+                                        pass
+                                    self._cap = None
                 except Exception as exc:
                     self.consecutive_errors += 1
                     logger.error("Error reading from webcam: %s (consecutive errors: %d)", exc, self.consecutive_errors)
                     if self.consecutive_errors >= 5:
-                        has_webcam = False
                         self._active_backend = "mock"
                         self.is_connected = False
-                        try:
-                            if self._cap:
-                                self._cap.release()
-                        except Exception:
-                            pass
-                        self._cap = None
+                        with self._device_lock:
+                            if self._cap is cap:
+                                try:
+                                    self._cap.release()
+                                except Exception:
+                                    pass
+                                self._cap = None
 
             # Periodic webcam reconnection probe when disconnected
-            if not has_webcam and self.use_webcam and cv2 is not None:
+            if self._cap is None and self.use_webcam and cv2 is not None:
                 now_probe = time.time()
                 if now_probe - last_probe_time > 3.0:
                     last_probe_time = now_probe
@@ -434,14 +446,14 @@ class MockCamera(BaseCamera):
                                     "Webcam /dev/video%d reconnected successfully!",
                                     self.device_index,
                                 )
-                                self._cap = probe_cap
-                                self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-                                self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-                                self._cap.set(cv2.CAP_PROP_FPS, self.target_fps)
-                                has_webcam = True
-                                self._active_backend = "webcam"
-                                self.is_connected = True
-                                self.consecutive_errors = 0
+                                probe_cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                                probe_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                                probe_cap.set(cv2.CAP_PROP_FPS, self.target_fps)
+                                with self._device_lock:
+                                    self._cap = probe_cap
+                                    self._active_backend = "webcam"
+                                    self.is_connected = True
+                                    self.consecutive_errors = 0
                             else:
                                 probe_cap.release()
                         else:
@@ -465,20 +477,23 @@ class MockCamera(BaseCamera):
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
-        if self._cap is not None:
-            try:
-                self._cap.release()
-            except Exception:
-                pass
-            self._cap = None
+        with self._device_lock:
+            if self._cap is not None:
+                try:
+                    self._cap.release()
+                except Exception:
+                    pass
+                self._cap = None
 
     def capture_high_res(self) -> bytes:
         """Capture a high-quality still frame from webcam or synthetic fallback."""
-        if self._cap is not None and self._cap.isOpened():
+        with self._device_lock:
+            cap = self._cap
+        if cap is not None and cap.isOpened():
             try:
                 import cv2
 
-                ret, frame = self._cap.read()
+                ret, frame = cap.read()
                 if ret and frame is not None:
                     if self.flip_horizontal:
                         frame = cv2.flip(frame, 1)
@@ -933,3 +948,82 @@ def get_camera() -> BaseCamera:
             _camera_instance = MockCamera()
 
         return _camera_instance
+
+
+def parse_device_index(val: int | str) -> int:
+    """Parse device index from integer, string digit, or /dev/videoX path."""
+    if isinstance(val, int):
+        return max(0, val)
+    s = str(val).strip()
+    if s.startswith("/dev/video"):
+        num = s.replace("/dev/video", "")
+        if num.isdigit():
+            return int(num)
+    if s.isdigit():
+        return int(s)
+    return 0
+
+
+def list_video_devices() -> list[dict[str, Any]]:
+    """Scan and list available /dev/video* devices on the system with friendly hardware names."""
+    devices: list[dict[str, Any]] = []
+    video_paths = sorted(
+        glob.glob("/dev/video*"),
+        key=lambda p: int(p.replace("/dev/video", "")) if p.replace("/dev/video", "").isdigit() else 999,
+    )
+
+    for p in video_paths:
+        idx_str = p.replace("/dev/video", "")
+        if not idx_str.isdigit():
+            continue
+        idx = int(idx_str)
+        sys_name_file = f"/sys/class/video4linux/video{idx}/name"
+        name = f"Camera {idx}"
+        if os.path.exists(sys_name_file):
+            try:
+                with open(sys_name_file, "r") as f:
+                    content = f.read().strip()
+                    if content:
+                        name = content
+            except Exception:
+                pass
+
+        devices.append({
+            "device": p,
+            "index": idx,
+            "name": name,
+            "available": True,
+        })
+
+    if not devices:
+        devices.append({
+            "device": "/dev/video0",
+            "index": 0,
+            "name": "Default Camera (/dev/video0)",
+            "available": False,
+        })
+
+    return devices
+
+
+def switch_camera_device(device: int | str) -> bool:
+    """Dynamically switch active camera hardware device across PiCamera / MockCamera."""
+    global _camera_instance
+    idx = parse_device_index(device)
+    settings.webcam_device = idx
+
+    with _camera_lock:
+        if isinstance(_camera_instance, MockCamera):
+            return _camera_instance.set_device(idx)
+        elif _camera_instance is not None:
+            try:
+                _camera_instance.stop()
+            except Exception:
+                pass
+            _camera_instance = MockCamera(device_index=idx)
+            _camera_instance.start()
+            return True
+        else:
+            _camera_instance = MockCamera(device_index=idx)
+            _camera_instance.start()
+            return True

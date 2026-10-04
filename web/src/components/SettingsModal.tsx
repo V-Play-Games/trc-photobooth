@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   Activity,
+  Camera,
   Cpu,
   ExternalLink,
   Flame,
@@ -23,6 +24,8 @@ interface SettingsModalProps {
   onToggleFlip: (val?: boolean) => void
   onToggleSwapRb: (val?: boolean) => void
   onRequestStats: () => void
+  onSetCameraDevice?: (device: string | number) => void
+  onRefreshDevices?: () => void
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -36,9 +39,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onToggleFlip,
   onToggleSwapRb,
   onRequestStats,
+  onSetCameraDevice,
+  onRefreshDevices,
 }) => {
   const currentFps = cameraConfig.fps ?? 15
   const currentQuality = cameraConfig.quality ?? 70
+  const [customDevice, setCustomDevice] = useState<string>(
+    cameraConfig.device_path || `/dev/video${cameraConfig.webcam_device ?? 0}`,
+  )
+
+  useEffect(() => {
+    if (cameraConfig.device_path) {
+      setCustomDevice(cameraConfig.device_path)
+    }
+  }, [cameraConfig.device_path])
+
   const activeRes: '480p' | '720p' | '1080p' = cameraConfig.width
     ? cameraConfig.width >= 1400
       ? '1080p'
@@ -51,9 +66,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   useEffect(() => {
     if (!isOpen) return
     onRequestStats()
+    onRefreshDevices?.()
     const timer = setInterval(onRequestStats, 3000)
     return () => clearInterval(timer)
-  }, [isOpen, onRequestStats])
+  }, [isOpen, onRequestStats, onRefreshDevices])
 
   if (!isOpen) return null
 
@@ -99,6 +115,156 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Tv size={15} />
               <span>PREVIEW STREAM CONTROLS</span>
             </h3>
+
+            {/* Hardware Camera Device Selection */}
+            <div className="setting-control-group">
+              <div className="control-label-row">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Camera size={14} style={{ color: '#00F0FF' }} />
+                  <span className="control-label">Camera Hardware (/dev/video*)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onRefreshDevices?.()}
+                  title="Scan system for camera hardware"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    background: 'rgba(0, 240, 255, 0.15)',
+                    border: '1px solid rgba(0, 240, 255, 0.3)',
+                    color: '#00F0FF',
+                    borderRadius: '6px',
+                    padding: '3px 8px',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <RefreshCw size={12} />
+                  <span>Scan</span>
+                </button>
+              </div>
+
+              {/* Device Chips */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
+                {(cameraConfig.available_devices && cameraConfig.available_devices.length > 0
+                  ? cameraConfig.available_devices
+                  : [
+                      {
+                        device: cameraConfig.device_path || `/dev/video${cameraConfig.webcam_device ?? 0}`,
+                        index: cameraConfig.webcam_device ?? 0,
+                        name: 'Active Hardware Camera',
+                        available: true,
+                      },
+                    ]
+                ).map((dev) => {
+                  const currentSelected =
+                    cameraConfig.device_path || `/dev/video${cameraConfig.webcam_device ?? 0}`
+                  const isSelected =
+                    dev.device === currentSelected || dev.index === cameraConfig.webcam_device
+
+                  return (
+                    <div
+                      key={dev.device}
+                      onClick={() => onSetCameraDevice?.(dev.device)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: isSelected ? 'rgba(0, 240, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                        border: isSelected ? '1px solid #00F0FF' : '1px solid rgba(255, 255, 255, 0.08)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span
+                            style={{
+                              fontFamily: 'monospace',
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              color: isSelected ? '#00F0FF' : '#E2E8F0',
+                            }}
+                          >
+                            {dev.device}
+                          </span>
+                          {isSelected && (
+                            <span
+                              style={{
+                                fontSize: '9px',
+                                fontWeight: 800,
+                                background: '#00F0FF',
+                                color: '#000',
+                                padding: '1px 5px',
+                                borderRadius: '4px',
+                                letterSpacing: '0.05em',
+                              }}
+                            >
+                              ACTIVE
+                            </span>
+                          )}
+                        </div>
+                        {dev.name && (
+                          <span style={{ fontSize: '11px', color: '#94A3B8' }}>{dev.name}</span>
+                        )}
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: isSelected ? '#00F0FF' : '#64748B',
+                        }}
+                      >
+                        {isSelected ? 'Selected' : 'Select'}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Custom device path input */}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                <input
+                  type="text"
+                  value={customDevice}
+                  onChange={(e) => setCustomDevice(e.target.value)}
+                  placeholder="e.g. /dev/video1"
+                  style={{
+                    flex: 1,
+                    background: 'rgba(15, 23, 42, 0.8)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    color: '#F8FAFC',
+                    fontSize: '12px',
+                    fontFamily: 'monospace',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (customDevice.trim()) {
+                      onSetCameraDevice?.(customDevice.trim())
+                    }
+                  }}
+                  style={{
+                    background: '#00F0FF',
+                    color: '#000',
+                    fontWeight: 700,
+                    fontSize: '12px',
+                    borderRadius: '6px',
+                    padding: '6px 14px',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Switch
+                </button>
+              </div>
+            </div>
 
             {/* Target FPS Slider */}
             <div className="setting-control-group">

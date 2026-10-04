@@ -1,5 +1,6 @@
 package com.trc.photobooth.ui.components
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Router
 import androidx.compose.material.icons.filled.Search
@@ -49,13 +51,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import com.trc.photobooth.data.PhotoBoothRepository
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -90,6 +96,8 @@ fun SettingsDialog(
     onSetQuality: (Int) -> Unit,
     onSetResolution: (String) -> Unit,
     onRefreshStats: () -> Unit,
+    onSetCameraDevice: (String) -> Unit = {},
+    onRefreshDevices: () -> Unit = {},
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -98,6 +106,9 @@ fun SettingsDialog(
     var hostInput by remember(currentHost) { mutableStateOf(currentHost) }
     var fpsSlider by remember(cameraConfig.fps) { mutableFloatStateOf((cameraConfig.fps ?: 20).toFloat()) }
     var qualitySlider by remember(cameraConfig.quality) { mutableFloatStateOf((cameraConfig.quality ?: 80).toFloat()) }
+    var customDeviceInput by remember(cameraConfig.devicePath) {
+        mutableStateOf(cameraConfig.devicePath ?: "/dev/video${cameraConfig.webcamDevice ?: 0}")
+    }
 
     Dialog(
         onDismissRequest = onClose,
@@ -232,7 +243,147 @@ fun SettingsDialog(
                         .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
                         .padding(14.dp)
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        // Section 2.1: Camera Hardware Device (/dev/video*)
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Videocam,
+                                        contentDescription = null,
+                                        tint = CyberCyan,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "CAMERA HARDWARE (/dev/video*)",
+                                        color = TextMain,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0x3300F0FF))
+                                        .clickable { onRefreshDevices() }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "Scan Devices",
+                                        tint = CyberCyan,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Scan", color = CyberCyan, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+
+                            val currentDevPath = cameraConfig.devicePath ?: "/dev/video${cameraConfig.webcamDevice ?: 0}"
+                            val devices = cameraConfig.availableDevices.ifEmpty {
+                                listOf(
+                                    com.trc.photobooth.data.models.VideoDevice(
+                                        device = currentDevPath,
+                                        index = cameraConfig.webcamDevice ?: 0,
+                                        name = "Active Hardware Camera",
+                                        available = true
+                                    )
+                                )
+                            }
+
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                devices.forEach { dev ->
+                                    val isSelected = dev.device == currentDevPath || dev.index == cameraConfig.webcamDevice
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isSelected) CyberCyan.copy(alpha = 0.2f) else Color(0x301E293B))
+                                            .border(1.dp, if (isSelected) CyberCyan else BorderSubtle, RoundedCornerShape(8.dp))
+                                            .clickable { onSetCameraDevice(dev.device) }
+                                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = dev.device,
+                                                    color = if (isSelected) CyberCyan else TextMain,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontFamily = FontFamily.Monospace
+                                                )
+                                                if (isSelected) {
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(4.dp))
+                                                            .background(CyberCyan)
+                                                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    ) {
+                                                        Text("ACTIVE", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+                                                    }
+                                                }
+                                            }
+                                            if (dev.name.isNotBlank()) {
+                                                Text(
+                                                    text = dev.name,
+                                                    color = TextMuted,
+                                                    fontSize = 11.sp,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = if (isSelected) "Selected" else "Select",
+                                            color = if (isSelected) CyberCyan else TextMuted,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Manual device input fallback
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = customDeviceInput,
+                                    onValueChange = { customDeviceInput = it },
+                                    placeholder = { Text("e.g. /dev/video1", color = TextMuted, fontSize = 11.sp) },
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = CyberCyan,
+                                        unfocusedBorderColor = BorderSubtle,
+                                        focusedTextColor = TextMain,
+                                        unfocusedTextColor = TextMain
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Button(
+                                    onClick = {
+                                        if (customDeviceInput.isNotBlank()) {
+                                            onSetCameraDevice(customDeviceInput.trim())
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CyberCyan, contentColor = Color.Black),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Switch", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
                         // Resolution selector chips
                         Text("Stream Resolution", color = TextMuted, fontSize = 12.sp)
                         Row(
@@ -395,6 +546,87 @@ fun SettingsDialog(
                             color = TextMuted,
                             fontSize = 12.sp
                         )
+                    }
+                }
+
+                // -------------------------------------------------------------
+                // TRC PRINTER (CUPS / LP)
+                // -------------------------------------------------------------
+                SettingsSectionTitle("TRC PRINTER (CUPS / LP)")
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0x800F172A))
+                        .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
+                        .padding(14.dp)
+                ) {
+                    val scope = rememberCoroutineScope()
+                    val context = LocalContext.current
+                    var isTestingPrint by remember { mutableStateOf(false) }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TelemetryRow("Printer Queue", "TRC_Printer", EmeraldGreen)
+                        TelemetryRow("Print Color Mode", "monochrome", TextMain)
+                        TelemetryRow("Command", "lp -d TRC_Printer -o print-color-mode=monochrome", CyberCyan)
+
+                        Button(
+                            onClick = {
+                                if (isTestingPrint) return@Button
+                                scope.launch {
+                                    isTestingPrint = true
+                                    Toast.makeText(context, "Executing test print on Pi (/etc/hostname)...", Toast.LENGTH_SHORT).show()
+                                    val repo = PhotoBoothRepository.getInstance(context)
+                                    val result = repo.testPrint()
+                                    isTestingPrint = false
+                                    result.fold(
+                                        onSuccess = { res ->
+                                            val jobText = if (res.jobId != null) " (Job: ${res.jobId})" else ""
+                                            Toast.makeText(context, "🖨️ Test Print Succeeded!$jobText", Toast.LENGTH_SHORT).show()
+                                        },
+                                        onFailure = { err ->
+                                            Toast.makeText(context, "❌ Test Print Error: ${err.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                    )
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = EmeraldGreen,
+                                contentColor = Color(0xFF070B14)
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp)
+                        ) {
+                            if (isTestingPrint) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color(0xFF070B14),
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "SENDING TEST PRINT...",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Print,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "TEST PRINT (/etc/hostname)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                )
+                            }
+                        }
                     }
                 }
             }

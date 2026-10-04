@@ -4,6 +4,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
+class VideoDeviceInfo(BaseModel):
+    device: str
+    index: int
+    name: str = ""
+    available: bool = True
+
+
 class SystemStatus(BaseModel):
     """System health and streaming telemetry."""
 
@@ -23,6 +30,9 @@ class SystemStatus(BaseModel):
     is_healthy: bool = True
     memory_usage_mb: float = 0.0
     capture_count: int = 0
+    webcam_device: int = 0
+    device_path: str = "/dev/video0"
+    available_devices: list[VideoDeviceInfo] = Field(default_factory=list)
 
 
 class MemoryStats(BaseModel):
@@ -97,6 +107,7 @@ class CameraConfigUpdate(BaseModel):
     height: int | None = Field(None, ge=120, le=1944, description="Preview frame height in pixels")
     swap_rb: bool | None = Field(None, description="Invert Red/Blue color channels")
     flip_horizontal: bool | None = Field(None, description="Invert camera output horizontally (left-to-right mirror flip)")
+    webcam_device: int | str | None = Field(None, description="Webcam device index (0, 1) or /dev/video* path")
 
 
 class WebSocketControlMessage(BaseModel):
@@ -136,3 +147,38 @@ class CountdownTick(BaseModel):
     type: str = "countdown_tick"
     seconds_left: int
     action: Literal["photo", "gif"] = "photo"
+
+
+class PrintJobRequest(BaseModel):
+    """Parameters for initiating a physical print job on the Pi."""
+
+    image_base64: str | None = Field(None, description="Base64 encoded JPEG/PNG image data")
+    capture_id: str | None = Field(None, description="Existing capture ID to print")
+    printer_name: str | None = Field(None, description="Printer queue name (e.g. TRC_Printer)")
+    color_mode: Literal["monochrome", "color"] | None = Field(None, description="CUPS print-color-mode")
+    copies: int = Field(1, ge=1, le=10, description="Number of copies to print")
+    test: bool = Field(False, description="Whether to print a test document (/etc/hostname)")
+    filename: str = Field("print_image.jpg", description="Spool file name")
+
+
+
+class PrintResponse(BaseModel):
+    """Result of a print submission."""
+
+    success: bool
+    message: str
+    job_id: str | None = Field(None, description="CUPS print job ID if available")
+    printer: str
+    command: str | None = Field(None, description="Underlying shell command executed")
+
+
+class PrinterStatusResponse(BaseModel):
+    """Current CUPS printing subsystem status on the Pi."""
+
+    printer_name: str
+    color_mode: str
+    lp_installed: bool
+    available_printers: list[str] = Field(default_factory=list)
+    is_ready: bool = True
+    status_message: str = "ok"
+

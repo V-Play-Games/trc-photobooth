@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -61,6 +62,7 @@ import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
 import coil.request.SuccessResult
+import com.trc.photobooth.data.PhotoBoothRepository
 import com.trc.photobooth.data.models.CaptureMetadata
 import com.trc.photobooth.filters.FilterPreset
 import com.trc.photobooth.filters.FilterPresets
@@ -68,6 +70,7 @@ import com.trc.photobooth.theme.BgElevated
 import com.trc.photobooth.theme.BorderMedium
 import com.trc.photobooth.theme.BorderSubtle
 import com.trc.photobooth.theme.CyberCyan
+import com.trc.photobooth.theme.EmeraldGreen
 import com.trc.photobooth.theme.NeonPink
 import com.trc.photobooth.theme.TextMain
 import com.trc.photobooth.theme.TextMuted
@@ -280,6 +283,74 @@ fun LightboxDialog(
                                     )
                                 }
                             }
+                        }
+                    }
+                }
+
+                // Print Button for still photos
+                if (!isGif) {
+                    var isPrinting by remember { mutableStateOf(false) }
+                    Button(
+                        onClick = {
+                            if (isPrinting) return@Button
+                            scope.launch {
+                                isPrinting = true
+                                Toast.makeText(context, "Sending photo to TRC_Printer...", Toast.LENGTH_SHORT).show()
+                                val bmp = processedBitmap ?: loadedBitmap
+                                val repo = PhotoBoothRepository.getInstance(context)
+                                val result = if (bmp != null) {
+                                    repo.printBitmap(bmp, "photo_${capture.id}.jpg")
+                                } else {
+                                    repo.printCapture(capture.id)
+                                }
+                                isPrinting = false
+                                result.fold(
+                                    onSuccess = { res ->
+                                        val jobInfo = if (res.jobId != null) " (Job: ${res.jobId})" else ""
+                                        Toast.makeText(context, "🖨️ Sent to TRC_Printer!$jobInfo", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onFailure = { err ->
+                                        Toast.makeText(context, "❌ Pi Print Error: ${err.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                )
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = EmeraldGreen,
+                            contentColor = Color(0xFF070B14)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .padding(bottom = 6.dp)
+                    ) {
+                        if (isPrinting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Color(0xFF070B14),
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "SENDING TO PI PRINTER...",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Print,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "PRINT TO TRC_PRINTER (PI)",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace,
+                            )
                         }
                     }
                 }

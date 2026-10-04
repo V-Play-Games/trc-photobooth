@@ -8,7 +8,10 @@ import com.trc.photobooth.data.models.CaptureMetadata
 import com.trc.photobooth.data.models.ConnectionStatus
 import com.trc.photobooth.data.models.CountdownState
 import com.trc.photobooth.data.models.GifRecordingState
+import com.trc.photobooth.data.models.PrintResponse
+import com.trc.photobooth.data.models.PrinterStatus
 import com.trc.photobooth.data.models.SystemStats
+import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -124,6 +127,8 @@ class PhotoBoothRepository(
     fun toggleFlip(value: Boolean? = null) = wsClient.toggleFlip(value)
     fun toggleSwapRb(value: Boolean? = null) = wsClient.toggleSwapRb(value)
     fun requestSystemStats() = wsClient.requestSystemStats()
+    fun setCameraDevice(device: String) = wsClient.setCameraDevice(device)
+    fun requestDevices() = wsClient.requestDevices()
 
     // REST operations
     fun fetchCaptures() {
@@ -168,6 +173,145 @@ class PhotoBoothRepository(
         } catch (e: Exception) {
             Log.e(tag, "Failed deleting capture $id", e)
             false
+        }
+    }
+
+    suspend fun printBitmap(
+        bitmap: Bitmap,
+        filename: String = "collage.jpg",
+        printerName: String? = null,
+        colorMode: String? = null,
+        copies: Int = 1,
+    ): Result<PrintResponse> = withContext(Dispatchers.IO) {
+        try {
+            val baos = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 92, baos)
+            val bytes = baos.toByteArray()
+
+            var url = "${getBaseHttpUrl()}/api/print?copies=$copies"
+            if (printerName != null) url += "&printer_name=$printerName"
+            if (colorMode != null) url += "&color_mode=$colorMode"
+
+            val body = bytes.toRequestBody("image/jpeg".toMediaType())
+            val request = Request.Builder()
+                .url(url)
+                .post(body)
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                val bodyStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val printResp = json.decodeFromString<PrintResponse>(bodyStr)
+                    Result.success(printResp)
+                } else {
+                    val errorMsg = try {
+                        val root = json.parseToJsonElement(bodyStr).jsonObject
+                        root["detail"]?.toString()?.trim('"') ?: bodyStr
+                    } catch (e: Exception) {
+                        bodyStr
+                    }
+                    Result.failure(Exception("Print failed (${response.code}): $errorMsg"))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed printing bitmap: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun printCapture(
+        captureId: String,
+        printerName: String? = null,
+        colorMode: String? = null,
+        copies: Int = 1,
+    ): Result<PrintResponse> = withContext(Dispatchers.IO) {
+        try {
+            var url = "${getBaseHttpUrl()}/api/print/capture/$captureId?copies=$copies"
+            if (printerName != null) url += "&printer_name=$printerName"
+            if (colorMode != null) url += "&color_mode=$colorMode"
+
+            val request = Request.Builder()
+                .url(url)
+                .post("".toRequestBody(null))
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                val bodyStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val printResp = json.decodeFromString<PrintResponse>(bodyStr)
+                    Result.success(printResp)
+                } else {
+                    val errorMsg = try {
+                        val root = json.parseToJsonElement(bodyStr).jsonObject
+                        root["detail"]?.toString()?.trim('"') ?: bodyStr
+                    } catch (e: Exception) {
+                        bodyStr
+                    }
+                    Result.failure(Exception("Print failed (${response.code}): $errorMsg"))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed printing capture $captureId: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun testPrint(
+        printerName: String? = null,
+        colorMode: String? = null,
+    ): Result<PrintResponse> = withContext(Dispatchers.IO) {
+        try {
+            var url = "${getBaseHttpUrl()}/api/print/test"
+            val queryParams = mutableListOf<String>()
+            if (printerName != null) queryParams.add("printer_name=$printerName")
+            if (colorMode != null) queryParams.add("color_mode=$colorMode")
+            if (queryParams.isNotEmpty()) {
+                url += "?" + queryParams.joinToString("&")
+            }
+
+            val request = Request.Builder()
+                .url(url)
+                .post("".toRequestBody(null))
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                val bodyStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val printResp = json.decodeFromString<PrintResponse>(bodyStr)
+                    Result.success(printResp)
+                } else {
+                    val errorMsg = try {
+                        val root = json.parseToJsonElement(bodyStr).jsonObject
+                        root["detail"]?.toString()?.trim('"') ?: bodyStr
+                    } catch (e: Exception) {
+                        bodyStr
+                    }
+                    Result.failure(Exception("Test print failed (${response.code}): $errorMsg"))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed test print: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getPrinterStatus(): Result<PrinterStatus> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${getBaseHttpUrl()}/api/print/status"
+            val request = Request.Builder().url(url).get().build()
+
+            httpClient.newCall(request).execute().use { response ->
+                val bodyStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val status = json.decodeFromString<PrinterStatus>(bodyStr)
+                    Result.success(status)
+                } else {
+                    Result.failure(Exception("Failed getting printer status (${response.code})"))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed getting printer status: ${e.message}", e)
+            Result.failure(e)
         }
     }
 

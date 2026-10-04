@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     enable_watchdog: bool = True  # Watchdog heartbeat timer
     watchdog_timeout: float = 15.0  # Seconds before watchdog warns of loop stall
 
+    # Printer Configuration
+    printer_name: str = "TRC_Printer"
+    printer_color_mode: str = "monochrome"
+    mock_printer: bool = False
+
     # CORS configuration for development
     cors_origins: list[str] = ["*"]
 
