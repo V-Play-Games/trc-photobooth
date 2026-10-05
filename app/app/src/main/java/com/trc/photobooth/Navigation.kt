@@ -15,6 +15,12 @@ import com.trc.photobooth.data.PhotoBoothRepository
 import com.trc.photobooth.ui.booth.BoothScreen
 import com.trc.photobooth.ui.main.MainScreen
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+
 @Composable
 fun MainNavigation() {
   val backStack = rememberNavBackStack(Main)
@@ -39,6 +45,14 @@ fun MainNavigation() {
   NavDisplay(
     backStack = backStack,
     onBack = { backStack.removeLastOrNull() },
+    transitionSpec = {
+      (slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, animationSpec = tween(350)) + fadeIn(animationSpec = tween(350)))
+        .togetherWith(slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, animationSpec = tween(350)) + fadeOut(animationSpec = tween(350)))
+    },
+    popTransitionSpec = {
+      (slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, animationSpec = tween(350)) + fadeIn(animationSpec = tween(350)))
+        .togetherWith(slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, animationSpec = tween(350)) + fadeOut(animationSpec = tween(350)))
+    },
     entryProvider =
       entryProvider {
         entry<Main> {

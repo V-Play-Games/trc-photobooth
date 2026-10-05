@@ -83,7 +83,11 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
     val printerColorMode: StateFlow<String> = repository.printerColorMode
     val printerCopies: StateFlow<Int> = repository.printerCopies
     val isStreamPaused: StateFlow<Boolean> = repository.isStreamPaused
+    val isTorchEnabled: StateFlow<Boolean> = repository.isTorchEnabled
     val actionLogs: StateFlow<List<com.trc.photobooth.data.ActionLog>> = repository.actionLogs
+
+    fun toggleTorch() = repository.toggleTorch()
+    fun focusCamera(xNorm: Float, yNorm: Float) = repository.focusLocalCamera(xNorm, yNorm)
 
     fun clearActionLogs() = repository.clearLogs()
 

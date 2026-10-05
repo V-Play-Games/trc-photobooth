@@ -103,11 +103,14 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
     val isStreamPaused: StateFlow<Boolean> = repository.isStreamPaused
     val cameraSource: StateFlow<CameraSource> = repository.cameraSource
     val androidLens: StateFlow<AndroidLens> = repository.androidLens
+    val isTorchEnabled: StateFlow<Boolean> = repository.isTorchEnabled
 
     fun setCameraSource(source: CameraSource) = repository.setCameraSource(source)
     fun toggleCameraSource() = repository.toggleCameraSource()
     fun setAndroidLens(lens: AndroidLens) = repository.setAndroidLens(lens)
     fun toggleAndroidLens() = repository.toggleAndroidLens()
+    fun toggleTorch() = repository.toggleTorch()
+    fun focusCamera(xNorm: Float, yNorm: Float) = repository.focusLocalCamera(xNorm, yNorm)
     fun startLocalCamera(owner: LifecycleOwner) = repository.startLocalCamera(owner)
     fun stopLocalCamera() = repository.stopLocalCamera()
 

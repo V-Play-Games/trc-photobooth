@@ -13,10 +13,16 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
+import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.SurfaceOrientedMeteringPointFactory
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -68,6 +74,9 @@ class LocalCameraManager(private val context: Context) {
     private val _isStreamPaused = MutableStateFlow(false)
     val isStreamPaused: StateFlow<Boolean> = _isStreamPaused.asStateFlow()
 
+    private val _isTorchEnabled = MutableStateFlow(false)
+    val isTorchEnabled: StateFlow<Boolean> = _isTorchEnabled.asStateFlow()
+
     // FPS calculation tracking
     private var frameCount = 0
     private var lastFpsTimestamp = System.currentTimeMillis()
@@ -107,6 +116,42 @@ class LocalCameraManager(private val context: Context) {
         _isStreamPaused.value = !_isStreamPaused.value
     }
 
+    fun toggleTorch(): Boolean {
+        val cam = camera ?: return false
+        val info = cam.cameraInfo
+        if (info.hasFlashUnit()) {
+            val newState = !_isTorchEnabled.value
+            cam.cameraControl.enableTorch(newState)
+            _isTorchEnabled.value = newState
+            return newState
+        }
+        return false
+    }
+
+    fun setTorch(enabled: Boolean) {
+        val cam = camera ?: return
+        if (cam.cameraInfo.hasFlashUnit()) {
+            cam.cameraControl.enableTorch(enabled)
+            _isTorchEnabled.value = enabled
+        }
+    }
+
+    fun focusAt(xNorm: Float, yNorm: Float) {
+        val cam = camera ?: return
+        try {
+            val factory = SurfaceOrientedMeteringPointFactory(1f, 1f)
+            val point = factory.createPoint(xNorm.coerceIn(0f, 1f), yNorm.coerceIn(0f, 1f))
+            val action = FocusMeteringAction.Builder(
+                point,
+                FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+            ).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
+            cam.cameraControl.startFocusAndMetering(action)
+            Log.d(tag, "Focus & metering triggered at ($xNorm, $yNorm)")
+        } catch (e: Exception) {
+            Log.e(tag, "Focus metering error at ($xNorm, $yNorm)", e)
+        }
+    }
+
     fun startCamera(lifecycleOwner: LifecycleOwner) {
         currentLifecycleOwner = lifecycleOwner
         if (!hasCameraPermission()) {
@@ -138,9 +183,16 @@ class LocalCameraManager(private val context: Context) {
                     return@addListener
                 }
 
-                // 4:3 target resolution matching photobooth viewfinder
+                // 4:3 target aspect ratio with fallback strategy matching photobooth viewfinder
+                val analysisResolutionSelector = ResolutionSelector.Builder()
+                    .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+                    .setResolutionStrategy(
+                        ResolutionStrategy(Size(1280, 960), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER)
+                    )
+                    .build()
+
                 val imageAnalysis = ImageAnalysis.Builder()
-                    .setTargetResolution(Size(1280, 960))
+                    .setResolutionSelector(analysisResolutionSelector)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                     .build()
@@ -149,8 +201,15 @@ class LocalCameraManager(private val context: Context) {
                     processFrame(imageProxy)
                 }
 
+                val captureResolutionSelector = ResolutionSelector.Builder()
+                    .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+                    .setResolutionStrategy(
+                        ResolutionStrategy(Size(1920, 1440), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER)
+                    )
+                    .build()
+
                 val capture = ImageCapture.Builder()
-                    .setTargetResolution(Size(1920, 1440))
+                    .setResolutionSelector(captureResolutionSelector)
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                     .build()
                 imageCapture = capture
@@ -173,6 +232,8 @@ class LocalCameraManager(private val context: Context) {
 
     fun stopCamera() {
         try {
+            camera?.cameraControl?.enableTorch(false)
+            _isTorchEnabled.value = false
             cameraProvider?.unbindAll()
             _isRunning.value = false
             currentLifecycleOwner = null

@@ -18,6 +18,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Settings
@@ -66,6 +69,8 @@ fun Header(
     onToggleLens: () -> Unit = {},
     onToggleCameraSource: () -> Unit = {},
     onToggleStreamPause: () -> Unit = {},
+    isTorchEnabled: Boolean = false,
+    onToggleTorch: () -> Unit = {},
     onToggleGuides: () -> Unit,
     onToggleFlip: () -> Unit,
     onOpenGallery: () -> Unit,
@@ -123,7 +128,7 @@ fun Header(
                 androidLens = androidLens,
             )
 
-            // If using on-device camera, show lens switch button (Front/Back)
+            // If using on-device camera, show lens switch button (Front/Back) and Torch toggle
             if (cameraSource == CameraSource.ANDROID) {
                 IslandToolButton(
                     icon = Icons.Default.Cameraswitch,
@@ -133,6 +138,15 @@ fun Header(
                     activeTint = theme.secondary,
                     onClick = onToggleLens,
                     contentDescription = "Switch Camera Lens (${androidLens.name})",
+                )
+                IslandToolButton(
+                    icon = if (isTorchEnabled) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                    isActive = isTorchEnabled,
+                    activeBg = theme.tertiary.copy(alpha = 0.2f),
+                    activeBorder = theme.tertiary,
+                    activeTint = theme.tertiary,
+                    onClick = onToggleTorch,
+                    contentDescription = if (isTorchEnabled) "Turn Torch OFF" else "Turn Torch ON",
                 )
             }
 

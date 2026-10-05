@@ -1,6 +1,7 @@
 package com.trc.photobooth.ui.components
 
 import android.graphics.Bitmap
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -10,6 +11,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -33,11 +36,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -63,9 +74,24 @@ fun LivePreview(
     connectionStatus: ConnectionStatus,
     gifRecording: GifRecordingState?,
     modifier: Modifier = Modifier,
+    onFocusTap: ((xNorm: Float, yNorm: Float) -> Unit)? = null,
 ) {
     val theme = MaterialTheme.current
     val isConnected = connectionStatus == ConnectionStatus.CONNECTED
+
+    var focusTarget by remember { mutableStateOf<Offset?>(null) }
+    val focusScale = remember { Animatable(1.35f) }
+    val focusAlpha = remember { Animatable(1f) }
+
+    LaunchedEffect(focusTarget) {
+        val target = focusTarget ?: return@LaunchedEffect
+        focusScale.snapTo(1.35f)
+        focusAlpha.snapTo(1f)
+        focusScale.animateTo(1.0f, tween(200))
+        delay(900)
+        focusAlpha.animateTo(0f, tween(300))
+        focusTarget = null
+    }
 
     BoxWithConstraints(
         modifier = modifier,
@@ -88,7 +114,21 @@ fun LivePreview(
             modifier = boxModifier
                 .clip(RoundedCornerShape(16.dp))
                 .background(Color.Black)
-                .border(1.dp, theme.outlineVariant, RoundedCornerShape(16.dp)),
+                .border(1.dp, theme.outlineVariant, RoundedCornerShape(16.dp))
+                .pointerInput(onFocusTap) {
+                    if (onFocusTap != null) {
+                        detectTapGestures { offset ->
+                            val w = size.width.toFloat()
+                            val h = size.height.toFloat()
+                            if (w > 0 && h > 0) {
+                                val xNorm = (offset.x / w).coerceIn(0f, 1f)
+                                val yNorm = (offset.y / h).coerceIn(0f, 1f)
+                                focusTarget = offset
+                                onFocusTap(xNorm, yNorm)
+                            }
+                        }
+                    }
+                },
             contentAlignment = Alignment.Center,
         ) {
         if (isConnected && lastFrameBitmap != null) {
@@ -102,6 +142,23 @@ fun LivePreview(
                 contentScale = ContentScale.Crop,
                 colorFilter = colorFilter,
             )
+
+            // Tap Focus Indicator
+            if (focusTarget != null && focusAlpha.value > 0f) {
+                val target = focusTarget!!
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset { IntOffset((target.x - 28.dp.toPx()).toInt(), (target.y - 28.dp.toPx()).toInt()) }
+                        .size(56.dp)
+                        .graphicsLayer {
+                            scaleX = focusScale.value
+                            scaleY = focusScale.value
+                            alpha = focusAlpha.value
+                        }
+                        .border(1.5.dp, theme.primary, RoundedCornerShape(12.dp))
+                )
+            }
 
             // Vignette Overlay
             if (activeFilter.isVignette) {

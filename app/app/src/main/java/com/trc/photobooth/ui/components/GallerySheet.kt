@@ -10,11 +10,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -90,13 +93,15 @@ fun GallerySheet(
             // Sheet Content Container
             Column(
                 modifier = Modifier
+                    .widthIn(max = 680.dp)
                     .fillMaxWidth()
-                    .height(680.dp)
+                    .fillMaxHeight(0.88f)
                     .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                     .background(theme.surface)
                     .border(1.dp, theme.outlineVariant, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                    .navigationBarsPadding()
                     .clickable(enabled = false) {} // Prevent click-through
-                    .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 24.dp)
+                    .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
             ) {
                 // Drag handle
                 Box(

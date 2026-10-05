@@ -18,9 +18,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,6 +30,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
@@ -116,6 +120,7 @@ fun MainScreen(
     val lightboxCapture by viewModel.lightboxCapture.collectAsStateWithLifecycle()
     val cameraSource by viewModel.cameraSource.collectAsStateWithLifecycle()
     val androidLens by viewModel.androidLens.collectAsStateWithLifecycle()
+    val isTorchEnabled by viewModel.isTorchEnabled.collectAsStateWithLifecycle()
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -145,11 +150,13 @@ fun MainScreen(
 
     val resString = "${cameraConfig.width ?: 640}x${cameraConfig.height ?: 480}"
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(theme.background)
     ) {
+        val isWideLayout = maxWidth >= 640.dp || (maxWidth > maxHeight && maxWidth >= 500.dp)
+
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -164,6 +171,8 @@ fun MainScreen(
                 isStreamPaused = isStreamPaused,
                 cameraSource = cameraSource,
                 androidLens = androidLens,
+                isTorchEnabled = isTorchEnabled,
+                onToggleTorch = viewModel::toggleTorch,
                 onToggleLens = viewModel::toggleAndroidLens,
                 onToggleCameraSource = {
                     if (cameraSource == CameraSource.RASPI) {
@@ -333,105 +342,106 @@ fun MainScreen(
                 }
             }
 
-            // Middle Viewport Container: Live Viewfinder + Guides + Overlays
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                    .clipToBounds(),
-                contentAlignment = Alignment.Center
-            ) {
-                LivePreview(
-                    lastFrameBitmap = lastFrame,
-                    activeFilter = activeFilter,
-                    showGuides = showGuides,
-                    fps = fps,
-                    resolution = resString,
-                    connectionStatus = connectionStatus,
-                    gifRecording = gifRecording,
-                    modifier = Modifier.fillMaxSize()
-                )
+            @Composable
+            fun ViewfinderContent(viewfinderModifier: Modifier = Modifier) {
+                Box(
+                    modifier = viewfinderModifier.clipToBounds(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    LivePreview(
+                        lastFrameBitmap = lastFrame,
+                        activeFilter = activeFilter,
+                        showGuides = showGuides,
+                        fps = fps,
+                        resolution = resString,
+                        connectionStatus = connectionStatus,
+                        gifRecording = gifRecording,
+                        onFocusTap = if (cameraSource == CameraSource.ANDROID) { xNorm, yNorm ->
+                            viewModel.focusCamera(xNorm, yNorm)
+                        } else null,
+                        modifier = Modifier.fillMaxSize()
+                    )
 
-                // Countdown and Flash Overlay
-                CountdownOverlay(
-                    countdown = countdown,
-                    flashEvent = viewModel.flashEvent,
-                    modifier = Modifier.fillMaxSize()
-                )
+                    // Countdown and Flash Overlay
+                    CountdownOverlay(
+                        countdown = countdown,
+                        flashEvent = viewModel.flashEvent,
+                        modifier = Modifier.fillMaxSize()
+                    )
 
-                // Camera Turned Off Overlay
-                if (isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(theme.scrim.copy(alpha = 0.45f))
-                            .clickable(onClick = viewModel::toggleStreamPause),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                    // Camera Turned Off Overlay
+                    if (isStreamPaused && connectionStatus == ConnectionStatus.CONNECTED) {
+                        Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(theme.surface)
-                                .border(1.dp, theme.outlineVariant, RoundedCornerShape(18.dp))
-                                .padding(horizontal = 24.dp, vertical = 20.dp)
+                                .fillMaxSize()
+                                .background(theme.scrim.copy(alpha = 0.45f))
+                                .clickable(onClick = viewModel::toggleStreamPause),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier
-                                    .size(52.dp)
-                                    .clip(CircleShape)
-                                    .background(theme.tertiary.copy(alpha = 0.15f))
-                                    .border(1.5.dp, theme.tertiary, CircleShape),
-                                contentAlignment = Alignment.Center
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(theme.surface)
+                                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(18.dp))
+                                    .padding(horizontal = 24.dp, vertical = 20.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.VideocamOff,
-                                    contentDescription = null,
-                                    tint = theme.tertiary,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                            Text(
-                                text = "CAMERA TURNED OFF",
-                                color = theme.onSurface,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                            )
-                            Text(
-                                text = "Camera feed is currently turned off.\nTap button below or header to resume.",
-                                color = theme.onSurfaceVariant,
-                                fontSize = 12.sp,
-                                textAlign = TextAlign.Center,
-                                lineHeight = 16.sp,
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(theme.primary)
-                                    .clickable(onClick = viewModel::toggleStreamPause)
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(52.dp)
+                                        .clip(CircleShape)
+                                        .background(theme.tertiary.copy(alpha = 0.15f))
+                                        .border(1.5.dp, theme.tertiary, CircleShape),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Videocam,
+                                        imageVector = Icons.Default.VideocamOff,
                                         contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(16.dp)
+                                        tint = theme.tertiary,
+                                        modifier = Modifier.size(28.dp)
                                     )
-                                    Text(
-                                        text = "TURN CAMERA ON",
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = FontFamily.Monospace,
-                                    )
+                                }
+                                Text(
+                                    text = "CAMERA TURNED OFF",
+                                    color = theme.onSurface,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                )
+                                Text(
+                                    text = "Camera feed is currently turned off.\nTap button below or header to resume.",
+                                    color = theme.onSurfaceVariant,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 16.sp,
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(theme.primary)
+                                        .clickable(onClick = viewModel::toggleStreamPause)
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Videocam,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = "TURN CAMERA ON",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -439,41 +449,104 @@ fun MainScreen(
                 }
             }
 
-            // Action & Booth Logs Console
-            ActionLogsCard(
-                logs = actionLogs,
-                onClear = viewModel::clearActionLogs,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-            )
+            if (isWideLayout) {
+                // Adaptive Wide Screen / Landscape: Side-by-Side Two-Pane Studio Layout
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .navigationBarsPadding(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Left Pane: Live Viewfinder (cinematic view)
+                    ViewfinderContent(
+                        viewfinderModifier = Modifier
+                            .weight(1.35f)
+                            .fillMaxHeight()
+                    )
 
-            // Studio Presets Carousel
-            FilterStrip(
-                activeFilter = activeFilter,
-                onSelectFilter = viewModel::selectFilter,
-            )
+                    // Right Pane: Studio Control Deck
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterStrip(
+                            activeFilter = activeFilter,
+                            onSelectFilter = viewModel::selectFilter,
+                        )
 
-            // Shutter Button & Capture Configuration Dock
-            CaptureControls(
-                captureMode = captureMode,
-                countdownSec = countdownSetting,
-                isCountingDown = countdown != null,
-                isRecordingGif = gifRecording != null,
-                connectionStatus = connectionStatus,
-                recentCapture = captures.firstOrNull(),
-                capturesCount = captures.size,
-                hostAddress = hostAddress,
-                gifFrames = gifFrames,
-                gifIntervalMs = gifIntervalMs,
-                onSelectMode = viewModel::setCaptureMode,
-                onSelectCountdown = viewModel::setCountdownSetting,
-                onChangeGifFrames = viewModel::setGifFrames,
-                onChangeGifInterval = viewModel::setGifInterval,
-                onShutterClick = viewModel::triggerShutter,
-                onOpenGallery = viewModel::openGallery,
-                modifier = Modifier.navigationBarsPadding()
-            )
+                        CaptureControls(
+                            captureMode = captureMode,
+                            countdownSec = countdownSetting,
+                            isCountingDown = countdown != null,
+                            isRecordingGif = gifRecording != null,
+                            connectionStatus = connectionStatus,
+                            recentCapture = captures.firstOrNull(),
+                            capturesCount = captures.size,
+                            hostAddress = hostAddress,
+                            gifFrames = gifFrames,
+                            gifIntervalMs = gifIntervalMs,
+                            onSelectMode = viewModel::setCaptureMode,
+                            onSelectCountdown = viewModel::setCountdownSetting,
+                            onChangeGifFrames = viewModel::setGifFrames,
+                            onChangeGifInterval = viewModel::setGifInterval,
+                            onShutterClick = viewModel::triggerShutter,
+                            onOpenGallery = viewModel::openGallery,
+                        )
+
+                        ActionLogsCard(
+                            logs = actionLogs,
+                            onClear = viewModel::clearActionLogs,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            } else {
+                // Portrait / Compact Single-Column Layout
+                ViewfinderContent(
+                    viewfinderModifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+
+                ActionLogsCard(
+                    logs = actionLogs,
+                    onClear = viewModel::clearActionLogs,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+
+                FilterStrip(
+                    activeFilter = activeFilter,
+                    onSelectFilter = viewModel::selectFilter,
+                )
+
+                CaptureControls(
+                    captureMode = captureMode,
+                    countdownSec = countdownSetting,
+                    isCountingDown = countdown != null,
+                    isRecordingGif = gifRecording != null,
+                    connectionStatus = connectionStatus,
+                    recentCapture = captures.firstOrNull(),
+                    capturesCount = captures.size,
+                    hostAddress = hostAddress,
+                    gifFrames = gifFrames,
+                    gifIntervalMs = gifIntervalMs,
+                    onSelectMode = viewModel::setCaptureMode,
+                    onSelectCountdown = viewModel::setCountdownSetting,
+                    onChangeGifFrames = viewModel::setGifFrames,
+                    onChangeGifInterval = viewModel::setGifInterval,
+                    onShutterClick = viewModel::triggerShutter,
+                    onOpenGallery = viewModel::openGallery,
+                    modifier = Modifier.navigationBarsPadding()
+                )
+            }
         }
 
         // Overlay Sheets & Dialogs

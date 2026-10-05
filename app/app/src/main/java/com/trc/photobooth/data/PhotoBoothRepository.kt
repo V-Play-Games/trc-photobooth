@@ -98,6 +98,7 @@ class PhotoBoothRepository(
     val cameraSource: StateFlow<CameraSource> = _cameraSource.asStateFlow()
 
     val androidLens: StateFlow<AndroidLens> = localCameraManager.lens
+    val isTorchEnabled: StateFlow<Boolean> = localCameraManager.isTorchEnabled
 
     // Unified connection status (CONNECTED if device camera is in use)
     private val _status = MutableStateFlow(
@@ -452,6 +453,20 @@ class PhotoBoothRepository(
 
     fun stopLocalCamera() {
         localCameraManager.stopCamera()
+    }
+
+    fun toggleTorch(): Boolean {
+        val enabled = localCameraManager.toggleTorch()
+        logAction("Device camera torch ${if (enabled) "ON" else "OFF"}", LogType.CAMERA)
+        return enabled
+    }
+
+    fun setTorch(enabled: Boolean) {
+        localCameraManager.setTorch(enabled)
+    }
+
+    fun focusLocalCamera(xNorm: Float, yNorm: Float) {
+        localCameraManager.focusAt(xNorm, yNorm)
     }
 
     // Capture controls

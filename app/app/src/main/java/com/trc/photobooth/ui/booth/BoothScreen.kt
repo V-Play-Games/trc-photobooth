@@ -22,19 +22,25 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +52,8 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -146,6 +154,7 @@ fun BoothScreen(
     val isStreamPaused by viewModel.isStreamPaused.collectAsStateWithLifecycle()
     val cameraSource by viewModel.cameraSource.collectAsStateWithLifecycle()
     val androidLens by viewModel.androidLens.collectAsStateWithLifecycle()
+    val isTorchEnabled by viewModel.isTorchEnabled.collectAsStateWithLifecycle()
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -415,6 +424,24 @@ fun BoothScreen(
                             modifier = Modifier.size(15.dp),
                         )
                     }
+
+                    // Torch / Flashlight Toggle Button
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isTorchEnabled) theme.tertiary.copy(alpha = 0.25f) else theme.surfaceVariant)
+                            .border(1.dp, if (isTorchEnabled) theme.tertiary else theme.primary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .clickable { viewModel.toggleTorch() },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = if (isTorchEnabled) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                            contentDescription = if (isTorchEnabled) "Turn Torch OFF" else "Turn Torch ON",
+                            tint = if (isTorchEnabled) theme.tertiary else theme.primary,
+                            modifier = Modifier.size(15.dp),
+                        )
+                    }
                 }
 
                 // If Raspi camera is selected but offline, show quick switch to Device Camera
@@ -473,18 +500,20 @@ fun BoothScreen(
         when {
             isIdle -> {
                 // Central 2x2 Timer Grid + Big Center START Button
-                Box(
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 16.dp, vertical = 60.dp),
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        .padding(horizontal = 16.dp, vertical = 40.dp),
                     contentAlignment = Alignment.Center,
                 ) {
+                    val isCompactHeight = maxHeight < 560.dp
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(26.dp))
                             .background(theme.surface.copy(alpha = 0.94f))
                             .border(1.5.dp, theme.outline, RoundedCornerShape(26.dp))
-                            .padding(20.dp),
+                            .padding(if (isCompactHeight) 12.dp else 20.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         // 2x2 Grid of Big Timer Buttons
@@ -583,8 +612,9 @@ fun BoothScreen(
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
                         .padding(horizontal = 14.dp, vertical = 10.dp)
+                        .widthIn(max = 640.dp)
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(20.dp))
                         .background(theme.surface.copy(alpha = 0.95f))
