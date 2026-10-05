@@ -274,6 +274,7 @@ object BitmapUtils {
     const val GAP_Y_PX = 48f
 
     const val TEMPLATE_WIDTH_PX = 721
+    const val TEMPLATE_STRIP_WIDTH_PX = 360
     const val TEMPLATE_HEIGHT_PX = 1024
 
     data class FrameBox(val left: Float, val top: Float, val right: Float, val bottom: Float) {
@@ -303,15 +304,24 @@ object BitmapUtils {
     }
 
     /**
-     * Creates a composite photo collage fitting photos into the 4 frames on the 721x1024 template canvas.
+     * Rotates a bitmap by the given degrees (e.g. 90f for landscape preview).
+     */
+    fun rotateBitmap(bitmap: Bitmap, degrees: Float): Bitmap {
+        if (degrees % 360f == 0f) return bitmap
+        val matrix = android.graphics.Matrix().apply { postRotate(degrees) }
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    }
+
+    /**
+     * Creates a composite photo collage fitting photos into the 4 frames on the single strip canvas (360x1024).
      * The background is white, each photo is center-cropped to fit the frame dimensions perfectly,
-     * and the template overlay (borders, stickers, characters) is composited on top.
+     * and the template overlay is cropped to the left strip (360px wide) so no empty right half is shown.
      */
     fun createThemedCollage(
         photos: List<Bitmap>,
         templateOverlay: Bitmap?,
     ): Bitmap {
-        val collage = Bitmap.createBitmap(TEMPLATE_WIDTH_PX, TEMPLATE_HEIGHT_PX, Bitmap.Config.ARGB_8888)
+        val collage = Bitmap.createBitmap(TEMPLATE_STRIP_WIDTH_PX, TEMPLATE_HEIGHT_PX, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(collage)
         canvas.drawColor(Color.WHITE)
 
@@ -350,11 +360,15 @@ object BitmapUtils {
 
         if (templateOverlay != null) {
             val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-            if (templateOverlay.width == TEMPLATE_WIDTH_PX && templateOverlay.height == TEMPLATE_HEIGHT_PX) {
+            if (templateOverlay.width == TEMPLATE_STRIP_WIDTH_PX && templateOverlay.height == TEMPLATE_HEIGHT_PX) {
                 canvas.drawBitmap(templateOverlay, 0f, 0f, overlayPaint)
             } else {
-                val dst = RectF(0f, 0f, TEMPLATE_WIDTH_PX.toFloat(), TEMPLATE_HEIGHT_PX.toFloat())
-                canvas.drawBitmap(templateOverlay, null, dst, overlayPaint)
+                // The template overlay is 721x1024, but only the left 360px contains the strip artwork.
+                // Crop only the left half (0..TEMPLATE_STRIP_WIDTH_PX) to eliminate the empty right void.
+                val srcW = minOf(templateOverlay.width, TEMPLATE_STRIP_WIDTH_PX)
+                val srcRect = Rect(0, 0, srcW, minOf(templateOverlay.height, TEMPLATE_HEIGHT_PX))
+                val dstRect = RectF(0f, 0f, TEMPLATE_STRIP_WIDTH_PX.toFloat(), TEMPLATE_HEIGHT_PX.toFloat())
+                canvas.drawBitmap(templateOverlay, srcRect, dstRect, overlayPaint)
             }
         }
 

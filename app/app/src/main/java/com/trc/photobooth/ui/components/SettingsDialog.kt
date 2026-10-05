@@ -100,6 +100,8 @@ fun SettingsDialog(
     androidLens: AndroidLens = AndroidLens.FRONT,
     onSelectAndroidLens: (AndroidLens) -> Unit = {},
     onSavePrinterSettings: (name: String, colorMode: String, copies: Int) -> Unit = { _, _, _ -> },
+    isSoundEnabled: Boolean = true,
+    onToggleSound: () -> Unit = {},
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -624,6 +626,26 @@ fun SettingsDialog(
                             Switch(
                                 checked = cameraConfig.flipHorizontal ?: false,
                                 onCheckedChange = { onToggleFlip() },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = theme.primary,
+                                    checkedTrackColor = theme.primary.copy(alpha = 0.35f)
+                                )
+                            )
+                        }
+
+                        // Sound Effects Toggle (Timer beeps & camera shutter)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Sound Effects", color = theme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text("Play timer beeps and camera shutter sounds", color = theme.onSurfaceVariant, fontSize = 11.sp)
+                            }
+                            Switch(
+                                checked = isSoundEnabled,
+                                onCheckedChange = { onToggleSound() },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = theme.primary,
                                     checkedTrackColor = theme.primary.copy(alpha = 0.35f)

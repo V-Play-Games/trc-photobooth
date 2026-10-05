@@ -65,15 +65,22 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
+import androidx.compose.material.icons.filled.ScreenRotation
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -179,6 +186,20 @@ fun BoothScreen(
     val isComplete = boothState == BoothState.COMPLETE
     val isIdle = boothState == BoothState.IDLE
 
+    var showNewSessionConfirm by remember { mutableStateOf(false) }
+    var showUploadConfirm by remember { mutableStateOf(false) }
+    var previewRotation by remember { mutableStateOf(0f) }
+
+    val displayBitmap = remember(collageBitmap, previewRotation) {
+        collageBitmap?.let { bmp ->
+            if (previewRotation != 0f) {
+                BitmapUtils.rotateBitmap(bmp, previewRotation)
+            } else {
+                bmp
+            }
+        }
+    }
+
     // Trap Android system back button when sequence is running: cannot stop or reverse
     BackHandler(enabled = isCapturing) {
         // Explicitly no-op: unstoppable capture sequence
@@ -260,9 +281,9 @@ fun BoothScreen(
             }
         }
 
-        // Layer 3: Floating Top Island Pill: Only visible when NOT capturing
+        // Layer 3: Floating Top Island Pill: Only visible when IDLE
         AnimatedVisibility(
-            visible = !isCapturing,
+            visible = isIdle,
             enter = fadeIn() + expandVertically(),
             exit = fadeOut() + shrinkVertically(),
             modifier = Modifier
@@ -630,30 +651,64 @@ fun BoothScreen(
             }
 
             isComplete -> {
-                Box(
+                val isUploadLocked = uploadState is BoothUploadState.Uploading || uploadState is BoothUploadState.Success
+
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center,
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top + WindowInsetsSides.Bottom))
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
                 ) {
+                    val isWideScreen = maxWidth >= 600.dp
+
                     Column(
-                        modifier = Modifier
-                            .widthIn(max = 520.dp)
-                            .clip(RoundedCornerShape(22.dp))
-                            .background(theme.surface.copy(alpha = 0.98f))
-                            .border(1.5.dp, theme.outline, RoundedCornerShape(22.dp))
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        // Title bar with status and quick share
+                        // Top Navigation / Header Bar: Separated New Session button on Top-Left!
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            // Top-Left: START NEW SESSION Button (separated from upload)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(theme.surface.copy(alpha = 0.95f))
+                                    .border(1.5.dp, theme.primary, RoundedCornerShape(12.dp))
+                                    .clickable { showNewSessionConfirm = true }
+                                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Replay,
+                                        contentDescription = "New Session",
+                                        tint = theme.primary,
+                                        modifier = Modifier.size(15.dp),
+                                    )
+                                    Text(
+                                        text = "NEW SESSION",
+                                        color = theme.onSurface,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        fontFamily = FontFamily.Monospace,
+                                        letterSpacing = 0.8.sp,
+                                    )
+                                }
+                            }
+
+                            // Center: Brand & Completion Status
                             Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(theme.surface.copy(alpha = 0.9f))
+                                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
@@ -661,420 +716,45 @@ fun BoothScreen(
                                     imageVector = Icons.Default.CheckCircle,
                                     contentDescription = null,
                                     tint = theme.primary,
-                                    modifier = Modifier.size(17.dp),
+                                    modifier = Modifier.size(13.dp),
                                 )
                                 Text(
-                                    text = "4-SHOT STRIP READY! 🎉",
-                                    color = theme.onSurface,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    text = "4-SHOT STRIP READY",
+                                    color = theme.primary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
                                     fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 0.6.sp,
                                 )
-                            }
-
-                            if (collageBitmap != null) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(theme.surfaceVariant)
-                                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            BitmapUtils.shareBitmap(
-                                                context,
-                                                collageBitmap!!,
-                                                "TRC Photo Booth Photo Strip"
-                                            )
-                                        }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Share,
-                                            contentDescription = "Share",
-                                            tint = theme.primary,
-                                            modifier = Modifier.size(12.dp),
-                                        )
-                                        Text(
-                                            text = "SHARE",
-                                            color = theme.primary,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = FontFamily.Monospace,
-                                        )
-                                    }
+                                if (sessionTimestamp != null) {
+                                    Text(
+                                        text = "• $sessionTimestamp",
+                                        color = theme.onSurfaceVariant,
+                                        fontSize = 9.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                    )
                                 }
                             }
-                        }
 
-                        // Template Selector: Take your pick!
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
+                            // Top-Right: Quick Share & Studio Settings
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = theme.primary,
-                                    modifier = Modifier.size(13.dp),
-                                )
-                                Text(
-                                    text = "CHOOSE YOUR FRAME TEMPLATE",
-                                    color = theme.onSurfaceVariant,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace,
-                                    letterSpacing = 0.8.sp,
-                                )
-                            }
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                PhotoBoothTemplate.ALL.forEach { tpl ->
-                                    val isSelected = selectedTemplate == tpl
-                                    val accentColor = Color(tpl.themeColorHex)
+                                if (collageBitmap != null) {
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(10.dp))
-                                            .background(if (isSelected) theme.primaryContainer else theme.surfaceVariant)
-                                            .border(
-                                                width = if (isSelected) 2.dp else 1.dp,
-                                                color = if (isSelected) theme.primary else theme.outlineVariant,
-                                                shape = RoundedCornerShape(10.dp)
-                                            )
-                                            .clickable { viewModel.selectTemplate(tpl) }
-                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(8.dp)
-                                                    .clip(CircleShape)
-                                                    .background(accentColor)
-                                            )
-                                            Column {
-                                                Text(
-                                                    text = tpl.title,
-                                                    color = if (isSelected) theme.onPrimaryContainer else theme.onSurface,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
-                                                )
-                                                Text(
-                                                    text = tpl.subtitle,
-                                                    color = if (isSelected) theme.primary else theme.onSurfaceVariant,
-                                                    fontSize = 8.5.sp,
-                                                    fontFamily = FontFamily.Monospace,
+                                            .background(theme.surfaceVariant)
+                                            .border(1.dp, theme.outlineVariant, RoundedCornerShape(10.dp))
+                                            .clickable {
+                                                BitmapUtils.shareBitmap(
+                                                    context,
+                                                    collageBitmap!!,
+                                                    "TRC Photo Booth Photo Strip"
                                                 )
                                             }
-                                            if (isSelected) {
-                                                Icon(
-                                                    imageVector = Icons.Default.CheckCircle,
-                                                    contentDescription = null,
-                                                    tint = theme.primary,
-                                                    modifier = Modifier.size(13.dp),
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Live Preview of the Photo Strip
-                        if (collageBitmap != null) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(230.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(theme.surfaceVariant)
-                                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(12.dp))
-                                    .padding(6.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Image(
-                                    bitmap = collageBitmap!!.asImageBitmap(),
-                                    contentDescription = "Photo Strip Live Preview",
-                                    modifier = Modifier.fillMaxHeight(),
-                                    contentScale = ContentScale.Fit,
-                                )
-                            }
-                        }
-
-                        // Upload State & Dual QR Codes Section
-                        when (val state = uploadState) {
-                            is BoothUploadState.Idle -> {
-                                // Confirmation area before uploading
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(theme.surfaceVariant)
-                                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(12.dp))
-                                        .padding(10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                ) {
-                                    Text(
-                                        text = "Preview your strip above. When you're happy with your pick, tap below to upload and generate your QR codes!",
-                                        color = theme.onSurfaceVariant,
-                                        fontSize = 10.sp,
-                                        textAlign = TextAlign.Center,
-                                        lineHeight = 14.sp,
-                                    )
-
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(42.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(
-                                                Brush.horizontalGradient(
-                                                    listOf(theme.primary, theme.secondary, theme.tertiary)
-                                                )
-                                            )
-                                            .clickable { viewModel.uploadCollages() },
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(7.dp),
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.CloudUpload,
-                                                contentDescription = null,
-                                                tint = Color.White,
-                                                modifier = Modifier.size(16.dp),
-                                            )
-                                            Text(
-                                                text = "CONFIRM & UPLOAD (GET QR CODES)",
-                                                color = Color.White,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Black,
-                                                fontFamily = FontFamily.Monospace,
-                                                letterSpacing = 0.8.sp,
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            is BoothUploadState.Generating, is BoothUploadState.Uploading -> {
-                                val msg = if (state is BoothUploadState.Generating) state.message else (state as BoothUploadState.Uploading).message
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(theme.surfaceVariant)
-                                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(12.dp))
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(28.dp),
-                                        color = theme.primary,
-                                        strokeWidth = 2.5.dp,
-                                    )
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = msg,
-                                            color = theme.primary,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = FontFamily.Monospace,
-                                        )
-                                        Text(
-                                            text = "Uploading themed and blank template strips...",
-                                            color = theme.onSurfaceVariant,
-                                            fontSize = 9.5.sp,
-                                        )
-                                    }
-                                }
-                            }
-
-                            is BoothUploadState.Success -> {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CloudDone,
-                                            contentDescription = null,
-                                            tint = theme.primary,
-                                            modifier = Modifier.size(15.dp),
-                                        )
-                                        Text(
-                                            text = "SCAN QR CODES TO DOWNLOAD 📱",
-                                            color = theme.primary,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Black,
-                                            fontFamily = FontFamily.Monospace,
-                                            letterSpacing = 0.8.sp,
-                                        )
-                                    }
-
-                                    // Dual QR Cards
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    ) {
-                                        // Card 1: Themed Strip QR Code
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .background(theme.surfaceVariant)
-                                                .border(1.dp, theme.outlineVariant, RoundedCornerShape(14.dp))
-                                                .padding(8.dp),
-                                        ) {
-                                            Column(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.spacedBy(5.dp),
-                                            ) {
-                                                Text(
-                                                    text = "${selectedTemplate.title.uppercase()} STRIP",
-                                                    color = theme.primary,
-                                                    fontSize = 9.5.sp,
-                                                    fontWeight = FontWeight.Black,
-                                                    fontFamily = FontFamily.Monospace,
-                                                    maxLines = 1,
-                                                )
-
-                                                if (qrCodeBitmap != null) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(112.dp)
-                                                            .clip(RoundedCornerShape(8.dp))
-                                                            .background(Color.White)
-                                                            .padding(4.dp),
-                                                        contentAlignment = Alignment.Center,
-                                                    ) {
-                                                        Image(
-                                                            bitmap = qrCodeBitmap!!.asImageBitmap(),
-                                                            contentDescription = "Themed Strip QR Code",
-                                                            modifier = Modifier.fillMaxSize(),
-                                                            contentScale = ContentScale.Fit,
-                                                        )
-                                                    }
-                                                }
-
-                                                Text(
-                                                    text = "Themed Frame",
-                                                    color = theme.onSurfaceVariant,
-                                                    fontSize = 8.5.sp,
-                                                    fontFamily = FontFamily.Monospace,
-                                                )
-                                            }
-                                        }
-
-                                        // Card 2: Blank Template Strip QR Code
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .background(theme.surfaceVariant)
-                                                .border(1.dp, theme.outlineVariant, RoundedCornerShape(14.dp))
-                                                .padding(8.dp),
-                                        ) {
-                                            Column(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.spacedBy(5.dp),
-                                            ) {
-                                                Text(
-                                                    text = "CLASSIC / BLANK",
-                                                    color = theme.secondary,
-                                                    fontSize = 9.5.sp,
-                                                    fontWeight = FontWeight.Black,
-                                                    fontFamily = FontFamily.Monospace,
-                                                    maxLines = 1,
-                                                )
-
-                                                if (blankQrCodeBitmap != null) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(112.dp)
-                                                            .clip(RoundedCornerShape(8.dp))
-                                                            .background(Color.White)
-                                                            .padding(4.dp),
-                                                        contentAlignment = Alignment.Center,
-                                                    ) {
-                                                        Image(
-                                                            bitmap = blankQrCodeBitmap!!.asImageBitmap(),
-                                                            contentDescription = "Blank Template Strip QR Code",
-                                                            modifier = Modifier.fillMaxSize(),
-                                                            contentScale = ContentScale.Fit,
-                                                        )
-                                                    }
-                                                }
-
-                                                Text(
-                                                    text = "Clean Template",
-                                                    color = theme.onSurfaceVariant,
-                                                    fontSize = 8.5.sp,
-                                                    fontFamily = FontFamily.Monospace,
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            is BoothUploadState.Error -> {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(theme.errorContainer)
-                                        .border(1.dp, theme.error, RoundedCornerShape(12.dp))
-                                        .padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Upload failed",
-                                            color = theme.error,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                        )
-                                        Text(
-                                            text = state.error,
-                                            color = theme.onErrorContainer,
-                                            fontSize = 9.sp,
-                                            fontFamily = FontFamily.Monospace,
-                                            maxLines = 2,
-                                        )
-                                    }
-
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(theme.surface)
-                                            .border(1.dp, theme.error, RoundedCornerShape(6.dp))
-                                            .clickable { viewModel.retryUpload() }
-                                            .padding(horizontal = 8.dp, vertical = 5.dp),
+                                            .padding(horizontal = 9.dp, vertical = 5.dp),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Row(
@@ -1082,167 +762,710 @@ fun BoothScreen(
                                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Refresh,
-                                                contentDescription = "Retry",
-                                                tint = theme.error,
-                                                modifier = Modifier.size(12.dp),
+                                                imageVector = Icons.Default.Share,
+                                                contentDescription = "Share",
+                                                tint = theme.primary,
+                                                modifier = Modifier.size(13.dp),
                                             )
                                             Text(
-                                                text = "RETRY",
-                                                color = theme.error,
-                                                fontSize = 9.sp,
+                                                text = "SHARE",
+                                                color = theme.primary,
+                                                fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 fontFamily = FontFamily.Monospace,
                                             )
                                         }
                                     }
                                 }
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(theme.surfaceVariant)
+                                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(10.dp))
+                                        .clickable { viewModel.openSettings() },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = "Studio Settings",
+                                        tint = theme.onSurfaceVariant,
+                                        modifier = Modifier.size(15.dp),
+                                    )
+                                }
                             }
                         }
 
-                        // Print Buttons: Print (Pi) + Print (App) [Hidden for now as requested]
-                        val showPrintButtons = false
-                        if (showPrintButtons && collageBitmap != null) {
-                            val isPrinting = printState is PrintState.Printing
-                            val isSuccess = printState is PrintState.Success
-                            val isError = printState is PrintState.Error
-
+                        // Split Content: Left panel (templates + upload/QR) & Right panel (big landscape preview spanning entire right side)
+                        if (isWideScreen) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                // Print via Pi Button (CUPS)
-                                Box(
+                                // Left Panel: Templates in a large grid + Upload & QR
+                                Column(
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .height(38.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                when {
-                                                    isError -> listOf(theme.error, theme.errorContainer)
-                                                    isSuccess -> listOf(theme.primary, theme.secondary)
-                                                    else -> listOf(theme.primary, theme.secondary)
-                                                }
-                                            )
-                                        )
-                                        .clickable(enabled = !isPrinting) {
-                                            viewModel.printCollage()
-                                        },
-                                    contentAlignment = Alignment.Center,
+                                        .weight(1.05f)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .background(theme.surface.copy(alpha = 0.96f))
+                                        .border(1.5.dp, theme.outline, RoundedCornerShape(18.dp))
+                                        .verticalScroll(rememberScrollState())
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
+                                    // Section Header
                                     Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                                     ) {
-                                        if (isPrinting) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(13.dp),
-                                                strokeWidth = 1.6.dp,
-                                                color = Color.White,
-                                            )
-                                        } else {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        ) {
                                             Icon(
-                                                imageVector = when {
-                                                    isSuccess -> Icons.Default.CheckCircle
-                                                    isError -> Icons.Default.Refresh
-                                                    else -> Icons.Default.Print
-                                                },
+                                                imageVector = Icons.Default.AutoAwesome,
                                                 contentDescription = null,
-                                                tint = Color.White,
+                                                tint = theme.primary,
                                                 modifier = Modifier.size(14.dp),
                                             )
+                                            Text(
+                                                text = "FRAME TEMPLATES",
+                                                color = theme.onSurface,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Black,
+                                                fontFamily = FontFamily.Monospace,
+                                                letterSpacing = 0.8.sp,
+                                            )
                                         }
-                                        Text(
-                                            text = when {
-                                                isPrinting -> "PRINTING..."
-                                                isSuccess -> "PRINTED (PI)"
-                                                isError -> "RETRY (PI)"
-                                                else -> "PRINT (PI)"
-                                            },
-                                            color = Color.White,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Black,
-                                            fontFamily = FontFamily.Monospace,
-                                        )
+
+                                        if (isUploadLocked) {
+                                            Text(
+                                                text = "LOCKED AFTER UPLOAD",
+                                                color = theme.tertiary,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace,
+                                            )
+                                        }
+                                    }
+
+                                    // Large Grid of Templates (2-Column Grid)
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .alpha(if (isUploadLocked) 0.45f else 1f),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        val templateRows = PhotoBoothTemplate.ALL.chunked(2)
+                                        templateRows.forEach { rowTemplates ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            ) {
+                                                rowTemplates.forEach { tpl ->
+                                                    val isSelected = selectedTemplate == tpl
+                                                    val accentColor = Color(tpl.themeColorHex)
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .clip(RoundedCornerShape(12.dp))
+                                                            .background(
+                                                                if (isSelected) theme.primary.copy(alpha = 0.18f)
+                                                                else theme.surfaceVariant.copy(alpha = 0.75f)
+                                                            )
+                                                            .border(
+                                                                width = if (isSelected) 2.dp else 1.dp,
+                                                                color = if (isSelected) theme.primary else theme.outlineVariant,
+                                                                shape = RoundedCornerShape(12.dp)
+                                                            )
+                                                            .clickable(enabled = !isUploadLocked) {
+                                                                viewModel.selectTemplate(tpl)
+                                                            }
+                                                            .padding(horizontal = 10.dp, vertical = 9.dp),
+                                                    ) {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        ) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(12.dp)
+                                                                    .clip(CircleShape)
+                                                                    .background(accentColor)
+                                                                    .border(1.dp, Color.White.copy(alpha = 0.6f), CircleShape)
+                                                            )
+                                                            Column(modifier = Modifier.weight(1f)) {
+                                                                Text(
+                                                                    text = tpl.title,
+                                                                    color = if (isSelected) theme.primary else theme.onSurface,
+                                                                    fontSize = 11.5.sp,
+                                                                    fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                                                                    fontFamily = FontFamily.Monospace,
+                                                                    maxLines = 1,
+                                                                )
+                                                                Text(
+                                                                    text = tpl.subtitle,
+                                                                    color = theme.onSurfaceVariant,
+                                                                    fontSize = 9.sp,
+                                                                    fontFamily = FontFamily.Monospace,
+                                                                    maxLines = 1,
+                                                                )
+                                                            }
+                                                            if (isSelected) {
+                                                                Icon(
+                                                                    imageVector = Icons.Default.CheckCircle,
+                                                                    contentDescription = null,
+                                                                    tint = theme.primary,
+                                                                    modifier = Modifier.size(15.dp),
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                if (rowTemplates.size == 1) {
+                                                    Spacer(modifier = Modifier.weight(1f))
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                    // Upload & Single Large QR Code Area
+                                    when (val state = uploadState) {
+                                        is BoothUploadState.Idle -> {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(14.dp))
+                                                    .background(theme.surfaceVariant.copy(alpha = 0.8f))
+                                                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(14.dp))
+                                                    .padding(12.dp),
+                                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                            ) {
+                                                Text(
+                                                    text = "Preview your strip on the right. When satisfied, tap below to upload and generate your download QR code!",
+                                                    color = theme.onSurfaceVariant,
+                                                    fontSize = 10.5.sp,
+                                                    textAlign = TextAlign.Center,
+                                                    lineHeight = 14.sp,
+                                                )
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(44.dp)
+                                                        .clip(RoundedCornerShape(12.dp))
+                                                        .background(
+                                                            Brush.horizontalGradient(
+                                                                listOf(theme.primary, theme.secondary, theme.tertiary)
+                                                            )
+                                                        )
+                                                        .clickable { showUploadConfirm = true },
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.CloudUpload,
+                                                            contentDescription = null,
+                                                            tint = Color.White,
+                                                            modifier = Modifier.size(17.dp),
+                                                        )
+                                                        Text(
+                                                            text = "CONFIRM & UPLOAD (GET QR CODE)",
+                                                            color = Color.White,
+                                                            fontSize = 11.5.sp,
+                                                            fontWeight = FontWeight.Black,
+                                                            fontFamily = FontFamily.Monospace,
+                                                            letterSpacing = 0.8.sp,
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        is BoothUploadState.Generating, is BoothUploadState.Uploading -> {
+                                            val msg = if (state is BoothUploadState.Generating) state.message else (state as BoothUploadState.Uploading).message
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(14.dp))
+                                                    .background(theme.surfaceVariant)
+                                                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(14.dp))
+                                                    .padding(14.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                            ) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(28.dp),
+                                                    color = theme.primary,
+                                                    strokeWidth = 2.5.dp,
+                                                )
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = msg,
+                                                        color = theme.primary,
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontFamily = FontFamily.Monospace,
+                                                    )
+                                                    Text(
+                                                        text = "Uploading ${selectedTemplate.title} strip & creating QR code...",
+                                                        color = theme.onSurfaceVariant,
+                                                        fontSize = 9.5.sp,
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        is BoothUploadState.Success -> {
+                                            // Single Large QR Code Card
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(16.dp))
+                                                    .background(theme.surfaceVariant)
+                                                    .border(1.5.dp, theme.primary, RoundedCornerShape(16.dp))
+                                                    .padding(14.dp),
+                                                contentAlignment = Alignment.Center,
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.CloudDone,
+                                                            contentDescription = null,
+                                                            tint = theme.primary,
+                                                            modifier = Modifier.size(16.dp),
+                                                        )
+                                                        Text(
+                                                            text = "${selectedTemplate.title.uppercase()} STRIP READY! 📱",
+                                                            color = theme.primary,
+                                                            fontSize = 11.5.sp,
+                                                            fontWeight = FontWeight.Black,
+                                                            fontFamily = FontFamily.Monospace,
+                                                            letterSpacing = 0.8.sp,
+                                                        )
+                                                    }
+
+                                                    if (qrCodeBitmap != null) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(230.dp)
+                                                                .clip(RoundedCornerShape(14.dp))
+                                                                .background(Color.White)
+                                                                .border(2.dp, theme.primary, RoundedCornerShape(14.dp))
+                                                                .padding(10.dp),
+                                                            contentAlignment = Alignment.Center,
+                                                        ) {
+                                                            Image(
+                                                                bitmap = qrCodeBitmap!!.asImageBitmap(),
+                                                                contentDescription = "Themed Strip QR Code",
+                                                                modifier = Modifier.fillMaxSize(),
+                                                                contentScale = ContentScale.Fit,
+                                                            )
+                                                        }
+                                                    }
+
+                                                    Text(
+                                                        text = "Scan with your smartphone to download your photo strip",
+                                                        color = theme.onSurface,
+                                                        fontSize = 10.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        textAlign = TextAlign.Center,
+                                                    )
+
+                                                    if (cloudinaryUrl != null) {
+                                                        Text(
+                                                            text = cloudinaryUrl!!,
+                                                            color = theme.onSurfaceVariant,
+                                                            fontSize = 8.5.sp,
+                                                            fontFamily = FontFamily.Monospace,
+                                                            textAlign = TextAlign.Center,
+                                                            maxLines = 1,
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        is BoothUploadState.Error -> {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(theme.errorContainer)
+                                                    .border(1.dp, theme.error, RoundedCornerShape(12.dp))
+                                                    .padding(10.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = "Upload failed",
+                                                        color = theme.error,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                    )
+                                                    Text(
+                                                        text = state.error,
+                                                        color = theme.onErrorContainer,
+                                                        fontSize = 9.sp,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        maxLines = 2,
+                                                    )
+                                                }
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(theme.surface)
+                                                        .border(1.dp, theme.error, RoundedCornerShape(8.dp))
+                                                        .clickable { viewModel.retryUpload() }
+                                                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Refresh,
+                                                            contentDescription = "Retry",
+                                                            tint = theme.error,
+                                                            modifier = Modifier.size(12.dp),
+                                                        )
+                                                        Text(
+                                                            text = "RETRY",
+                                                            color = theme.error,
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontFamily = FontFamily.Monospace,
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
-                                // Native Android System Print Button (Print via App)
+                                // Right Panel: Big Preview Spanning Entire Right Side with Preview in Landscape
                                 Box(
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .height(38.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                listOf(theme.secondary, theme.tertiary)
-                                            )
-                                        )
-                                        .clickable {
-                                            BitmapUtils.printBitmap(
-                                                context,
-                                                collageBitmap!!,
-                                                "TRC Photo Booth Photo Strip"
-                                            )
-                                        },
-                                    contentAlignment = Alignment.Center,
+                                        .weight(0.95f)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .background(theme.surface.copy(alpha = 0.98f))
+                                        .border(1.5.dp, theme.outline, RoundedCornerShape(18.dp))
+                                        .padding(12.dp),
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    Column(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Print,
-                                            contentDescription = null,
-                                            tint = Color.White,
-                                            modifier = Modifier.size(14.dp),
-                                        )
-                                        Text(
-                                            text = "PRINT (APP)",
-                                            color = Color.White,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Black,
-                                            fontFamily = FontFamily.Monospace,
-                                        )
+                                        // Header of Preview with orientation toggle
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.AutoAwesome,
+                                                    contentDescription = null,
+                                                    tint = theme.primary,
+                                                    modifier = Modifier.size(14.dp),
+                                                )
+                                                Text(
+                                                    text = "LIVE STRIP PREVIEW",
+                                                    color = theme.onSurface,
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    fontFamily = FontFamily.Monospace,
+                                                )
+                                            }
+
+                                            // Orientation Toggle: Landscape (horizontal 90°) vs Portrait (0°)
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(theme.surfaceVariant)
+                                                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(8.dp))
+                                                    .clickable {
+                                                        previewRotation = if (previewRotation == 90f) 0f else 90f
+                                                    }
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                                contentAlignment = Alignment.Center,
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.ScreenRotation,
+                                                        contentDescription = "Toggle Orientation",
+                                                        tint = theme.primary,
+                                                        modifier = Modifier.size(12.dp),
+                                                    )
+                                                    Text(
+                                                        text = if (previewRotation == 90f) "LANDSCAPE" else "PORTRAIT",
+                                                        color = theme.primary,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontFamily = FontFamily.Monospace,
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Big Preview Canvas
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(Color.Black.copy(alpha = 0.35f))
+                                                .border(1.dp, theme.outlineVariant, RoundedCornerShape(14.dp))
+                                                .padding(6.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            if (displayBitmap != null) {
+                                                Image(
+                                                    bitmap = displayBitmap.asImageBitmap(),
+                                                    contentDescription = "Photo Strip Live Preview",
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Fit,
+                                                )
+                                            } else {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(32.dp),
+                                                    color = theme.primary,
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
-
-                        // Big Start New Session Button
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(42.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(
-                                    Brush.horizontalGradient(
-                                        listOf(theme.primary, theme.secondary, theme.tertiary)
-                                    )
-                                )
-                                .clickable(onClick = viewModel::resetSession),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        } else {
+                            // Compact Vertical Layout (fallback for narrow screens)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Replay,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                                Text(
-                                    text = "START NEW SESSION",
-                                    color = Color.White,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 1.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                )
+                                // Big Preview in Landscape on Compact Screen
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(240.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(theme.surface.copy(alpha = 0.98f))
+                                        .border(1.5.dp, theme.outline, RoundedCornerShape(16.dp))
+                                        .padding(8.dp),
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(
+                                                text = "LIVE STRIP PREVIEW",
+                                                color = theme.primary,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Black,
+                                                fontFamily = FontFamily.Monospace,
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(theme.surfaceVariant)
+                                                    .border(1.dp, theme.outlineVariant, RoundedCornerShape(6.dp))
+                                                    .clickable {
+                                                        previewRotation = if (previewRotation == 90f) 0f else 90f
+                                                    }
+                                                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                                                contentAlignment = Alignment.Center,
+                                            ) {
+                                                Text(
+                                                    text = if (previewRotation == 90f) "LANDSCAPE" else "PORTRAIT",
+                                                    color = theme.primary,
+                                                    fontSize = 8.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontFamily = FontFamily.Monospace,
+                                                )
+                                            }
+                                        }
+
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(Color.Black.copy(alpha = 0.35f)),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            if (displayBitmap != null) {
+                                                Image(
+                                                    bitmap = displayBitmap.asImageBitmap(),
+                                                    contentDescription = "Photo Strip Live Preview",
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Fit,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Large Template Grid
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(theme.surface.copy(alpha = 0.98f))
+                                        .border(1.dp, theme.outlineVariant, RoundedCornerShape(16.dp))
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text(
+                                        text = "FRAME TEMPLATES",
+                                        color = theme.onSurface,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        fontFamily = FontFamily.Monospace,
+                                    )
+
+                                    val templateRows = PhotoBoothTemplate.ALL.chunked(2)
+                                    templateRows.forEach { rowTemplates ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            rowTemplates.forEach { tpl ->
+                                                val isSelected = selectedTemplate == tpl
+                                                val accentColor = Color(tpl.themeColorHex)
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .clip(RoundedCornerShape(10.dp))
+                                                        .background(if (isSelected) theme.primary.copy(alpha = 0.18f) else theme.surfaceVariant)
+                                                        .border(
+                                                            width = if (isSelected) 2.dp else 1.dp,
+                                                            color = if (isSelected) theme.primary else theme.outlineVariant,
+                                                            shape = RoundedCornerShape(10.dp)
+                                                        )
+                                                        .clickable(enabled = !isUploadLocked) {
+                                                            viewModel.selectTemplate(tpl)
+                                                        }
+                                                        .padding(horizontal = 8.dp, vertical = 7.dp),
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(10.dp)
+                                                                .clip(CircleShape)
+                                                                .background(accentColor)
+                                                        )
+                                                        Text(
+                                                            text = tpl.title,
+                                                            color = if (isSelected) theme.primary else theme.onSurface,
+                                                            fontSize = 10.5.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontFamily = FontFamily.Monospace,
+                                                            maxLines = 1,
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            if (rowTemplates.size == 1) {
+                                                Spacer(modifier = Modifier.weight(1f))
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Upload Action / Single QR Card
+                                when (val state = uploadState) {
+                                    is BoothUploadState.Idle -> {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(44.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(
+                                                    Brush.horizontalGradient(
+                                                        listOf(theme.primary, theme.secondary, theme.tertiary)
+                                                    )
+                                                )
+                                                .clickable { showUploadConfirm = true },
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(
+                                                text = "CONFIRM & UPLOAD (GET QR CODE)",
+                                                color = Color.White,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Black,
+                                                fontFamily = FontFamily.Monospace,
+                                            )
+                                        }
+                                    }
+                                    is BoothUploadState.Generating, is BoothUploadState.Uploading -> {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                                            color = theme.primary,
+                                        )
+                                    }
+                                    is BoothUploadState.Success -> {
+                                        if (qrCodeBitmap != null) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(200.dp)
+                                                    .align(Alignment.CenterHorizontally)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(Color.White)
+                                                    .padding(8.dp),
+                                                contentAlignment = Alignment.Center,
+                                            ) {
+                                                Image(
+                                                    bitmap = qrCodeBitmap!!.asImageBitmap(),
+                                                    contentDescription = "Themed Strip QR Code",
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Fit,
+                                                )
+                                            }
+                                        }
+                                    }
+                                    is BoothUploadState.Error -> {
+                                        Text(text = state.error, color = theme.error, fontSize = 10.sp)
+                                    }
+                                }
                             }
                         }
                     }
@@ -1283,6 +1506,139 @@ fun BoothScreen(
                     }
                 }
             }
+        }
+
+        // Confirmation Dialog for Start New Session
+        if (showNewSessionConfirm) {
+            AlertDialog(
+                onDismissRequest = { showNewSessionConfirm = false },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Replay,
+                            contentDescription = null,
+                            tint = theme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "START NEW SESSION?",
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 15.sp,
+                        )
+                    }
+                },
+                text = {
+                    Text(
+                        text = "Are you sure you want to reset the photobooth? Any unsaved photos or QR codes from this session will be cleared.",
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showNewSessionConfirm = false
+                            previewRotation = 0f
+                            viewModel.resetSession()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = theme.primary,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(
+                            text = "YES, NEW SESSION",
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showNewSessionConfirm = false }) {
+                        Text(
+                            text = "CANCEL",
+                            color = theme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp
+                        )
+                    }
+                },
+                containerColor = theme.surface,
+                titleContentColor = theme.primary,
+                textContentColor = theme.onSurface,
+            )
+        }
+
+        // Confirmation Dialog for Upload Template
+        if (showUploadConfirm) {
+            AlertDialog(
+                onDismissRequest = { showUploadConfirm = false },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudUpload,
+                            contentDescription = null,
+                            tint = theme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "UPLOAD PHOTO STRIP?",
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 15.sp,
+                        )
+                    }
+                },
+                text = {
+                    Text(
+                        text = "Upload your '${selectedTemplate.title}' strip to Cloudinary to generate your download QR code?",
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showUploadConfirm = false
+                            viewModel.uploadCollages()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = theme.primary,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(
+                            text = "UPLOAD NOW",
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showUploadConfirm = false }) {
+                        Text(
+                            text = "CANCEL",
+                            color = theme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp
+                        )
+                    }
+                },
+                containerColor = theme.surface,
+                titleContentColor = theme.primary,
+                textContentColor = theme.onSurface,
+            )
         }
 
         // Layer 5: Studio & Printer Settings Dialog

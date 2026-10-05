@@ -48,11 +48,25 @@ enum class PhotoBoothTemplate(
         subtitle = "Gotta Catch 'Em All",
         drawableResId = R.drawable.template_pokemon,
         themeColorHex = 0xFFFFCC00,
+    ),
+    CAT_MEME(
+        id = "cat_meme",
+        title = "Cat Meme",
+        subtitle = "Meowwwww",
+        drawableResId = R.drawable.template_cat_meme,
+        themeColorHex = 0xFFFFCC00,
+    ),
+    COMIC(
+        id = "comic",
+        title = "Comic",
+        subtitle = "Turn into a comic strip!",
+        drawableResId = R.drawable.template_comic,
+        themeColorHex = 0xFFFFCC00,
     );
 
     companion object {
         val ALL: List<PhotoBoothTemplate> = entries.toList()
-        val DEFAULT: PhotoBoothTemplate = HARRY_POTTER
+        val DEFAULT: PhotoBoothTemplate = BLANK
 
         fun fromId(id: String?): PhotoBoothTemplate {
             return entries.firstOrNull { it.id.equals(id, ignoreCase = true) } ?: DEFAULT

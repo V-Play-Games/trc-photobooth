@@ -121,6 +121,7 @@ fun MainScreen(
     val cameraSource by viewModel.cameraSource.collectAsStateWithLifecycle()
     val androidLens by viewModel.androidLens.collectAsStateWithLifecycle()
     val isTorchEnabled by viewModel.isTorchEnabled.collectAsStateWithLifecycle()
+    val isSoundEnabled by viewModel.isSoundEnabled.collectAsStateWithLifecycle()
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -597,6 +598,8 @@ fun MainScreen(
             androidLens = androidLens,
             onSelectAndroidLens = viewModel::setAndroidLens,
             onSavePrinterSettings = viewModel::setPrinterSettings,
+            isSoundEnabled = isSoundEnabled,
+            onToggleSound = viewModel::toggleSoundEnabled,
             onClose = viewModel::closeSettings
         )
     }

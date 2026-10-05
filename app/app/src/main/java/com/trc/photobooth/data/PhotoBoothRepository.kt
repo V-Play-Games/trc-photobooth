@@ -16,6 +16,7 @@ import com.trc.photobooth.camera.AndroidLens
 import com.trc.photobooth.camera.CameraSource
 import com.trc.photobooth.camera.LocalCameraManager
 import com.trc.photobooth.util.BitmapUtils
+import com.trc.photobooth.util.SoundHelper
 import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -161,6 +162,23 @@ class PhotoBoothRepository(
         val entry = ActionLog(timestamp = time, message = message, type = type)
         _actionLogs.value = (_actionLogs.value + entry).takeLast(100)
         Log.d(tag, "[$time] [${type.name}] $message")
+    }
+
+    // Sound effects enabled preference
+    private val _isSoundEnabled = MutableStateFlow(
+        prefs.getBoolean("sound_effects_enabled", true)
+    )
+    val isSoundEnabled: StateFlow<Boolean> = _isSoundEnabled.asStateFlow()
+
+    fun setSoundEnabled(enabled: Boolean) {
+        _isSoundEnabled.value = enabled
+        prefs.edit().putBoolean("sound_effects_enabled", enabled).apply()
+        SoundHelper.getInstance(context).isSoundEnabled = enabled
+        logAction("Sound effects ${if (enabled) "enabled" else "disabled"}", LogType.INFO)
+    }
+
+    fun toggleSoundEnabled() {
+        setSoundEnabled(!_isSoundEnabled.value)
     }
 
     fun clearLogs() {

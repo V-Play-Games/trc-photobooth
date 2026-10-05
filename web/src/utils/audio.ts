@@ -33,10 +33,9 @@ export function setSoundEnabled(enabled: boolean): void {
 }
 
 /**
- * Play countdown tick beep (880 Hz, A5).
+ * Synthesizes countdown tick beep (880 Hz, A5).
  */
-export function playCountdownTick(): void {
-  if (!isSoundEnabled()) return
+function playSynthesizedCountdownTick(): void {
   const ctx = getAudioContext()
   if (!ctx) return
 
@@ -59,6 +58,21 @@ export function playCountdownTick(): void {
     osc.stop(now + 0.085)
   } catch {
     // Ignore audio errors
+  }
+}
+
+/**
+ * Play countdown tick beep using audio file with synthetic fallback.
+ */
+export function playCountdownTick(): void {
+  if (!isSoundEnabled()) return
+  try {
+    const audio = new Audio('/sounds/timer_beep.mp3')
+    audio.play().catch(() => {
+      playSynthesizedCountdownTick()
+    })
+  } catch {
+    playSynthesizedCountdownTick()
   }
 }
 
@@ -98,11 +112,9 @@ export function playSmileChime(): void {
 }
 
 /**
- * Play realistic mechanical camera shutter snap sound.
- * Combines high-pass filtered noise burst with two distinct mechanical curtain clicks.
+ * Synthesizes mechanical camera shutter snap sound.
  */
-export function playShutterSound(): void {
-  if (!isSoundEnabled()) return
+function playSynthesizedShutterSound(): void {
   const ctx = getAudioContext()
   if (!ctx) return
 
@@ -166,3 +178,19 @@ export function playShutterSound(): void {
     // Ignore audio errors
   }
 }
+
+/**
+ * Play camera shutter snap sound using audio file with synthetic fallback.
+ */
+export function playShutterSound(): void {
+  if (!isSoundEnabled()) return
+  try {
+    const audio = new Audio('/sounds/camera_shutter.mp3')
+    audio.play().catch(() => {
+      playSynthesizedShutterSound()
+    })
+  } catch {
+    playSynthesizedShutterSound()
+  }
+}
+

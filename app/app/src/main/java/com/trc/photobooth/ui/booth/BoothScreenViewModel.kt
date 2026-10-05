@@ -15,6 +15,7 @@ import com.trc.photobooth.filters.FilterPreset
 import com.trc.photobooth.filters.FilterPresets
 import com.trc.photobooth.util.BitmapUtils
 import com.trc.photobooth.util.HapticHelper
+import com.trc.photobooth.util.SoundHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -60,6 +61,7 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
     val repository = PhotoBoothRepository.getInstance(application)
     val networkDiscovery = NetworkDiscovery(application)
     val hapticHelper = HapticHelper(application)
+    val soundHelper = SoundHelper.getInstance(application)
 
     init {
         repository.connectIfNeeded()
@@ -153,7 +155,7 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
     val capturedPhotos: StateFlow<List<Bitmap?>> = _capturedPhotos.asStateFlow()
 
     // Filter selected by the user (can be RANDOM)
-    private val _selectedFilter = MutableStateFlow(FilterPresets.NONE)
+    private val _selectedFilter = MutableStateFlow(FilterPresets.RANDOM)
     val selectedFilter: StateFlow<FilterPreset> = _selectedFilter.asStateFlow()
 
     // Active concrete filter applied to the live feed for the current quadrant
@@ -229,6 +231,8 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
     // Pass-through connection flows from repository
     val connectionStatus: StateFlow<ConnectionStatus> = repository.status
     val lastFrame: StateFlow<Bitmap?> = repository.lastFrame
+    val isSoundEnabled: StateFlow<Boolean> = repository.isSoundEnabled
+    fun toggleSoundEnabled() = repository.toggleSoundEnabled()
 
     private var captureJob: Job? = null
 
@@ -306,6 +310,7 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
                 for (sec in totalSecs downTo 1) {
                     _currentCountdown.value = sec
                     hapticHelper.tick()
+                    soundHelper.playTimerBeep()
                     delay(1000)
                 }
                 _currentCountdown.value = 0
@@ -319,9 +324,10 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
                     retries++
                 }
 
-                // Flash and shutter haptic
+                // Flash and shutter haptic & sound
                 _flashEvent.emit(Unit)
                 hapticHelper.shutterSnap()
+                soundHelper.playCameraShutter()
 
                 // 4. Bake filter
                 val bakedBitmap = if (frame != null) {
@@ -393,8 +399,10 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
 
     /**
      * Updates the selected template and immediately refreshes the collage preview.
+     * Disabled once upload has started or finished.
      */
     fun selectTemplate(template: PhotoBoothTemplate) {
+        if (_uploadState.value is BoothUploadState.Uploading || _uploadState.value is BoothUploadState.Success) return
         if (_selectedTemplate.value == template) return
         _selectedTemplate.value = template
         hapticHelper.tick()
@@ -408,29 +416,19 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
             val cFile = BitmapUtils.saveCollage(getApplication(), themedCollage, ts, "collage_${template.id}_${ts}.jpg")
             _collageFile.value = cFile
             repository.logAction("Template selected: ${template.title}", com.trc.photobooth.data.LogType.INFO)
-
-            // If user previously uploaded and changes selection, reset upload state so they can re-upload
-            if (_uploadState.value is BoothUploadState.Success) {
-                _uploadState.value = BoothUploadState.Idle
-                _cloudinaryUrl.value = null
-                _blankCloudinaryUrl.value = null
-                _qrCodeBitmap.value = null
-                _blankQrCodeBitmap.value = null
-            }
         }
     }
 
     /**
-     * Uploads both the selected themed photo strip and the blank template strip to Cloudinary,
-     * generating QR codes for both.
+     * Uploads the selected themed photo strip to Cloudinary,
+     * generating a single QR code for downloading.
      */
     fun uploadCollages() {
         val themedCollage = _collageBitmap.value
-        val blankCollage = _blankCollageBitmap.value
         val ts = _sessionTimestamp.value
         val template = _selectedTemplate.value
 
-        if (themedCollage == null || blankCollage == null || ts == null) {
+        if (themedCollage == null || ts == null) {
             viewModelScope.launch {
                 _toastMessage.emit("Preview not ready yet")
             }
@@ -447,9 +445,9 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
                 return@launch
             }
 
-            _uploadState.value = BoothUploadState.Uploading("Uploading photo strips to Cloudinary...")
+            _uploadState.value = BoothUploadState.Uploading("Uploading ${template.title} strip to Cloudinary...")
 
-            // 1. Upload selected themed collage
+            // Upload selected themed collage
             val themedResult = CloudinaryUploader.uploadBitmap(
                 bitmap = themedCollage,
                 fileName = "collage_${template.id}_${ts}.jpg",
@@ -457,36 +455,18 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
                 config = config,
             )
 
-            // 2. Upload blank template collage as well
-            val blankResult = if (template == PhotoBoothTemplate.BLANK && themedResult.isSuccess) {
-                themedResult
-            } else {
-                CloudinaryUploader.uploadBitmap(
-                    bitmap = blankCollage,
-                    fileName = "collage_blank_${ts}.jpg",
-                    folder = "trc-photobooth/sessions/$ts",
-                    config = config,
-                )
-            }
-
-            if (themedResult.isSuccess && blankResult.isSuccess) {
+            if (themedResult.isSuccess) {
                 val themedUrl = themedResult.getOrThrow()
-                val blankUrl = blankResult.getOrThrow()
-
                 _cloudinaryUrl.value = themedUrl
-                _blankCloudinaryUrl.value = blankUrl
 
                 val themedQr = BitmapUtils.generateQrCodeBitmap(themedUrl, 512)
-                val blankQr = BitmapUtils.generateQrCodeBitmap(blankUrl, 512)
-
                 _qrCodeBitmap.value = themedQr
-                _blankQrCodeBitmap.value = blankQr
 
-                _uploadState.value = BoothUploadState.Success(url = themedUrl, blankUrl = blankUrl)
+                _uploadState.value = BoothUploadState.Success(url = themedUrl, blankUrl = themedUrl)
                 hapticHelper.captureComplete()
-                _toastMessage.emit("Photo strips uploaded! Scan QR Codes 📱")
+                _toastMessage.emit("Photo strip uploaded! Scan QR Code 📱")
             } else {
-                val error = themedResult.exceptionOrNull() ?: blankResult.exceptionOrNull()
+                val error = themedResult.exceptionOrNull()
                 val msg = error?.message ?: "Upload failed"
                 _uploadState.value = BoothUploadState.Error(msg)
                 _toastMessage.emit("Cloudinary upload failed: $msg")
@@ -558,6 +538,7 @@ class BoothScreenViewModel(application: Application) : AndroidViewModel(applicat
         _uploadState.value = BoothUploadState.Idle
         _printState.value = PrintState.Idle
         _selectedTemplate.value = PhotoBoothTemplate.DEFAULT
+        _selectedFilter.value = FilterPresets.RANDOM
         _timerSeconds.value = 3
         _boothState.value = BoothState.IDLE
 

@@ -19,6 +19,7 @@ import com.trc.photobooth.filters.FilterPresets
 import com.trc.photobooth.util.HapticHelper
 import com.trc.photobooth.util.NetworkDiscovery
 import com.trc.photobooth.util.NotificationHelper
+import com.trc.photobooth.util.SoundHelper
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -32,6 +33,7 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
     val repository = PhotoBoothRepository.getInstance(application)
     val networkDiscovery = NetworkDiscovery(application)
     val hapticHelper = HapticHelper(application)
+    val soundHelper = SoundHelper.getInstance(application)
     val notificationHelper = NotificationHelper(application)
 
     // UI Configuration & Tool States
@@ -111,13 +113,14 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
             }
         }
 
-        // Handle countdown ticks with subtle haptics
+        // Handle countdown ticks with subtle haptics and audio beeps
         viewModelScope.launch {
             var lastSeconds: Int? = null
             repository.countdown.collect { state ->
                 if (state != null && state.secondsLeft != lastSeconds) {
                     lastSeconds = state.secondsLeft
                     hapticHelper.tick()
+                    soundHelper.playTimerBeep()
                 } else if (state == null) {
                     lastSeconds = null
                 }
@@ -128,6 +131,7 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             repository.flashEvent.collect {
                 hapticHelper.shutterSnap()
+                soundHelper.playCameraShutter()
             }
         }
 
@@ -226,6 +230,10 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
     fun setCameraDevice(device: String) = repository.setCameraDevice(device)
     fun refreshDevices() = repository.requestDevices()
     fun startNsdSearch() = networkDiscovery.startDiscovery()
+    val isSoundEnabled: StateFlow<Boolean> = repository.isSoundEnabled
+    fun toggleSoundEnabled() = repository.toggleSoundEnabled()
+    fun setSoundEnabled(enabled: Boolean) = repository.setSoundEnabled(enabled)
+
     fun setPrinterSettings(name: String, colorMode: String, copies: Int) {
         repository.setPrinterSettings(name, colorMode, copies)
     }
